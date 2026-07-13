@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import CarAutocomplete from "../../components/CarAutocomplete";
 
 const CONDITIONS = ["ใหม่", "มือสอง-ดี", "มือสอง-ซ่อม"];
 const SOURCE_TYPES = ["รถชน", "ประกัน total loss", "น้ำท่วม"];
@@ -15,11 +16,13 @@ export default function AddPartPage() {
     part_name: "",
     car_brand: "",
     car_model: "",
+    car_year: "",
     condition: CONDITIONS[0],
     zone_code: "",
     source_type: SOURCE_TYPES[0],
     price: "",
   });
+  const [yearHint, setYearHint] = useState(null); // { year_start, year_end }
   const [photoFile, setPhotoFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -69,6 +72,7 @@ export default function AddPartPage() {
         part_name: form.part_name,
         car_brand: form.car_brand || null,
         car_model: form.car_model || null,
+        car_year: form.car_year ? Number(form.car_year) : null,
         condition: form.condition,
         zone_code: form.zone_code || null,
         source_type: form.source_type,
@@ -84,11 +88,13 @@ export default function AddPartPage() {
         part_name: "",
         car_brand: "",
         car_model: "",
+        car_year: "",
         condition: CONDITIONS[0],
         zone_code: "",
         source_type: SOURCE_TYPES[0],
         price: "",
       });
+      setYearHint(null);
       setPhotoFile(null);
       setPreview(null);
 
@@ -146,6 +152,22 @@ export default function AddPartPage() {
         </label>
 
         <label>
+          🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
+          <CarAutocomplete
+            onSelect={(item) => {
+              setForm((f) => ({
+                ...f,
+                car_brand: item.brand,
+                car_model: item.model,
+                car_year:
+                  f.car_year || (item.year_start !== "" ? item.year_start : ""),
+              }));
+              setYearHint({ start: item.year_start, end: item.year_end });
+            }}
+          />
+        </label>
+
+        <label>
           ยี่ห้อรถ
           <input
             type="text"
@@ -165,6 +187,22 @@ export default function AddPartPage() {
             onChange={handleChange}
             placeholder="เช่น March"
           />
+        </label>
+
+        <label>
+          ปีรถ
+          <input
+            type="number"
+            name="car_year"
+            value={form.car_year}
+            onChange={handleChange}
+            placeholder="เช่น 2015"
+          />
+          {yearHint && (
+            <span style={{ fontSize: 12, color: "#6b7280" }}>
+              รุ่นนี้ผลิตช่วง {yearHint.start}–{yearHint.end}
+            </span>
+          )}
         </label>
 
         <label>

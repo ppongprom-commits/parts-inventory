@@ -89,7 +89,12 @@ export default function HomePage() {
       )}
 
       {filtered.map((p) => (
-        <div className="card" key={p.id}>
+        <Link
+          href={`/edit/${p.id}`}
+          className="card"
+          key={p.id}
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
           {p.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={p.photo_url} alt={p.part_name} />
@@ -99,7 +104,7 @@ export default function HomePage() {
           <div className="card-body">
             <div className="card-title">{p.part_name}</div>
             <div className="card-sub">
-              {p.car_brand} {p.car_model}
+              {p.car_brand} {p.car_model} {p.car_year ? `(${p.car_year})` : ""}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {p.zone_code && <span className="tag zone">📍 {p.zone_code}</span>}
@@ -113,7 +118,7 @@ export default function HomePage() {
               </div>
             )}
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );

@@ -1,8 +1,9 @@
 # ระบบสต็อกอะไหล่รถ (MVP)
 
-หน้าที่มี 2 หน้า:
-- `/` — ดูรายการ + ค้นหา/filter (ยี่ห้อ, ชื่ออะไหล่, โซน)
+หน้าที่มี 3 หน้า:
+- `/` — ดูรายการ + ค้นหา/filter (ยี่ห้อ, ชื่ออะไหล่, โซน) — คลิกการ์ดเพื่อแก้ไข
 - `/add` — เพิ่มอะไหล่ใหม่ (ถ่ายรูป + กรอกข้อมูล)
+- `/edit/[id]` — แก้ไขข้อมูล / เปลี่ยนรูป / ลบอะไหล่
 
 ---
 
@@ -32,6 +33,19 @@ create policy "Allow public read" on parts
 
 create policy "Allow public insert" on parts
   for insert with check (true);
+
+-- เพิ่มสำหรับฟีเจอร์แก้ไข/ลบ
+create policy "Allow public update" on parts
+  for update using (true) with check (true);
+
+create policy "Allow public delete" on parts
+  for delete using (true);
+```
+
+### 3. เพิ่มคอลัมน์ `car_year` (สำหรับฟีเจอร์ autocomplete ยี่ห้อ/รุ่น/ปี)
+ถ้า table `parts` สร้างไว้ก่อนหน้านี้แล้ว ต้องรัน SQL นี้เพิ่ม (ถ้าเพิ่งสร้าง table ใหม่ ข้ามได้เพราะ query ด้านบนควรเพิ่ม column นี้เข้าไปด้วยแล้ว):
+```sql
+alter table parts add column if not exists car_year integer;
 ```
 
 ### 2. Storage bucket `part-photos`
@@ -80,14 +94,24 @@ parts-inventory/
 │   ├── layout.js       ← layout หลัก
 │   ├── globals.css     ← สไตล์
 │   ├── page.js         ← หน้าแรก (list + search)
-│   └── add/
-│       └── page.js     ← หน้าเพิ่มอะไหล่
+│   ├── add/
+│   │   └── page.js     ← หน้าเพิ่มอะไหล่
+│   └── edit/
+│       └── [id]/
+│           └── page.js ← หน้าแก้ไข/ลบอะไหล่
+├── components/
+│   └── CarAutocomplete.js  ← ช่องค้นหายี่ห้อ/รุ่น/ปี (autocomplete)
 ├── lib/
-│   └── supabaseClient.js
+│   ├── supabaseClient.js
+│   └── carModels.json      ← ฐานข้อมูลรถ 249 รุ่น 37 ยี่ห้อ (30 ปีในไทย)
 ├── package.json
 ├── next.config.mjs
 └── .env.local.example
 ```
+
+## ฟีเจอร์ Autocomplete ยี่ห้อ/รุ่น/ปี
+พิมพ์ 2 ตัวอักษรขึ้นไปในช่อง "🔍 ค้นหารถ" — ระบบค้นหาจากทั้งชื่อยี่ห้อและรุ่นพร้อมกัน (เช่น พิมพ์ "camry" หรือ "โต" ก็เจอ) เลือกแล้วจะเติมช่องยี่ห้อ/รุ่น/ปี (ปีเริ่มผลิต) ให้อัตโนมัติ — ยังแก้เองในช่องด้านล่างได้ถ้าไม่ตรง หรือไม่มีในฐานข้อมูล
+
 
 ## ทดสอบว่าใช้ได้จริง
 1. เปิด `/add` → ถ่ายรูป (หรือเลือกไฟล์) + กรอกชื่ออะไหล่ → กด "บันทึกอะไหล่"

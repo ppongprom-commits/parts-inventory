@@ -122,6 +122,12 @@ button[type="submit"]:disabled {
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.card:hover {
+  border-color: #2563eb;
 }
 
 .card img {

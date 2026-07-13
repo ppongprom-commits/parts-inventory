@@ -1,0 +1,1745 @@
+[
+  {
+    "brand": "Toyota",
+    "model": "Corolla (AE100/AE111)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2001"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Corolla Altis",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2001",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Corona / Toyopet Tiara",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "1999"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Soluna",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2003"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Soluna Vios",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2002",
+    "year_end": "2003"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Vios",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2003",
+    "year_end": "2022"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Yaris Ativ",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2017",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Yaris (Vitz-based)",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2006",
+    "year_end": "2013"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Yaris (XP150)",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2013",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Yaris Cross",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Camry",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1993",
+    "year_end": "1999"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Camry",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1999",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Corolla Cross",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "C-HR",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2018",
+    "year_end": "2023"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Wish",
+    "vehicle_type": "MPV",
+    "year_start": "2003",
+    "year_end": "2009"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Avanza",
+    "vehicle_type": "MPV",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Veloz",
+    "vehicle_type": "MPV",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Innova (AN40)",
+    "vehicle_type": "MPV",
+    "year_start": "2005",
+    "year_end": "2015"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Innova Crysta (AN140)",
+    "vehicle_type": "MPV",
+    "year_start": "2016",
+    "year_end": "2022"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Innova Zenix (AG10)",
+    "vehicle_type": "MPV",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Sienta",
+    "vehicle_type": "MPV",
+    "year_start": "2016",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Alphard",
+    "vehicle_type": "แวน/MPV หรู",
+    "year_start": "2009",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Vellfire",
+    "vehicle_type": "แวน/MPV หรู",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Majesty",
+    "vehicle_type": "แวนหรู",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Ventury",
+    "vehicle_type": "แวน",
+    "year_start": "2005",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Commuter / HiAce",
+    "vehicle_type": "แวนเชิงพาณิชย์",
+    "year_start": "1992",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Hilux Tiger",
+    "vehicle_type": "กระบะ",
+    "year_start": "1998",
+    "year_end": "2004"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Hilux Vigo",
+    "vehicle_type": "กระบะ",
+    "year_start": "2004",
+    "year_end": "2015"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Hilux Revo",
+    "vehicle_type": "กระบะ",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Hilux Champ",
+    "vehicle_type": "กระบะ",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Hilux Sport Rider",
+    "vehicle_type": "PPV",
+    "year_start": "1998",
+    "year_end": "2004"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Fortuner",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2005",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Land Cruiser",
+    "vehicle_type": "SUV",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Land Cruiser Prado",
+    "vehicle_type": "SUV",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Land Cruiser FJ",
+    "vehicle_type": "SUV",
+    "year_start": "2026",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "RAV4",
+    "vehicle_type": "SUV",
+    "year_start": "1996",
+    "year_end": "1999"
+  },
+  {
+    "brand": "Toyota",
+    "model": "RAV4",
+    "vehicle_type": "SUV",
+    "year_start": "2013",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Prius",
+    "vehicle_type": "ไฮบริด",
+    "year_start": "2010",
+    "year_end": "2015"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Prius C / Aqua",
+    "vehicle_type": "ไฮบริด",
+    "year_start": "2012",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Toyota",
+    "model": "86",
+    "vehicle_type": "สปอร์ต",
+    "year_start": "2012",
+    "year_end": "2017"
+  },
+  {
+    "brand": "Toyota",
+    "model": "GR86",
+    "vehicle_type": "สปอร์ต",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "GR Supra",
+    "vehicle_type": "สปอร์ต",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "GR Yaris",
+    "vehicle_type": "สปอร์ต/แฮทช์แบ็ก",
+    "year_start": "2021",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "GR Corolla",
+    "vehicle_type": "สปอร์ต",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "bZ4X",
+    "vehicle_type": "EV",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Celica",
+    "vehicle_type": "สปอร์ต/คูเป้",
+    "year_start": "1996",
+    "year_end": "ต้นยุค 2000"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Cressida",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ต้นยุค 2000"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Paseo",
+    "vehicle_type": "คูเป้",
+    "year_start": "1996",
+    "year_end": "ต้นยุค 2000"
+  },
+  {
+    "brand": "Toyota",
+    "model": "Previa",
+    "vehicle_type": "MPV",
+    "year_start": "1996",
+    "year_end": "ต้นยุค 2000"
+  },
+  {
+    "brand": "Honda",
+    "model": "Civic (EG/EK)",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก",
+    "year_start": "1996",
+    "year_end": "2000"
+  },
+  {
+    "brand": "Honda",
+    "model": "Civic (ES/Dimension)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2000",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Honda",
+    "model": "Civic (FD)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2005",
+    "year_end": "2011"
+  },
+  {
+    "brand": "Honda",
+    "model": "Civic (FB)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2012",
+    "year_end": "2016"
+  },
+  {
+    "brand": "Honda",
+    "model": "Civic (FC)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2016",
+    "year_end": "2021"
+  },
+  {
+    "brand": "Honda",
+    "model": "Civic (FE, gen 11)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2021",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "Accord",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "City (GA3)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2002"
+  },
+  {
+    "brand": "Honda",
+    "model": "City (T/Vios-rival)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2002",
+    "year_end": "2008"
+  },
+  {
+    "brand": "Honda",
+    "model": "City (GM2)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2008",
+    "year_end": "2014"
+  },
+  {
+    "brand": "Honda",
+    "model": "City (GM6)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2014",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Honda",
+    "model": "City (DA/DB, gen 6-7)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "Jazz",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2003",
+    "year_end": "2021"
+  },
+  {
+    "brand": "Honda",
+    "model": "Brio",
+    "vehicle_type": "แฮทช์แบ็ก อีโคคาร์",
+    "year_start": "2011",
+    "year_end": "2016"
+  },
+  {
+    "brand": "Honda",
+    "model": "Brio Amaze",
+    "vehicle_type": "เก๋ง อีโคคาร์",
+    "year_start": "2013",
+    "year_end": "2016"
+  },
+  {
+    "brand": "Honda",
+    "model": "HR-V (Gen1)",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "1999",
+    "year_end": "2003"
+  },
+  {
+    "brand": "Honda",
+    "model": "HR-V (Vezel-based)",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "BR-V",
+    "vehicle_type": "ครอสโอเวอร์/MPV 7 ที่นั่ง",
+    "year_start": "2016",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "CR-V",
+    "vehicle_type": "SUV",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "Freed",
+    "vehicle_type": "MPV",
+    "year_start": "2009",
+    "year_end": "2016"
+  },
+  {
+    "brand": "Honda",
+    "model": "Mobilio",
+    "vehicle_type": "MPV",
+    "year_start": "2014",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Honda",
+    "model": "Stream",
+    "vehicle_type": "MPV",
+    "year_start": "2001",
+    "year_end": "2006"
+  },
+  {
+    "brand": "Honda",
+    "model": "e:N1",
+    "vehicle_type": "EV",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Honda",
+    "model": "Integra",
+    "vehicle_type": "สปอร์ต/คูเป้",
+    "year_start": "1996",
+    "year_end": "ต้นยุค 2000"
+  },
+  {
+    "brand": "Honda",
+    "model": "S2000",
+    "vehicle_type": "สปอร์ต โรดสเตอร์",
+    "year_start": "1999",
+    "year_end": "2009"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "Faster",
+    "vehicle_type": "กระบะ",
+    "year_start": "1996",
+    "year_end": "2002"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "D-Max (Gen 1)",
+    "vehicle_type": "กระบะ",
+    "year_start": "2002",
+    "year_end": "2011"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "D-Max (Gen 2)",
+    "vehicle_type": "กระบะ",
+    "year_start": "2011",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "D-Max (Gen 3)",
+    "vehicle_type": "กระบะ",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "D-Max EV / Spark BEV",
+    "vehicle_type": "กระบะไฟฟ้า",
+    "year_start": "2025",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "MU-7",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2004",
+    "year_end": "2013"
+  },
+  {
+    "brand": "Isuzu",
+    "model": "MU-X",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2013",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Lancer (GLXi/Champ/Cedia/EX)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2014"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Galant",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Strada",
+    "vehicle_type": "กระบะ",
+    "year_start": "1996",
+    "year_end": "1998"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Strada G-Wagon",
+    "vehicle_type": "กระบะ",
+    "year_start": "1998",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Triton",
+    "vehicle_type": "กระบะ",
+    "year_start": "2005",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Pajero",
+    "vehicle_type": "SUV",
+    "year_start": "1996",
+    "year_end": "2006"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Pajero Sport",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2008",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Space Wagon",
+    "vehicle_type": "MPV",
+    "year_start": "2003",
+    "year_end": "2011"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Mirage",
+    "vehicle_type": "แฮทช์แบ็ก อีโคคาร์",
+    "year_start": "2012",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Attrage",
+    "vehicle_type": "เก๋ง อีโคคาร์",
+    "year_start": "2013",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Xpander",
+    "vehicle_type": "MPV",
+    "year_start": "2018",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Xforce",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2025",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Outlander",
+    "vehicle_type": "SUV",
+    "year_start": "2003",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Mitsubishi",
+    "model": "Outlander PHEV",
+    "vehicle_type": "SUV ปลั๊กอินไฮบริด",
+    "year_start": "2020",
+    "year_end": "2024"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Sunny",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2000"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Almera (N15/N16)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2000",
+    "year_end": "2003"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Sunny Neo",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2003",
+    "year_end": "2006"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Tiida",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2006",
+    "year_end": "2013"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Tiida Latio",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2007",
+    "year_end": "2013"
+  },
+  {
+    "brand": "Nissan",
+    "model": "March",
+    "vehicle_type": "แฮทช์แบ็ก อีโคคาร์",
+    "year_start": "2010",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Almera (N17) อีโคคาร์",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2011",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Almera (N18 เทอร์โบ)",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Note (e-POWER)",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2021",
+    "year_end": "2024"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Sylphy",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Pulsar",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Teana",
+    "vehicle_type": "เก๋ง D-segment",
+    "year_start": "2004",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Nissan",
+    "model": "X-Trail",
+    "vehicle_type": "SUV",
+    "year_start": "2002",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Juke",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2011",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Kicks (e-POWER)",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Terra",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2018",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Navara (BigM/D22/D40/NP300/D23)",
+    "vehicle_type": "กระบะ",
+    "year_start": "1997",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "NV",
+    "vehicle_type": "กระบะเล็ก",
+    "year_start": "1997",
+    "year_end": "2010"
+  },
+  {
+    "brand": "Nissan",
+    "model": "NV1200",
+    "vehicle_type": "กระบะเล็ก",
+    "year_start": "2010",
+    "year_end": "2015"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Serena",
+    "vehicle_type": "MPV",
+    "year_start": "2013",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Urvan",
+    "vehicle_type": "แวนเชิงพาณิชย์",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "Leaf",
+    "vehicle_type": "EV",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Nissan",
+    "model": "GT-R",
+    "vehicle_type": "สปอร์ต",
+    "year_start": "2010",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "323",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "1998"
+  },
+  {
+    "brand": "Mazda",
+    "model": "Protégé",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1998",
+    "year_end": "2002"
+  },
+  {
+    "brand": "Mazda",
+    "model": "B-Series",
+    "vehicle_type": "กระบะ",
+    "year_start": "1998",
+    "year_end": "2006"
+  },
+  {
+    "brand": "Mazda",
+    "model": "BT-50",
+    "vehicle_type": "กระบะ",
+    "year_start": "2006",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "Mazda2 (เก๋ง/แฮทช์แบ็ก)",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก อีโคคาร์",
+    "year_start": "2009",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "Mazda3",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก",
+    "year_start": "2004",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "626",
+    "vehicle_type": "เก๋ง D-segment",
+    "year_start": "1996",
+    "year_end": "2002"
+  },
+  {
+    "brand": "Mazda",
+    "model": "Mazda6",
+    "vehicle_type": "เก๋ง D-segment",
+    "year_start": "2002",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "CX-3",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "CX-30",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "CX-5",
+    "vehicle_type": "SUV",
+    "year_start": "2012",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "CX-8",
+    "vehicle_type": "SUV 7 ที่นั่ง",
+    "year_start": "2018",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mazda",
+    "model": "CX-9",
+    "vehicle_type": "SUV",
+    "year_start": "2016",
+    "year_end": "2023"
+  },
+  {
+    "brand": "Mazda",
+    "model": "MX-5",
+    "vehicle_type": "โรดสเตอร์",
+    "year_start": "2016",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Ford",
+    "model": "Laser",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2002"
+  },
+  {
+    "brand": "Ford",
+    "model": "Ranger",
+    "vehicle_type": "กระบะ",
+    "year_start": "1999",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Ford",
+    "model": "Everest",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2003",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Ford",
+    "model": "Fiesta",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก",
+    "year_start": "2010",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Ford",
+    "model": "Focus",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก",
+    "year_start": "2005",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Ford",
+    "model": "EcoSport",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2014",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Ford",
+    "model": "Escape",
+    "vehicle_type": "SUV",
+    "year_start": "2001",
+    "year_end": "2012"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Optra",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2003",
+    "year_end": "2011"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Aveo",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก",
+    "year_start": "2003",
+    "year_end": "2011"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Cruze",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2010",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Sonic",
+    "vehicle_type": "เก๋ง/แฮทช์แบ็ก",
+    "year_start": "2012",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Colorado",
+    "vehicle_type": "กระบะ",
+    "year_start": "2004",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Trailblazer",
+    "vehicle_type": "SUV/PPV",
+    "year_start": "2012",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Chevrolet",
+    "model": "Captiva",
+    "vehicle_type": "SUV",
+    "year_start": "2007",
+    "year_end": "2018"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Swift",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2012",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Ciaz",
+    "vehicle_type": "เก๋ง อีโคคาร์",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Celerio",
+    "vehicle_type": "แฮทช์แบ็ก อีโคคาร์",
+    "year_start": "2015",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Ertiga",
+    "vehicle_type": "MPV",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "XL7",
+    "vehicle_type": "ครอสโอเวอร์ MPV",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Carry",
+    "vehicle_type": "กระบะ/แวนเชิงพาณิชย์",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Vitara",
+    "vehicle_type": "SUV เล็ก",
+    "year_start": "1996",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Suzuki",
+    "model": "Caribian",
+    "vehicle_type": "SUV เล็ก",
+    "year_start": "1996",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Daihatsu",
+    "model": "Charade",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "1996",
+    "year_end": "1998"
+  },
+  {
+    "brand": "Daihatsu",
+    "model": "Mira",
+    "vehicle_type": "รถเล็ก",
+    "year_start": "1996",
+    "year_end": "1998"
+  },
+  {
+    "brand": "MG",
+    "model": "MG6",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2014",
+    "year_end": "2018"
+  },
+  {
+    "brand": "MG",
+    "model": "MG3",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "MG5",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "ZS",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2017",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "ZS EV",
+    "vehicle_type": "ครอสโอเวอร์ไฟฟ้า",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "HS",
+    "vehicle_type": "SUV",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "VS HEV",
+    "vehicle_type": "SUV ไฮบริด",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "Extender",
+    "vehicle_type": "กระบะ",
+    "year_start": "2019",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "EP",
+    "vehicle_type": "แวนไฟฟ้า",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "4 Electric",
+    "vehicle_type": "แฮทช์แบ็กไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "Cyberster",
+    "vehicle_type": "โรดสเตอร์ไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "Maxus 7",
+    "vehicle_type": "แวนไฟฟ้า 7 ที่นั่ง",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "Maxus 9",
+    "vehicle_type": "แวนไฟฟ้าหรู",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MG",
+    "model": "ES",
+    "vehicle_type": "เก๋ง EV",
+    "year_start": "2025",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "IM (ในเครือ SAIC)",
+    "model": "IM5",
+    "vehicle_type": "เก๋ง EV หรู",
+    "year_start": "2025",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "IM (ในเครือ SAIC)",
+    "model": "IM6",
+    "vehicle_type": "SUV EV หรู",
+    "year_start": "2025",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "H-1",
+    "vehicle_type": "แวน",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Accent",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2015"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Elantra",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Tucson",
+    "vehicle_type": "SUV",
+    "year_start": "2005",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Staria",
+    "vehicle_type": "แวน",
+    "year_start": "2021",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Creta",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Ioniq 5",
+    "vehicle_type": "SUV ไฟฟ้า",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Hyundai",
+    "model": "Ioniq 6",
+    "vehicle_type": "เก๋งไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Kia",
+    "model": "Sportage",
+    "vehicle_type": "SUV",
+    "year_start": "2005",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Kia",
+    "model": "Carnival",
+    "vehicle_type": "MPV",
+    "year_start": "2006",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Kia",
+    "model": "Grand Carnival",
+    "vehicle_type": "MPV",
+    "year_start": "2015",
+    "year_end": "2020"
+  },
+  {
+    "brand": "Kia",
+    "model": "Seltos",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Kia",
+    "model": "EV6",
+    "vehicle_type": "เก๋งไฟฟ้า",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Kia",
+    "model": "EV9",
+    "vehicle_type": "SUV ไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Kia",
+    "model": "Bongo",
+    "vehicle_type": "กระบะเชิงพาณิชย์",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BMW",
+    "model": "3-Series",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BMW",
+    "model": "5-Series",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BMW",
+    "model": "X1",
+    "vehicle_type": "SUV",
+    "year_start": "2010",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BMW",
+    "model": "X3",
+    "vehicle_type": "SUV",
+    "year_start": "2004",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BMW",
+    "model": "X5",
+    "vehicle_type": "SUV",
+    "year_start": "2000",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MINI",
+    "model": "Cooper",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "2005",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "MINI",
+    "model": "Countryman",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2011",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "C-Class",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "E-Class",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "S-Class",
+    "vehicle_type": "เก๋ง หรู",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "GLC",
+    "vehicle_type": "SUV",
+    "year_start": "2016",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "GLA",
+    "vehicle_type": "SUV",
+    "year_start": "2015",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Mercedes-Benz",
+    "model": "GLE",
+    "vehicle_type": "SUV",
+    "year_start": "2008",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volvo",
+    "model": "S60",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1998",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volvo",
+    "model": "S90",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2016",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volvo",
+    "model": "XC60",
+    "vehicle_type": "SUV",
+    "year_start": "2010",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volvo",
+    "model": "XC90",
+    "vehicle_type": "SUV",
+    "year_start": "2003",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Audi",
+    "model": "A4",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Audi",
+    "model": "A6",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Audi",
+    "model": "Q5",
+    "vehicle_type": "SUV",
+    "year_start": "2009",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volkswagen",
+    "model": "Golf",
+    "vehicle_type": "แฮทช์แบ็ก",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volkswagen",
+    "model": "Tiguan",
+    "vehicle_type": "SUV",
+    "year_start": "2008",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Volkswagen",
+    "model": "Passat",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Peugeot",
+    "model": "406",
+    "vehicle_type": "เก๋ง",
+    "year_start": "1996",
+    "year_end": "2004"
+  },
+  {
+    "brand": "Peugeot",
+    "model": "3008",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2010",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Peugeot",
+    "model": "5008",
+    "vehicle_type": "SUV 7 ที่นั่ง",
+    "year_start": "2010",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Proton",
+    "model": "Saga",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Proton",
+    "model": "Persona",
+    "vehicle_type": "เก๋ง",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Proton",
+    "model": "X50",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Proton",
+    "model": "X70",
+    "vehicle_type": "SUV",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "SsangYong",
+    "model": "Musso",
+    "vehicle_type": "กระบะ/SUV",
+    "year_start": "1996",
+    "year_end": "2010"
+  },
+  {
+    "brand": "SsangYong",
+    "model": "Korando",
+    "vehicle_type": "SUV",
+    "year_start": "1996",
+    "year_end": "2010"
+  },
+  {
+    "brand": "Tata",
+    "model": "Xenon",
+    "vehicle_type": "กระบะ",
+    "year_start": "2008",
+    "year_end": "2019"
+  },
+  {
+    "brand": "Lexus",
+    "model": "ES",
+    "vehicle_type": "เก๋ง หรู",
+    "year_start": "2013",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Lexus",
+    "model": "RX",
+    "vehicle_type": "SUV หรู",
+    "year_start": "2013",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Lexus",
+    "model": "NX",
+    "vehicle_type": "SUV หรู",
+    "year_start": "2014",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Porsche",
+    "model": "911",
+    "vehicle_type": "สปอร์ต",
+    "year_start": "1996",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Porsche",
+    "model": "Cayenne",
+    "vehicle_type": "SUV หรู",
+    "year_start": "2003",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Porsche",
+    "model": "Macan",
+    "vehicle_type": "SUV หรู",
+    "year_start": "2014",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Porsche",
+    "model": "Taycan",
+    "vehicle_type": "EV หรู",
+    "year_start": "2020",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Thai Rung",
+    "model": "Allroader",
+    "vehicle_type": "SUV ดัดแปลง",
+    "year_start": "1996",
+    "year_end": "2005"
+  },
+  {
+    "brand": "Thai Rung",
+    "model": "Adventure",
+    "vehicle_type": "SUV ดัดแปลง",
+    "year_start": "1998",
+    "year_end": "2010"
+  },
+  {
+    "brand": "BYD",
+    "model": "Atto 3",
+    "vehicle_type": "ครอสโอเวอร์ไฟฟ้า",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BYD",
+    "model": "Dolphin",
+    "vehicle_type": "แฮทช์แบ็กไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BYD",
+    "model": "Seal",
+    "vehicle_type": "เก๋งไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BYD",
+    "model": "Sealion 6",
+    "vehicle_type": "ครอสโอเวอร์ไฮบริด/ไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "BYD",
+    "model": "Sealion 7",
+    "vehicle_type": "SUV ไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Haval",
+    "model": "H6",
+    "vehicle_type": "SUV ไฮบริด",
+    "year_start": "2021",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Haval",
+    "model": "Jolion",
+    "vehicle_type": "ครอสโอเวอร์ไฮบริด",
+    "year_start": "2021",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "ORA",
+    "model": "Good Cat",
+    "vehicle_type": "แฮทช์แบ็กไฟฟ้า",
+    "year_start": "2021",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Tank",
+    "model": "Tank 300",
+    "vehicle_type": "SUV ปลั๊กอินไฮบริด",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Neta (Hozon)",
+    "model": "Neta V",
+    "vehicle_type": "แฮทช์แบ็กไฟฟ้า",
+    "year_start": "2022",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Neta (Hozon)",
+    "model": "Neta X",
+    "vehicle_type": "ครอสโอเวอร์ไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Deepal (ในเครือ Changan)",
+    "model": "S07",
+    "vehicle_type": "ครอสโอเวอร์ไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Deepal (ในเครือ Changan)",
+    "model": "L07",
+    "vehicle_type": "เก๋งไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Deepal (ในเครือ Changan)",
+    "model": "S05",
+    "vehicle_type": "ครอสโอเวอร์ไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "GAC Aion",
+    "model": "Aion Y Plus",
+    "vehicle_type": "ครอสโอเวอร์ไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "GAC Aion",
+    "model": "Aion ES",
+    "vehicle_type": "เก๋งไฟฟ้า",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Omoda (ในเครือ Chery)",
+    "model": "Omoda 5",
+    "vehicle_type": "ครอสโอเวอร์",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "Jaecoo (ในเครือ Chery)",
+    "model": "Jaecoo J7",
+    "vehicle_type": "SUV",
+    "year_start": "2023",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "XPeng",
+    "model": "G6",
+    "vehicle_type": "SUV ไฟฟ้า",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  },
+  {
+    "brand": "XPeng",
+    "model": "X9",
+    "vehicle_type": "MPV ไฟฟ้าหรู",
+    "year_start": "2024",
+    "year_end": "ปัจจุบัน"
+  }
+]
