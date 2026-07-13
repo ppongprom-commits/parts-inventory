@@ -1,28 +1,44 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import carModels from "../lib/carModels.json";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 /**
- * ค้นหารถจาก brand + model รวมกัน (พิมพ์ 2-3 ตัวอักษรก็ค้นได้)
- * เมื่อเลือกแล้วจะ callback (item) => { brand, model, year_start, year_end }
+ * ค้นหารถจาก brand + model + generation_code รวมกัน จากฐานข้อมูลจริง
+ * (model_generations_display view) — พิมพ์ 2 ตัวอักษรก็ค้นได้
+ * เมื่อเลือกแล้วจะ callback (item) พร้อม year_range_display ที่ห้าม user พิมพ์เอง
  */
 export default function CarAutocomplete({ onSelect, placeholder }) {
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const wrapperRef = useRef(null);
+  const debounceRef = useRef(null);
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return [];
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    return carModels
-      .filter(
-        (c) =>
-          c.brand.toLowerCase().includes(q) || c.model.toLowerCase().includes(q)
-      )
-      .slice(0, 10);
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("model_generations_display")
+        .select("*")
+        .or(`brand_name.ilike.%${q}%,model_name.ilike.%${q}%,generation_code.ilike.%${q}%`)
+        .limit(10);
+
+      if (!error) setResults(data || []);
+      setLoading(false);
+    }, 250);
+
+    return () => clearTimeout(debounceRef.current);
   }, [query]);
 
   useEffect(() => {
@@ -37,7 +53,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
 
   function handleSelect(item) {
     onSelect(item);
-    setQuery(`${item.brand} ${item.model}`);
+    setQuery(`${item.brand_name} ${item.model_name}`);
     setOpen(false);
     setActiveIndex(-1);
   }
@@ -75,7 +91,27 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
         autoComplete="off"
       />
 
-      {open && results.length > 0 && (
+      {open && loading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: "#1a1d24",
+            border: "1px solid #333844",
+            borderRadius: 8,
+            padding: "10px 12px",
+            fontSize: 13,
+            color: "#6b7280",
+            zIndex: 20,
+          }}
+        >
+          กำลังค้นหา...
+        </div>
+      )}
+
+      {open && !loading && results.length > 0 && (
         <div
           style={{
             position: "absolute",
@@ -92,7 +128,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
         >
           {results.map((item, i) => (
             <div
-              key={`${item.brand}-${item.model}-${i}`}
+              key={item.generation_id}
               onClick={() => handleSelect(item)}
               style={{
                 padding: "10px 12px",
@@ -103,17 +139,18 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {item.brand} {item.model}
+                {item.brand_name} {item.model_name}
+                {item.generation_code ? ` (${item.generation_code})` : ""}
               </div>
               <div style={{ fontSize: 12, color: "#a8adb8" }}>
-                {item.vehicle_type} · {item.year_start}–{item.year_end}
+                {item.vehicle_type} · {item.year_range_display}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {open && query.trim().length >= 2 && results.length === 0 && (
+      {open && !loading && query.trim().length >= 2 && results.length === 0 && (
         <div
           style={{
             position: "absolute",
@@ -129,7 +166,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
             zIndex: 20,
           }}
         >
-          ไม่พบในฐานข้อมูล — พิมพ์ยี่ห้อ/รุ่นในช่องด้านล่างเองได้เลย
+          ไม่พบในฐานข้อมูล — พิมพ์ยี่ห้อ/รุ่นในช่องด้านล่างเองได้ (จะไม่มีข้อมูลปีให้)
         </div>
       )}
     </div>

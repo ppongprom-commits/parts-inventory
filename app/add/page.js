@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
-import { checkYearOutOfRange } from "../../lib/yearValidation";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
+import { resizeImageFile } from "../../lib/imageResize";
+import { uploadPartPhotos } from "../../lib/storageHelpers";
 
 export default function AddPartPage() {
   const router = useRouter();
@@ -16,17 +17,22 @@ export default function AddPartPage() {
     part_name: "",
     car_brand: "",
     car_model: "",
-    car_year: "",
     condition: "",
     zone_code: "",
     source_type: "",
     price: "",
   });
-  const [yearHint, setYearHint] = useState(null); // { start, end }
-  const [photoFile, setPhotoFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+
+  // ข้อมูลปี — มาจากฐานข้อมูลเท่านั้น ห้าม user พิมพ์เอง
+  const [selectedGeneration, setSelectedGeneration] = useState(null); // { generation_id, year_range_display, ... }
+
+  const [photos, setPhotos] = useState([]);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null); // { type: 'success'|'error', text }
+  const [msg, setMsg] = useState(null);
 
   const [zones, setZones] = useState([]);
   const [zonesLoading, setZonesLoading] = useState(true);
@@ -36,7 +42,6 @@ export default function AddPartPage() {
   const [optionsLoading, setOptionsLoading] = useState(true);
 
   useEffect(() => {
-    // ตั้งค่าโซน default จากที่เลือกล่าสุด
     const lastZone = getDefaultZone();
     if (lastZone) {
       setForm((f) => ({ ...f, zone_code: lastZone }));
@@ -79,6 +84,10 @@ export default function AddPartPage() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
+    // ถ้าแก้ยี่ห้อ/รุ่นเองด้วยมือ (ไม่ผ่าน autocomplete) ให้ล้างข้อมูล generation ที่เคยเลือกไว้
+    if (name === "car_brand" || name === "car_model") {
+      setSelectedGeneration(null);
+    }
   }
 
   function handleZoneChange(e) {
@@ -87,62 +96,56 @@ export default function AddPartPage() {
     setDefaultZone(value);
   }
 
-  function handlePhotoChange(e) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFile(file);
-      setPreview(URL.createObjectURL(file));
+  async function handlePhotoChange(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setProcessingPhoto(true);
+    setPhotoError("");
+
+    const resizedList = [];
+    for (const file of files) {
+      const resized = await resizeImageFile(file);
+      resizedList.push({ file: resized, previewUrl: URL.createObjectURL(resized) });
     }
+
+    setPhotos((prev) => [...prev, ...resizedList]);
+    setProcessingPhoto(false);
+    e.target.value = "";
   }
 
-  const yearOutOfRange = checkYearOutOfRange(form.car_year, yearHint);
+  function handleRemovePhoto(index) {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
 
-    if (yearOutOfRange) {
-      const confirmed = window.confirm(
-        `ปีที่กรอก (${form.car_year}) อยู่นอกช่วงที่รุ่นนี้ผลิตจริง (${yearHint.start}–${yearHint.end})\n\nต้องการบันทึกต่อไหม? กรุณาตรวจสอบข้อมูลอีกครั้งก่อนยืนยัน`
-      );
-      if (!confirmed) return;
+    if (photos.length === 0) {
+      setPhotoError("ต้องมีรูปอย่างน้อย 1 รูปก่อนบันทึก");
+      return;
     }
 
     setSaving(true);
     setMsg(null);
 
     try {
-      let photo_url = null;
-
-      if (photoFile) {
-        const fileExt = photoFile.name.split(".").pop();
-        const fileName = `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("part-photos")
-          .upload(fileName, photoFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from("part-photos")
-          .getPublicUrl(fileName);
-
-        photo_url = publicUrlData.publicUrl;
-      }
+      const photoUrls = await uploadPartPhotos(photos.map((p) => p.file));
 
       const { error: insertError } = await supabase.from("parts").insert({
         part_name: form.part_name,
         car_brand: form.car_brand || null,
         car_model: form.car_model || null,
-        car_year: form.car_year ? Number(form.car_year) : null,
+        generation_id: selectedGeneration?.generation_id || null,
+        car_year_display: selectedGeneration?.year_range_display || null,
         condition: form.condition || null,
         zone_code: form.zone_code || null,
         source_type: form.source_type || null,
         price: form.price ? Number(form.price) : null,
-        photo_url,
+        photo_url: photoUrls[0] || null,
+        photo_urls: photoUrls,
         status: "available",
+        is_active: true,
       });
 
       if (insertError) throw insertError;
@@ -154,15 +157,14 @@ export default function AddPartPage() {
         part_name: "",
         car_brand: "",
         car_model: "",
-        car_year: "",
         condition: conditions[0] || "",
-        zone_code: keepZone, // โซนล่าสุดยังอยู่ ให้ใช้ต่อได้เลย
+        zone_code: keepZone,
         source_type: sourceTypes[0] || "",
         price: "",
       });
-      setYearHint(null);
-      setPhotoFile(null);
-      setPreview(null);
+      setSelectedGeneration(null);
+      setPhotos([]);
+      setPhotoError("");
 
       setTimeout(() => {
         router.push("/");
@@ -187,18 +189,20 @@ export default function AddPartPage() {
 
       <form onSubmit={handleSubmit}>
         <label>
-          รูปอะไหล่
+          รูปอะไหล่ * (อย่างน้อย 1 รูป เพิ่มได้หลายรูป)
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             onChange={handlePhotoChange}
             style={{ display: "none" }}
           />
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            disabled={processingPhoto}
             style={{
               padding: 14,
               borderRadius: 8,
@@ -214,17 +218,62 @@ export default function AddPartPage() {
               gap: 8,
             }}
           >
-            📷 {preview ? "ถ่ายใหม่ / เลือกรูปใหม่" : "ถ่ายรูปอะไหล่"}
+            📷{" "}
+            {processingPhoto
+              ? "กำลังประมวลผลรูป..."
+              : photos.length > 0
+              ? "เพิ่มรูปอีก"
+              : "ถ่ายรูปอะไหล่"}
           </button>
         </label>
 
-        {preview && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={preview}
-            alt="preview"
-            style={{ width: 140, height: 140, objectFit: "cover", borderRadius: 8 }}
-          />
+        {photos.length > 0 && (
+          <div className="photo-thumb-row">
+            {photos.map((p, i) => (
+              <div className="photo-thumb" key={i}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.previewUrl}
+                  alt={`รูป ${i + 1}`}
+                  onClick={() => setLightboxUrl(p.previewUrl)}
+                />
+                <button
+                  type="button"
+                  className="photo-remove-btn"
+                  onClick={() => handleRemovePhoto(i)}
+                  aria-label="ลบรูปนี้"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {photoError && <span style={{ fontSize: 12, color: "#fca5a5" }}>{photoError}</span>}
+
+        {lightboxUrl && (
+          <div
+            onClick={() => setLightboxUrl(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 100,
+              cursor: "zoom-out",
+              padding: 20,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxUrl}
+              alt="ขยายรูป"
+              style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8, objectFit: "contain" }}
+            />
+          </div>
         )}
 
         <label>
@@ -245,12 +294,10 @@ export default function AddPartPage() {
             onSelect={(item) => {
               setForm((f) => ({
                 ...f,
-                car_brand: item.brand,
-                car_model: item.model,
-                car_year:
-                  f.car_year || (item.year_start !== "" ? item.year_start : ""),
+                car_brand: item.brand_name,
+                car_model: item.model_name,
               }));
-              setYearHint({ start: item.year_start, end: item.year_end });
+              setSelectedGeneration(item);
             }}
           />
         </label>
@@ -278,26 +325,25 @@ export default function AddPartPage() {
         </label>
 
         <label>
-          ปีรถ
-          <input
-            type="number"
-            name="car_year"
-            value={form.car_year}
-            onChange={handleChange}
-            placeholder="เช่น 2015"
-            style={yearOutOfRange ? { borderColor: "#d97706" } : undefined}
-          />
-          {yearHint && !yearOutOfRange && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
-              รุ่นนี้ผลิตช่วง {yearHint.start}–{yearHint.end}
-            </span>
-          )}
-          {yearOutOfRange && (
-            <span style={{ fontSize: 12, color: "#fbbf24" }}>
-              ⚠️ ปีนี้อยู่นอกช่วงที่รุ่นนี้ผลิต ({yearHint.start}–{yearHint.end}) —
-              ยังกรอกต่อได้ แต่ระบบจะถามยืนยันอีกครั้งตอนบันทึก
-            </span>
-          )}
+          ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              border: "1px solid #333844",
+              background: "#14161b",
+              color: selectedGeneration ? "#e8e8e8" : "#6b7280",
+              fontSize: 14,
+            }}
+          >
+            {selectedGeneration
+              ? `${selectedGeneration.year_range_display}${
+                  selectedGeneration.generation_code
+                    ? ` (${selectedGeneration.generation_code})`
+                    : ""
+                }`
+              : "— เลือกรถจากช่องค้นหาด้านบนก่อน จะขึ้นปีให้อัตโนมัติ —"}
+          </div>
         </label>
 
         <label>

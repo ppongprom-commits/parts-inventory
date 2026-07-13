@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
-import { checkYearOutOfRange } from "../../../lib/yearValidation";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
+import { resizeImageFile } from "../../../lib/imageResize";
+import { uploadPartPhotos } from "../../../lib/storageHelpers";
 
 export default function EditPartPage() {
   const params = useParams();
@@ -16,13 +17,19 @@ export default function EditPartPage() {
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+
+  // ปี — ดึงจากฐานข้อมูลเท่านั้น ห้าม user พิมพ์เอง
+  const [selectedGeneration, setSelectedGeneration] = useState(null);
+
+  const [existingPhotos, setExistingPhotos] = useState([]);
+  const [newPhotos, setNewPhotos] = useState([]);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [yearHint, setYearHint] = useState(null);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const [zones, setZones] = useState([]);
   const [zonesLoading, setZonesLoading] = useState(true);
@@ -77,7 +84,19 @@ export default function EditPartPage() {
       setMsg({ type: "error", text: "โหลดข้อมูลไม่สำเร็จ: " + error.message });
     } else {
       setForm(data);
-      setPreview(data.photo_url);
+      const photos = data.photo_urls?.length
+        ? data.photo_urls
+        : data.photo_url
+        ? [data.photo_url]
+        : [];
+      setExistingPhotos(photos);
+      if (data.car_year_display) {
+        setSelectedGeneration({
+          generation_id: data.generation_id,
+          year_range_display: data.car_year_display,
+          generation_code: null,
+        });
+      }
     }
     setLoading(false);
   }
@@ -85,6 +104,9 @@ export default function EditPartPage() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
+    if (name === "car_brand" || name === "car_model") {
+      setSelectedGeneration(null);
+    }
   }
 
   function handleZoneChange(e) {
@@ -93,52 +115,48 @@ export default function EditPartPage() {
     setDefaultZone(value);
   }
 
-  function handlePhotoChange(e) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFile(file);
-      setPreview(URL.createObjectURL(file));
+  async function handlePhotoChange(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setProcessingPhoto(true);
+    setPhotoError("");
+
+    const resizedList = [];
+    for (const file of files) {
+      const resized = await resizeImageFile(file);
+      resizedList.push({ file: resized, previewUrl: URL.createObjectURL(resized) });
     }
+
+    setNewPhotos((prev) => [...prev, ...resizedList]);
+    setProcessingPhoto(false);
+    e.target.value = "";
   }
 
-  const yearOutOfRange = form
-    ? checkYearOutOfRange(form.car_year, yearHint)
-    : false;
+  function handleRemoveExistingPhoto(index) {
+    setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleRemoveNewPhoto(index) {
+    setNewPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const totalPhotoCount = existingPhotos.length + newPhotos.length;
 
   async function handleSubmit(e) {
     e.preventDefault();
 
-    if (yearOutOfRange) {
-      const confirmed = window.confirm(
-        `ปีที่กรอก (${form.car_year}) อยู่นอกช่วงที่รุ่นนี้ผลิตจริง (${yearHint.start}–${yearHint.end})\n\nต้องการบันทึกต่อไหม? กรุณาตรวจสอบข้อมูลอีกครั้งก่อนยืนยัน`
-      );
-      if (!confirmed) return;
+    if (totalPhotoCount === 0) {
+      setPhotoError("ต้องมีรูปอย่างน้อย 1 รูปก่อนบันทึก");
+      return;
     }
 
     setSaving(true);
     setMsg(null);
 
     try {
-      let photo_url = form.photo_url;
-
-      if (photoFile) {
-        const fileExt = photoFile.name.split(".").pop();
-        const fileName = `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("part-photos")
-          .upload(fileName, photoFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from("part-photos")
-          .getPublicUrl(fileName);
-
-        photo_url = publicUrlData.publicUrl;
-      }
+      const uploadedUrls = await uploadPartPhotos(newPhotos.map((p) => p.file));
+      const finalPhotoUrls = [...existingPhotos, ...uploadedUrls];
 
       const { error: updateError } = await supabase
         .from("parts")
@@ -146,13 +164,15 @@ export default function EditPartPage() {
           part_name: form.part_name,
           car_brand: form.car_brand || null,
           car_model: form.car_model || null,
-          car_year: form.car_year ? Number(form.car_year) : null,
+          generation_id: selectedGeneration?.generation_id || null,
+          car_year_display: selectedGeneration?.year_range_display || null,
           condition: form.condition || null,
           zone_code: form.zone_code || null,
           source_type: form.source_type || null,
           status: form.status || null,
           price: form.price ? Number(form.price) : null,
-          photo_url,
+          photo_url: finalPhotoUrls[0] || null,
+          photo_urls: finalPhotoUrls,
         })
         .eq("id", id);
 
@@ -169,9 +189,9 @@ export default function EditPartPage() {
     }
   }
 
-  async function handleDelete() {
+  async function handleDeactivate() {
     const confirmed = window.confirm(
-      `ลบ "${form.part_name}" ออกจากสต็อกใช่ไหม? การลบนี้กู้คืนไม่ได้`
+      `ซ่อน "${form.part_name}" จากหน้าแรกใช่ไหม?\n\n(ไม่ได้ลบถาวร — กู้คืนหรือลบถาวรได้ที่หน้าตั้งค่า > ถังขยะ)`
     );
     if (!confirmed) return;
 
@@ -179,12 +199,15 @@ export default function EditPartPage() {
     setMsg(null);
 
     try {
-      const { error } = await supabase.from("parts").delete().eq("id", id);
+      const { error } = await supabase
+        .from("parts")
+        .update({ is_active: false })
+        .eq("id", id);
       if (error) throw error;
 
       router.push("/");
     } catch (err) {
-      setMsg({ type: "error", text: "ลบไม่สำเร็จ: " + err.message });
+      setMsg({ type: "error", text: "ดำเนินการไม่สำเร็จ: " + err.message });
       setDeleting(false);
     }
   }
@@ -221,18 +244,20 @@ export default function EditPartPage() {
 
       <form onSubmit={handleSubmit}>
         <label>
-          รูปภาพ
+          รูปภาพ * (อย่างน้อย 1 รูป เพิ่มได้หลายรูป)
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             onChange={handlePhotoChange}
             style={{ display: "none" }}
           />
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            disabled={processingPhoto}
             style={{
               padding: 14,
               borderRadius: 8,
@@ -248,34 +273,52 @@ export default function EditPartPage() {
               gap: 8,
             }}
           >
-            📷 ถ่ายใหม่ / เลือกรูปใหม่
+            📷 {processingPhoto ? "กำลังประมวลผลรูป..." : "เพิ่มรูป / ถ่ายใหม่"}
           </button>
         </label>
 
-        {preview && (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={preview}
-              alt="preview"
-              onClick={() => setLightboxOpen(true)}
-              style={{
-                width: 140,
-                height: 140,
-                objectFit: "cover",
-                borderRadius: 8,
-                cursor: "zoom-in",
-              }}
-            />
-            <span style={{ fontSize: 12, color: "#6b7280", marginTop: -8 }}>
-              คลิกรูปเพื่อดูขนาดใหญ่
-            </span>
-          </>
+        {(existingPhotos.length > 0 || newPhotos.length > 0) && (
+          <div className="photo-thumb-row">
+            {existingPhotos.map((url, i) => (
+              <div className="photo-thumb" key={`existing-${i}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`รูปเดิม ${i + 1}`} onClick={() => setLightboxUrl(url)} />
+                <button
+                  type="button"
+                  className="photo-remove-btn"
+                  onClick={() => handleRemoveExistingPhoto(i)}
+                  aria-label="ลบรูปนี้"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {newPhotos.map((p, i) => (
+              <div className="photo-thumb" key={`new-${i}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.previewUrl}
+                  alt={`รูปใหม่ ${i + 1}`}
+                  onClick={() => setLightboxUrl(p.previewUrl)}
+                />
+                <button
+                  type="button"
+                  className="photo-remove-btn"
+                  onClick={() => handleRemoveNewPhoto(i)}
+                  aria-label="ลบรูปนี้"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         )}
 
-        {lightboxOpen && (
+        {photoError && <span style={{ fontSize: 12, color: "#fca5a5" }}>{photoError}</span>}
+
+        {lightboxUrl && (
           <div
-            onClick={() => setLightboxOpen(false)}
+            onClick={() => setLightboxUrl(null)}
             style={{
               position: "fixed",
               inset: 0,
@@ -290,14 +333,9 @@ export default function EditPartPage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={preview}
+              src={lightboxUrl}
               alt="ขยายรูป"
-              style={{
-                maxWidth: "100%",
-                maxHeight: "100%",
-                borderRadius: 8,
-                objectFit: "contain",
-              }}
+              style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8, objectFit: "contain" }}
             />
           </div>
         )}
@@ -319,11 +357,10 @@ export default function EditPartPage() {
             onSelect={(item) => {
               setForm((f) => ({
                 ...f,
-                car_brand: item.brand,
-                car_model: item.model,
-                car_year: item.year_start !== "" ? item.year_start : f.car_year,
+                car_brand: item.brand_name,
+                car_model: item.model_name,
               }));
-              setYearHint({ start: item.year_start, end: item.year_end });
+              setSelectedGeneration(item);
             }}
           />
         </label>
@@ -349,26 +386,25 @@ export default function EditPartPage() {
         </label>
 
         <label>
-          ปีรถ
-          <input
-            type="number"
-            name="car_year"
-            value={form.car_year || ""}
-            onChange={handleChange}
-            placeholder="เช่น 2015"
-            style={yearOutOfRange ? { borderColor: "#d97706" } : undefined}
-          />
-          {yearHint && !yearOutOfRange && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
-              รุ่นนี้ผลิตช่วง {yearHint.start}–{yearHint.end}
-            </span>
-          )}
-          {yearOutOfRange && (
-            <span style={{ fontSize: 12, color: "#fbbf24" }}>
-              ⚠️ ปีนี้อยู่นอกช่วงที่รุ่นนี้ผลิต ({yearHint.start}–{yearHint.end}) —
-              ยังกรอกต่อได้ แต่ระบบจะถามยืนยันอีกครั้งตอนบันทึก
-            </span>
-          )}
+          ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              border: "1px solid #333844",
+              background: "#14161b",
+              color: selectedGeneration ? "#e8e8e8" : "#6b7280",
+              fontSize: 14,
+            }}
+          >
+            {selectedGeneration
+              ? `${selectedGeneration.year_range_display}${
+                  selectedGeneration.generation_code
+                    ? ` (${selectedGeneration.generation_code})`
+                    : ""
+                }`
+              : "— ไม่มีข้อมูลปี เลือกรถจากช่องค้นหาด้านบนเพื่ออัปเดต —"}
+          </div>
         </label>
 
         <label>
@@ -384,14 +420,6 @@ export default function EditPartPage() {
               <option value={form.condition}>{form.condition} (ไม่อยู่ในลิสต์แล้ว)</option>
             )}
           </select>
-          {!optionsLoading && conditions.length === 0 && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
-              ยังไม่มีตัวเลือก —{" "}
-              <Link href="/admin/options" style={{ color: "#93c5fd" }}>
-                เพิ่มที่หน้าตั้งค่า
-              </Link>
-            </span>
-          )}
         </label>
 
         <label>
@@ -434,19 +462,10 @@ export default function EditPartPage() {
                 {z.name ? ` — ${z.name}` : ""}
               </option>
             ))}
-            {/* เผื่อโซนเดิมของ record นี้ไม่อยู่ในลิสต์ปัจจุบันแล้ว (ถูกลบไปจาก admin) */}
             {form.zone_code && !zones.some((z) => z.code === form.zone_code) && (
               <option value={form.zone_code}>{form.zone_code} (ไม่อยู่ในลิสต์แล้ว)</option>
             )}
           </select>
-          {!zonesLoading && zones.length === 0 && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
-              ยังไม่มีโซนในระบบ —{" "}
-              <Link href="/admin/zones" style={{ color: "#93c5fd" }}>
-                เพิ่มโซนก่อน
-              </Link>
-            </span>
-          )}
         </label>
 
         <label>
@@ -466,7 +485,7 @@ export default function EditPartPage() {
 
       <button
         type="button"
-        onClick={handleDelete}
+        onClick={handleDeactivate}
         disabled={saving || deleting}
         style={{
           marginTop: 12,
@@ -481,7 +500,7 @@ export default function EditPartPage() {
           cursor: "pointer",
         }}
       >
-        {deleting ? "กำลังลบ..." : "🗑️ ลบอะไหล่นี้"}
+        {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
       </button>
     </div>
   );

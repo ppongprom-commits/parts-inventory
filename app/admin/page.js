@@ -13,6 +13,17 @@ export default function AdminHubPage() {
       </div>
 
       <Link
+        href="/admin/car-data"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🚗 ข้อมูลรถ (ยี่ห้อ/รุ่น/ปี)</div>
+          <div className="card-sub">แก้ไข/เพิ่มยี่ห้อ รุ่น และช่วงปีผลิต พร้อมดูประวัติการแก้ไข</div>
+        </div>
+      </Link>
+
+      <Link
         href="/admin/zones"
         className="card"
         style={{ textDecoration: "none", color: "inherit" }}
@@ -31,6 +42,17 @@ export default function AdminHubPage() {
         <div className="card-body">
           <div className="card-title">🏷️ สภาพ / ที่มา / สถานะ</div>
           <div className="card-sub">แก้ไข/เพิ่มตัวเลือกที่ใช้ตอนเพิ่มอะไหล่</div>
+        </div>
+      </Link>
+
+      <Link
+        href="/admin/trash"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🗑️ ถังขยะ</div>
+          <div className="card-sub">กู้คืน หรือลบอะไหล่ที่ซ่อนไว้ถาวร</div>
         </div>
       </Link>
     </div>
