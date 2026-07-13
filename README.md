@@ -1,9 +1,10 @@
 # ระบบสต็อกอะไหล่รถ (MVP)
 
-หน้าที่มี 3 หน้า:
+หน้าที่มี 4 หน้า:
 - `/` — ดูรายการ + ค้นหา/filter (ยี่ห้อ, ชื่ออะไหล่, โซน) — คลิกการ์ดเพื่อแก้ไข
-- `/add` — เพิ่มอะไหล่ใหม่ (ถ่ายรูป + กรอกข้อมูล)
+- `/add` — เพิ่มอะไหล่ใหม่ (ถ่ายรูป + กรอกข้อมูล + เตือนถ้าปีนอกช่วงรุ่น)
 - `/edit/[id]` — แก้ไขข้อมูล / เปลี่ยนรูป / ลบอะไหล่
+- `/admin/zones` — จัดการรายการโซนจัดเก็บ (เพิ่ม/ลบ)
 
 ---
 
@@ -46,6 +47,27 @@ create policy "Allow public delete" on parts
 ถ้า table `parts` สร้างไว้ก่อนหน้านี้แล้ว ต้องรัน SQL นี้เพิ่ม (ถ้าเพิ่งสร้าง table ใหม่ ข้ามได้เพราะ query ด้านบนควรเพิ่ม column นี้เข้าไปด้วยแล้ว):
 ```sql
 alter table parts add column if not exists car_year integer;
+```
+
+### 4. Table `zones` (สำหรับหน้า admin จัดการโซนจัดเก็บ)
+```sql
+create table zones (
+  id uuid default gen_random_uuid() primary key,
+  code text not null unique,
+  name text,
+  created_at timestamp default now()
+);
+
+alter table zones enable row level security;
+
+create policy "Allow public read zones" on zones
+  for select using (true);
+
+create policy "Allow public insert zones" on zones
+  for insert with check (true);
+
+create policy "Allow public delete zones" on zones
+  for delete using (true);
 ```
 
 ### 2. Storage bucket `part-photos`
@@ -96,14 +118,19 @@ parts-inventory/
 │   ├── page.js         ← หน้าแรก (list + search)
 │   ├── add/
 │   │   └── page.js     ← หน้าเพิ่มอะไหล่
-│   └── edit/
-│       └── [id]/
-│           └── page.js ← หน้าแก้ไข/ลบอะไหล่
+│   ├── edit/
+│   │   └── [id]/
+│   │       └── page.js ← หน้าแก้ไข/ลบอะไหล่
+│   └── admin/
+│       └── zones/
+│           └── page.js ← หน้าจัดการโซนจัดเก็บ
 ├── components/
 │   └── CarAutocomplete.js  ← ช่องค้นหายี่ห้อ/รุ่น/ปี (autocomplete)
 ├── lib/
 │   ├── supabaseClient.js
-│   └── carModels.json      ← ฐานข้อมูลรถ 249 รุ่น 37 ยี่ห้อ (30 ปีในไทย)
+│   ├── carModels.json      ← ฐานข้อมูลรถ 297 รุ่น 40 ยี่ห้อ
+│   ├── yearValidation.js   ← เช็คปีนอกช่วงที่รุ่นผลิต
+│   └── zoneStorage.js      ← จำโซนล่าสุดที่เลือก (localStorage)
 ├── package.json
 ├── next.config.mjs
 └── .env.local.example
@@ -111,6 +138,15 @@ parts-inventory/
 
 ## ฟีเจอร์ Autocomplete ยี่ห้อ/รุ่น/ปี
 พิมพ์ 2 ตัวอักษรขึ้นไปในช่อง "🔍 ค้นหารถ" — ระบบค้นหาจากทั้งชื่อยี่ห้อและรุ่นพร้อมกัน (เช่น พิมพ์ "camry" หรือ "โต" ก็เจอ) เลือกแล้วจะเติมช่องยี่ห้อ/รุ่น/ปี (ปีเริ่มผลิต) ให้อัตโนมัติ — ยังแก้เองในช่องด้านล่างได้ถ้าไม่ตรง หรือไม่มีในฐานข้อมูล
+
+## ฟีเจอร์ตรวจสอบปีรถ
+ถ้ากรอกปีที่อยู่นอกช่วงที่รุ่นนั้นผลิตจริง (เทียบจาก dataset) จะขึ้นคำเตือนสีเหลืองใต้ช่องทันที (ยังกรอกต่อได้) และตอนกด "บันทึก" จะมี popup ถามยืนยันอีกครั้งก่อนบันทึกจริง
+
+## ฟีเจอร์ถ่ายรูปจากมือถือ
+ปุ่ม "📷 ถ่ายรูปอะไหล่" เปิดกล้องมือถือโดยตรง (ไม่ต้องผ่านตัวเลือกไฟล์ระบบ) ถ่ายเสร็จรูปจะขึ้น preview ในหน้าทันทีอัตโนมัติ
+
+## ฟีเจอร์จัดการโซนจัดเก็บ (Admin)
+หน้า `/admin/zones` ใช้เพิ่ม/ลบรายชื่อโซนที่มีจริงในอู่ (เช่น JP-A1, EU-B3) พอมีโซนในระบบแล้ว หน้าเพิ่ม/แก้ไขอะไหล่จะเปลี่ยนจากช่องพิมพ์อิสระเป็น dropdown เลือกจากลิสต์นี้แทน — และจะ**จำโซนล่าสุดที่เลือกไว้เป็นค่า default** สำหรับเพิ่มอะไหล่ชิ้นถัดไป จนกว่าจะเปลี่ยนเอง (สะดวกเวลาต้องเพิ่มอะไหล่หลายชิ้นจากโซนเดียวกันติดกัน)
 
 
 ## ทดสอบว่าใช้ได้จริง

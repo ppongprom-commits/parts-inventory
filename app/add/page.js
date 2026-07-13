@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
+import { checkYearOutOfRange } from "../../lib/yearValidation";
+import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 
 const CONDITIONS = ["ใหม่", "มือสอง-ดี", "มือสอง-ซ่อม"];
 const SOURCE_TYPES = ["รถชน", "ประกัน total loss", "น้ำท่วม"];
 
 export default function AddPartPage() {
   const router = useRouter();
+  const fileInputRef = useRef(null);
 
   const [form, setForm] = useState({
     part_name: "",
@@ -22,15 +25,43 @@ export default function AddPartPage() {
     source_type: SOURCE_TYPES[0],
     price: "",
   });
-  const [yearHint, setYearHint] = useState(null); // { year_start, year_end }
+  const [yearHint, setYearHint] = useState(null); // { start, end }
   const [photoFile, setPhotoFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null); // { type: 'success'|'error', text }
 
+  const [zones, setZones] = useState([]);
+  const [zonesLoading, setZonesLoading] = useState(true);
+
+  useEffect(() => {
+    // ตั้งค่าโซน default จากที่เลือกล่าสุด
+    const lastZone = getDefaultZone();
+    if (lastZone) {
+      setForm((f) => ({ ...f, zone_code: lastZone }));
+    }
+    fetchZones();
+  }, []);
+
+  async function fetchZones() {
+    setZonesLoading(true);
+    const { data, error } = await supabase
+      .from("zones")
+      .select("*")
+      .order("code", { ascending: true });
+    if (!error) setZones(data || []);
+    setZonesLoading(false);
+  }
+
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
+  }
+
+  function handleZoneChange(e) {
+    const value = e.target.value;
+    setForm((f) => ({ ...f, zone_code: value }));
+    setDefaultZone(value);
   }
 
   function handlePhotoChange(e) {
@@ -41,8 +72,18 @@ export default function AddPartPage() {
     }
   }
 
+  const yearOutOfRange = checkYearOutOfRange(form.car_year, yearHint);
+
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (yearOutOfRange) {
+      const confirmed = window.confirm(
+        `ปีที่กรอก (${form.car_year}) อยู่นอกช่วงที่รุ่นนี้ผลิตจริง (${yearHint.start}–${yearHint.end})\n\nต้องการบันทึกต่อไหม? กรุณาตรวจสอบข้อมูลอีกครั้งก่อนยืนยัน`
+      );
+      if (!confirmed) return;
+    }
+
     setSaving(true);
     setMsg(null);
 
@@ -83,6 +124,8 @@ export default function AddPartPage() {
 
       if (insertError) throw insertError;
 
+      const keepZone = form.zone_code;
+
       setMsg({ type: "success", text: "บันทึกอะไหล่เรียบร้อยแล้ว ✅" });
       setForm({
         part_name: "",
@@ -90,7 +133,7 @@ export default function AddPartPage() {
         car_model: "",
         car_year: "",
         condition: CONDITIONS[0],
-        zone_code: "",
+        zone_code: keepZone, // โซนล่าสุดยังอยู่ ให้ใช้ต่อได้เลย
         source_type: SOURCE_TYPES[0],
         price: "",
       });
@@ -121,13 +164,35 @@ export default function AddPartPage() {
 
       <form onSubmit={handleSubmit}>
         <label>
-          ถ่ายรูปอะไหล่
+          รูปอะไหล่
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*"
             capture="environment"
             onChange={handlePhotoChange}
+            style={{ display: "none" }}
           />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: 14,
+              borderRadius: 8,
+              border: "1px dashed #333844",
+              background: "#1a1d24",
+              color: "#e8e8e8",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            📷 {preview ? "ถ่ายใหม่ / เลือกรูปใหม่" : "ถ่ายรูปอะไหล่"}
+          </button>
         </label>
 
         {preview && (
@@ -197,10 +262,17 @@ export default function AddPartPage() {
             value={form.car_year}
             onChange={handleChange}
             placeholder="เช่น 2015"
+            style={yearOutOfRange ? { borderColor: "#d97706" } : undefined}
           />
-          {yearHint && (
+          {yearHint && !yearOutOfRange && (
             <span style={{ fontSize: 12, color: "#6b7280" }}>
               รุ่นนี้ผลิตช่วง {yearHint.start}–{yearHint.end}
+            </span>
+          )}
+          {yearOutOfRange && (
+            <span style={{ fontSize: 12, color: "#fbbf24" }}>
+              ⚠️ ปีนี้อยู่นอกช่วงที่รุ่นนี้ผลิต ({yearHint.start}–{yearHint.end}) —
+              ยังกรอกต่อได้ แต่ระบบจะถามยืนยันอีกครั้งตอนบันทึก
             </span>
           )}
         </label>
@@ -229,13 +301,23 @@ export default function AddPartPage() {
 
         <label>
           โซนจัดเก็บ
-          <input
-            type="text"
-            name="zone_code"
-            value={form.zone_code}
-            onChange={handleChange}
-            placeholder="เช่น JP-A1"
-          />
+          <select name="zone_code" value={form.zone_code} onChange={handleZoneChange}>
+            <option value="">ไม่ระบุโซน</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.code}>
+                {z.code}
+                {z.name ? ` — ${z.name}` : ""}
+              </option>
+            ))}
+          </select>
+          {!zonesLoading && zones.length === 0 && (
+            <span style={{ fontSize: 12, color: "#6b7280" }}>
+              ยังไม่มีโซนในระบบ —{" "}
+              <Link href="/admin/zones" style={{ color: "#93c5fd" }}>
+                เพิ่มโซนก่อน
+              </Link>
+            </span>
+          )}
         </label>
 
         <label>

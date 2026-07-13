@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
+import { checkYearOutOfRange } from "../../../lib/yearValidation";
+import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 
 const CONDITIONS = ["ใหม่", "มือสอง-ดี", "มือสอง-ซ่อม"];
 const SOURCE_TYPES = ["รถชน", "ประกัน total loss", "น้ำท่วม"];
@@ -14,6 +16,7 @@ export default function EditPartPage() {
   const params = useParams();
   const router = useRouter();
   const { id } = params;
+  const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
@@ -24,10 +27,24 @@ export default function EditPartPage() {
   const [msg, setMsg] = useState(null);
   const [yearHint, setYearHint] = useState(null);
 
+  const [zones, setZones] = useState([]);
+  const [zonesLoading, setZonesLoading] = useState(true);
+
   useEffect(() => {
     fetchPart();
+    fetchZones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function fetchZones() {
+    setZonesLoading(true);
+    const { data, error } = await supabase
+      .from("zones")
+      .select("*")
+      .order("code", { ascending: true });
+    if (!error) setZones(data || []);
+    setZonesLoading(false);
+  }
 
   async function fetchPart() {
     setLoading(true);
@@ -52,6 +69,12 @@ export default function EditPartPage() {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  function handleZoneChange(e) {
+    const value = e.target.value;
+    setForm((f) => ({ ...f, zone_code: value }));
+    setDefaultZone(value);
+  }
+
   function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (file) {
@@ -60,8 +83,20 @@ export default function EditPartPage() {
     }
   }
 
+  const yearOutOfRange = form
+    ? checkYearOutOfRange(form.car_year, yearHint)
+    : false;
+
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (yearOutOfRange) {
+      const confirmed = window.confirm(
+        `ปีที่กรอก (${form.car_year}) อยู่นอกช่วงที่รุ่นนี้ผลิตจริง (${yearHint.start}–${yearHint.end})\n\nต้องการบันทึกต่อไหม? กรุณาตรวจสอบข้อมูลอีกครั้งก่อนยืนยัน`
+      );
+      if (!confirmed) return;
+    }
+
     setSaving(true);
     setMsg(null);
 
@@ -168,8 +203,35 @@ export default function EditPartPage() {
 
       <form onSubmit={handleSubmit}>
         <label>
-          รูปภาพ (เลือกใหม่ถ้าต้องการเปลี่ยน)
-          <input type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} />
+          รูปภาพ
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoChange}
+            style={{ display: "none" }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: 14,
+              borderRadius: 8,
+              border: "1px dashed #333844",
+              background: "#1a1d24",
+              color: "#e8e8e8",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            📷 ถ่ายใหม่ / เลือกรูปใหม่
+          </button>
         </label>
 
         {preview && (
@@ -235,10 +297,17 @@ export default function EditPartPage() {
             value={form.car_year || ""}
             onChange={handleChange}
             placeholder="เช่น 2015"
+            style={yearOutOfRange ? { borderColor: "#d97706" } : undefined}
           />
-          {yearHint && (
+          {yearHint && !yearOutOfRange && (
             <span style={{ fontSize: 12, color: "#6b7280" }}>
               รุ่นนี้ผลิตช่วง {yearHint.start}–{yearHint.end}
+            </span>
+          )}
+          {yearOutOfRange && (
+            <span style={{ fontSize: 12, color: "#fbbf24" }}>
+              ⚠️ ปีนี้อยู่นอกช่วงที่รุ่นนี้ผลิต ({yearHint.start}–{yearHint.end}) —
+              ยังกรอกต่อได้ แต่ระบบจะถามยืนยันอีกครั้งตอนบันทึก
             </span>
           )}
         </label>
@@ -278,12 +347,27 @@ export default function EditPartPage() {
 
         <label>
           โซนจัดเก็บ
-          <input
-            type="text"
-            name="zone_code"
-            value={form.zone_code || ""}
-            onChange={handleChange}
-          />
+          <select name="zone_code" value={form.zone_code || ""} onChange={handleZoneChange}>
+            <option value="">ไม่ระบุโซน</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.code}>
+                {z.code}
+                {z.name ? ` — ${z.name}` : ""}
+              </option>
+            ))}
+            {/* เผื่อโซนเดิมของ record นี้ไม่อยู่ในลิสต์ปัจจุบันแล้ว (ถูกลบไปจาก admin) */}
+            {form.zone_code && !zones.some((z) => z.code === form.zone_code) && (
+              <option value={form.zone_code}>{form.zone_code} (ไม่อยู่ในลิสต์แล้ว)</option>
+            )}
+          </select>
+          {!zonesLoading && zones.length === 0 && (
+            <span style={{ fontSize: 12, color: "#6b7280" }}>
+              ยังไม่มีโซนในระบบ —{" "}
+              <Link href="/admin/zones" style={{ color: "#93c5fd" }}>
+                เพิ่มโซนก่อน
+              </Link>
+            </span>
+          )}
         </label>
 
         <label>

@@ -53,9 +53,14 @@ export default function HomePage() {
     <div className="container">
       <div className="header">
         <h1>📦 สต็อกอะไหล่</h1>
-        <Link href="/add" className="nav-link">
-          + เพิ่มอะไหล่
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/admin/zones" className="nav-link secondary">
+            ⚙️ โซน
+          </Link>
+          <Link href="/add" className="nav-link">
+            + เพิ่มอะไหล่
+          </Link>
+        </div>
       </div>
 
       <div className="filters">
