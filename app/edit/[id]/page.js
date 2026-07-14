@@ -8,16 +8,13 @@ import CarAutocomplete from "../../../components/CarAutocomplete";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
-import { useAuth } from "../../../lib/AuthProvider";
-import RequireAuth from "../../../components/RequireAuth";
 
-function EditPartPageContent() {
+export default function EditPartPage() {
   const params = useParams();
   const router = useRouter();
   const { id } = params;
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
-  const { currentShopId, currentRole } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
@@ -44,19 +41,17 @@ function EditPartPageContent() {
   const [optionsLoading, setOptionsLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentShopId) return;
     fetchPart();
     fetchZones();
     fetchOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, currentShopId]);
+  }, [id]);
 
   async function fetchZones() {
     setZonesLoading(true);
     const { data, error } = await supabase
       .from("zones")
       .select("*")
-      .eq("shop_id", currentShopId)
       .order("code", { ascending: true });
     if (!error) setZones(data || []);
     setZonesLoading(false);
@@ -67,7 +62,6 @@ function EditPartPageContent() {
     const { data, error } = await supabase
       .from("options")
       .select("*")
-      .eq("shop_id", currentShopId)
       .order("sort_order", { ascending: true });
 
     if (!error && data) {
@@ -616,35 +610,25 @@ function EditPartPageContent() {
         </button>
       </form>
 
-      {currentRole !== "assistant" && (
-        <button
-          type="button"
-          onClick={handleDeactivate}
-          disabled={saving || deleting}
-          style={{
-            marginTop: 12,
-            width: "100%",
-            padding: 14,
-            borderRadius: 8,
-            border: "1px solid #7f1d1d",
-            background: "transparent",
-            color: "#fca5a5",
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={handleDeactivate}
+        disabled={saving || deleting}
+        style={{
+          marginTop: 12,
+          width: "100%",
+          padding: 14,
+          borderRadius: 8,
+          border: "1px solid #7f1d1d",
+          background: "transparent",
+          color: "#fca5a5",
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
+      </button>
     </div>
-  );
-}
-
-export default function EditPartPage() {
-  return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
-      <EditPartPageContent />
-    </RequireAuth>
   );
 }
