@@ -11,7 +11,8 @@ import { uploadPartPhotos } from "../../lib/storageHelpers";
 
 export default function AddPartPage() {
   const router = useRouter();
-  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
   const [form, setForm] = useState({
     part_name: "",
@@ -191,40 +192,67 @@ export default function AddPartPage() {
         <label>
           รูปอะไหล่ * (อย่างน้อย 1 รูป เพิ่มได้หลายรูป)
           <input
-            ref={fileInputRef}
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
             capture="environment"
+            onChange={handlePhotoChange}
+            style={{ display: "none" }}
+          />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
             multiple
             onChange={handlePhotoChange}
             style={{ display: "none" }}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={processingPhoto}
-            style={{
-              padding: 14,
-              borderRadius: 8,
-              border: "1px dashed #333844",
-              background: "#1a1d24",
-              color: "#e8e8e8",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            📷{" "}
-            {processingPhoto
-              ? "กำลังประมวลผลรูป..."
-              : photos.length > 0
-              ? "เพิ่มรูปอีก"
-              : "ถ่ายรูปอะไหล่"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={processingPhoto}
+              style={{
+                flex: 1,
+                padding: 14,
+                borderRadius: 8,
+                border: "1px dashed #333844",
+                background: "#1a1d24",
+                color: "#e8e8e8",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              📷 {processingPhoto ? "กำลังประมวลผล..." : "ถ่ายรูป"}
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={processingPhoto}
+              style={{
+                flex: 1,
+                padding: 14,
+                borderRadius: 8,
+                border: "1px dashed #333844",
+                background: "#1a1d24",
+                color: "#e8e8e8",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              🖼️ {processingPhoto ? "กำลังประมวลผล..." : "เลือกจากคลังภาพ"}
+            </button>
+          </div>
         </label>
 
         {photos.length > 0 && (
