@@ -85,7 +85,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
   }
 
   return (
-    <div ref={wrapperRef} style={{ position: "relative" }}>
+    <div ref={wrapperRef} style={{ position: "relative", width: "50%", minWidth: 220 }}>
       <input
         type="text"
         value={query}
@@ -98,6 +98,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
         autoComplete="off"
+        style={{ width: "100%", boxSizing: "border-box" }}
       />
 
       {open && loading && (
