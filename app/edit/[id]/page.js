@@ -190,7 +190,9 @@ export default function EditPartPage() {
           zone_code: form.zone_code || null,
           source_type: form.source_type || null,
           status: form.status || null,
+          quantity: form.quantity ? Number(form.quantity) : 1,
           price: form.price ? Number(form.price) : null,
+          notes: form.notes || null,
           photo_url: finalPhotoUrls[0] || null,
           photo_urls: finalPhotoUrls,
         })
@@ -596,11 +598,34 @@ export default function EditPartPage() {
         </label>
 
         <label>
+          จำนวน
+          <input
+            type="number"
+            name="quantity"
+            value={form.quantity ?? ""}
+            onChange={handleChange}
+            placeholder="1"
+            min="0"
+            step="any"
+          />
+        </label>
+
+        <label>
           ราคา (บาท)
           <input
             type="number"
             name="price"
             value={form.price || ""}
+            onChange={handleChange}
+          />
+        </label>
+
+        <label>
+          หมายเหตุ
+          <input
+            type="text"
+            name="notes"
+            value={form.notes || ""}
             onChange={handleChange}
           />
         </label>

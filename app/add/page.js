@@ -21,7 +21,9 @@ export default function AddPartPage() {
     condition: "",
     zone_code: "",
     source_type: "",
+    quantity: "1",
     price: "",
+    notes: "",
   });
 
   // ข้อมูลปี — มาจากฐานข้อมูลเท่านั้น ห้าม user พิมพ์เอง
@@ -142,7 +144,9 @@ export default function AddPartPage() {
         condition: form.condition || null,
         zone_code: form.zone_code || null,
         source_type: form.source_type || null,
+        quantity: form.quantity ? Number(form.quantity) : 1,
         price: form.price ? Number(form.price) : null,
+        notes: form.notes || null,
         photo_url: photoUrls[0] || null,
         photo_urls: photoUrls,
         status: "available",
@@ -434,11 +438,35 @@ export default function AddPartPage() {
         </label>
 
         <label>
+          จำนวน
+          <input
+            type="number"
+            name="quantity"
+            value={form.quantity}
+            onChange={handleChange}
+            placeholder="1"
+            min="0"
+            step="any"
+          />
+        </label>
+
+        <label>
           ราคา (บาท)
           <input
             type="number"
             name="price"
             value={form.price}
+            onChange={handleChange}
+            placeholder="ไม่บังคับ"
+          />
+        </label>
+
+        <label>
+          หมายเหตุ
+          <input
+            type="text"
+            name="notes"
+            value={form.notes}
             onChange={handleChange}
             placeholder="ไม่บังคับ"
           />
