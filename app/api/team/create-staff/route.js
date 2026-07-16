@@ -73,7 +73,7 @@ export async function POST(request) {
       email: staffEmail,
       password: pin,
       email_confirm: true,
-      user_metadata: { login_username: username, is_staff_account: true },
+      user_metadata: { login_username: username, is_staff_account: true, full_name: contactName },
     });
     if (createError) {
       throw new Error(

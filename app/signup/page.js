@@ -8,7 +8,7 @@ import { useAuth } from "../../lib/AuthProvider";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { session, loading, memberships, refreshMemberships } = useAuth();
+  const { session, loading, memberships, refreshMemberships, isDisabledAccount, signOut } = useAuth();
 
   const [shopName, setShopName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,7 +24,8 @@ export default function SignupPage() {
     }
   }, [loading, session, memberships, router]);
 
-  const isReturningAfterEmailConfirm = !loading && !!session && memberships.length === 0;
+  const isReturningAfterEmailConfirm =
+    !loading && !!session && memberships.length === 0 && !isDisabledAccount;
 
   // เคส 1: ยังไม่ login เลย -> สมัครใหม่แบบเต็ม (อีเมล+รหัสผ่าน+ชื่ออู่)
   async function handleFullSignup(e) {
@@ -71,6 +72,14 @@ export default function SignupPage() {
   // เคส 2: login อยู่แล้ว (เพิ่งกดลิงก์ยืนยันอีเมลกลับมา) แต่ยังไม่มีอู่ -> สร้างอู่อย่างเดียว
   async function handleCompleteShop(e) {
     e.preventDefault();
+
+    // ⚠️ กันเผื่ออีกชั้น (นอกจากที่ซ่อน UI ไว้แล้ว) ไม่ให้บัญชีที่ถูกปิดใช้งาน
+    // สร้างอู่ใหม่หลบเลี่ยงได้ ต่อให้ bypass UI มาเรียกฟังก์ชันนี้ตรงๆ ก็ตาม
+    if (isDisabledAccount) {
+      setMsg({ type: "error", text: "บัญชีนี้ถูกปิดการใช้งาน ไม่สามารถสร้างอู่ใหม่ได้" });
+      return;
+    }
+
     setSubmitting(true);
     setMsg(null);
 
@@ -92,6 +101,39 @@ export default function SignupPage() {
     return (
       <div className="container" style={{ maxWidth: 400, paddingTop: 60 }}>
         <div className="empty">กำลังโหลด...</div>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------
+  // ⚠️ เคสสำคัญ: login สำเร็จแต่บัญชีถูกปิดใช้งานทุกอู่ที่เคยอยู่
+  // ห้ามให้มาถึงฟอร์ม "ตั้งชื่ออู่" เด็ดขาด ไม่งั้นจะสร้างอู่ใหม่หลบเลี่ยงได้
+  // ------------------------------------------------------------
+  if (!loading && session && isDisabledAccount) {
+    return (
+      <div className="container" style={{ maxWidth: 400, paddingTop: 60, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>🚫</div>
+        <h1 style={{ fontSize: 18, marginBottom: 8 }}>บัญชีนี้ถูกปิดการใช้งาน</h1>
+        <p style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
+          ติดต่อเจ้าของ/ผู้จัดการของอู่เพื่อเปิดการใช้งานบัญชีนี้อีกครั้ง
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            router.replace("/login");
+          }}
+          style={{
+            padding: "10px 20px",
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            cursor: "pointer",
+          }}
+        >
+          ออกจากระบบ
+        </button>
       </div>
     );
   }

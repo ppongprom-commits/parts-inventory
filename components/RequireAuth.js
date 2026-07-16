@@ -8,7 +8,7 @@ import AppShell from "./AppShell";
 
 export default function RequireAuth({ children, allowedRoles }) {
   const router = useRouter();
-  const { loading, session, memberships, currentRole, signOut } = useAuth();
+  const { loading, session, memberships, currentRole, signOut, isDisabledAccount } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -16,10 +16,12 @@ export default function RequireAuth({ children, allowedRoles }) {
       router.replace("/login");
       return;
     }
-    if (memberships.length === 0) {
-      router.replace("/signup"); // login แล้วแต่ยังไม่มีอู่เลย (เคสแปลก) ให้ไปสร้างอู่
+    // ⚠️ ต้องเช็ค isDisabledAccount ก่อนเสมอ — คนที่เคยมีอู่แต่ถูกปิดใช้งาน
+    // ไม่ควรถูกพาไปหน้า /signup (จะสร้างอู่ใหม่หลบเลี่ยงการถูกปิดใช้งานได้)
+    if (memberships.length === 0 && !isDisabledAccount) {
+      router.replace("/signup"); // login แล้วแต่ไม่เคยมีอู่มาก่อนเลยจริงๆ ให้ไปสร้างอู่แรก
     }
-  }, [loading, session, memberships, router]);
+  }, [loading, session, memberships, isDisabledAccount, router]);
 
   if (loading) {
     return (
@@ -29,8 +31,41 @@ export default function RequireAuth({ children, allowedRoles }) {
     );
   }
 
-  if (!session || memberships.length === 0) {
-    return null; // กำลัง redirect อยู่
+  if (!session) {
+    return null; // กำลัง redirect ไป /login
+  }
+
+  if (isDisabledAccount) {
+    return (
+      <div className="container" style={{ paddingTop: 60, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>🚫</div>
+        <h1 style={{ fontSize: 18, marginBottom: 8 }}>บัญชีนี้ถูกปิดการใช้งาน</h1>
+        <p style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
+          ติดต่อเจ้าของ/ผู้จัดการของอู่เพื่อเปิดการใช้งานบัญชีนี้อีกครั้ง
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            router.replace("/login");
+          }}
+          style={{
+            padding: "10px 20px",
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            cursor: "pointer",
+          }}
+        >
+          ออกจากระบบ
+        </button>
+      </div>
+    );
+  }
+
+  if (memberships.length === 0) {
+    return null; // กำลัง redirect ไป /signup
   }
 
   if (allowedRoles && currentRole && !allowedRoles.includes(currentRole)) {
