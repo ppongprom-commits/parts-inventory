@@ -1,4 +1,6 @@
 import "./globals.css";
+import { AuthProvider } from "../lib/AuthProvider";
+import { ThemeProvider } from "../lib/ThemeProvider";
 
 export const metadata = {
   title: "ระบบสต็อกอะไหล่รถ",
@@ -7,8 +9,12 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="th">
-      <body>{children}</body>
+    <html lang="th" data-theme="light">
+      <body>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

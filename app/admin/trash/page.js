@@ -4,22 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
 import { deletePartPhotos } from "../../../lib/storageHelpers";
+import { useAuth } from "../../../lib/AuthProvider";
+import RequireAuth from "../../../components/RequireAuth";
 
-export default function TrashAdminPage() {
+function TrashAdminPageContent() {
+  const { currentShopId } = useAuth();
   const [parts, setParts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
-    fetchTrash();
-  }, []);
+    if (currentShopId) fetchTrash();
+  }, [currentShopId]);
 
   async function fetchTrash() {
     setLoading(true);
     const { data, error } = await supabase
       .from("parts")
       .select("*")
+      .eq("shop_id", currentShopId)
       .eq("is_active", false)
       .order("created_at", { ascending: false });
 
@@ -76,7 +80,7 @@ export default function TrashAdminPage() {
   }
 
   return (
-    <div className="container">
+      <div className="container">
       <div className="header">
         <h1>🗑️ ถังขยะ</h1>
         <Link href="/admin" className="nav-link secondary">
@@ -130,9 +134,9 @@ export default function TrashAdminPage() {
                 style={{
                   padding: "8px 14px",
                   borderRadius: 8,
-                  border: "1px solid #7f1d1d",
+                  border: "1px solid var(--danger-border)",
                   background: "transparent",
-                  color: "#fca5a5",
+                  color: "var(--danger-text)",
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: "pointer",
@@ -144,6 +148,14 @@ export default function TrashAdminPage() {
           </div>
         </div>
       ))}
-    </div>
+      </div>
+  );
+}
+
+export default function TrashAdminPage() {
+  return (
+    <RequireAuth allowedRoles={["owner", "manager"]}>
+      <TrashAdminPageContent />
+    </RequireAuth>
   );
 }

@@ -4,10 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../lib/supabaseClient";
 import { getViewMode, setViewMode } from "../lib/viewModeStorage";
+import { useAuth } from "../lib/AuthProvider";
+import RequireAuth from "../components/RequireAuth";
+import { ROLE_PERMISSIONS } from "../config/rolePermissions";
 
 const PAGE_SIZE = 50;
 
-export default function HomePage() {
+function HomePageContent() {
+  const { currentShopId, currentShop, currentRole, signOut } = useAuth();
+
   const [parts, setParts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -15,32 +20,49 @@ export default function HomePage() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [viewMode, setViewModeState] = useState("list");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [zoneFilter, setZoneFilter] = useState("");
   const [zones, setZones] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [lowStockCount, setLowStockCount] = useState(0);
+  const [lowStockOnly, setLowStockOnly] = useState(false);
 
   const debounceRef = useRef(null);
 
   useEffect(() => {
     setViewModeState(getViewMode());
+  }, []);
+
+  useEffect(() => {
+    if (!currentShopId) return;
     fetchZones();
     fetchBrands();
     fetchParts(0, false);
+    fetchLowStockCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentShopId]);
 
-  // ค้นหา/filter เปลี่ยน -> รีเซ็ตกลับหน้าแรกเสมอ (debounce ช่องค้นหาข้อความ กันยิง query รัวๆ ทุกตัวอักษร)
+  async function fetchLowStockCount() {
+    const { count } = await supabase
+      .from("low_stock_parts")
+      .select("id", { count: "exact", head: true })
+      .eq("shop_id", currentShopId);
+    setLowStockCount(count || 0);
+  }
+
   useEffect(() => {
+    if (!currentShopId) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       fetchParts(0, false);
     }, 300);
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, brandFilter, zoneFilter]);
+  }, [search, brandFilter, zoneFilter, lowStockOnly]);
 
   function handleViewModeChange(mode) {
     setViewModeState(mode);
@@ -51,6 +73,7 @@ export default function HomePage() {
     const { data, error } = await supabase
       .from("zones")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("code", { ascending: true });
     if (!error) setZones(data || []);
   }
@@ -59,8 +82,9 @@ export default function HomePage() {
     const { data, error } = await supabase
       .from("parts")
       .select("car_brand")
-      .not("car_brand", "is", null)
-      .eq("is_active", true);
+      .eq("shop_id", currentShopId)
+      .eq("is_active", true)
+      .not("car_brand", "is", null);
     if (!error && data) {
       const unique = [...new Set(data.map((d) => d.car_brand).filter(Boolean))].sort();
       setBrands(unique);
@@ -68,16 +92,14 @@ export default function HomePage() {
   }
 
   async function fetchParts(pageNum, append) {
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setErrorMsg("");
 
     let query = supabase
-      .from("parts")
+      .from(lowStockOnly ? "low_stock_parts" : "parts")
       .select("*")
+      .eq("shop_id", currentShopId)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -85,12 +107,8 @@ export default function HomePage() {
       const s = search.trim();
       query = query.or(`part_name.ilike.%${s}%,car_model.ilike.%${s}%`);
     }
-    if (brandFilter) {
-      query = query.eq("car_brand", brandFilter);
-    }
-    if (zoneFilter) {
-      query = query.eq("zone_code", zoneFilter);
-    }
+    if (brandFilter) query = query.eq("car_brand", brandFilter);
+    if (zoneFilter) query = query.eq("zone_code", zoneFilter);
 
     const from = pageNum * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -115,11 +133,17 @@ export default function HomePage() {
     fetchParts(page + 1, true);
   }
 
+  const subStatus = currentShop?.subscription_status;
+  const canViewPrice = ROLE_PERMISSIONS[currentRole]?.view_price ?? true;
+
   return (
     <div className="container">
       <div className="header">
-        <h1>📦 สต็อกอะไหล่</h1>
+        <h1>📦 {currentShop?.shop_name || "สต็อกอะไหล่"}</h1>
         <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/jobs" className="nav-link secondary">
+            🔧 งานเข้าอู่
+          </Link>
           <Link href="/admin" className="nav-link secondary">
             ⚙️ ตั้งค่า
           </Link>
@@ -128,6 +152,52 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, fontSize: 12, color: "var(--text-muted)" }}>
+        <span>บทบาทของคุณ: {currentRole}</span>
+        <button
+          type="button"
+          onClick={signOut}
+          style={{ background: "none", border: "none", color: "var(--link)", cursor: "pointer", fontSize: 12 }}
+        >
+          ออกจากระบบ
+        </button>
+      </div>
+
+      {subStatus === "past_due" && (
+        <div className="msg error" style={{ marginBottom: 16 }}>
+          ⚠️ อู่นี้ค้างชำระค่าสมาชิก กรุณาชำระเงินก่อนถูกระงับการใช้งาน
+        </div>
+      )}
+      {subStatus === "suspended" && (
+        <div className="msg error" style={{ marginBottom: 16 }}>
+          🚫 อู่นี้ถูกระงับการใช้งาน (ดูได้อย่างเดียว) — ชำระเงินเพื่อกลับมาใช้งานเต็มรูปแบบ
+        </div>
+      )}
+
+      {lowStockCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setLowStockOnly((v) => !v)}
+          className="no-print"
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: 12,
+            borderRadius: 8,
+            border: "1px solid #f59e0b",
+            background: lowStockOnly ? "#f59e0b" : "rgba(245, 158, 11, 0.1)",
+            color: lowStockOnly ? "white" : "#f59e0b",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            marginBottom: 12,
+          }}
+        >
+          ⚠️ มีของสิ้นเปลืองใกล้หมด {lowStockCount} รายการ — {lowStockOnly ? "กดเพื่อดูทั้งหมด" : "กดเพื่อดูเฉพาะรายการนี้"}
+        </button>
+      )}
 
       <div className="filters" style={{ alignItems: "center" }}>
         <input
@@ -169,6 +239,26 @@ export default function HomePage() {
             🖼 Gallery
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectMode((m) => !m);
+            setSelectedIds([]);
+          }}
+          className="no-print"
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+            background: selectMode ? "#2563eb" : "var(--surface)",
+            color: selectMode ? "white" : "var(--text-muted)",
+            fontSize: 13,
+            cursor: "pointer",
+            marginLeft: 8,
+          }}
+        >
+          🏷️ {selectMode ? "ยกเลิกเลือก" : "เลือกพิมพ์ QR"}
+        </button>
       </div>
 
       {errorMsg && <div className="msg error">{errorMsg}</div>}
@@ -179,41 +269,102 @@ export default function HomePage() {
       )}
 
       {viewMode === "list" &&
-        parts.map((p) => (
-          <Link
-            href={`/edit/${p.id}`}
-            className="card"
-            key={p.id}
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            {p.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.photo_url} alt={p.part_name} loading="lazy" decoding="async" />
-            ) : (
-              <div className="no-photo">ไม่มีรูป</div>
-            )}
-            <div className="card-body">
-              <div className="card-title">{p.part_name}</div>
-              <div className="card-sub">
-                {p.car_brand} {p.car_model} {p.car_year ? `(${p.car_year})` : ""}
-              </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {p.zone_code && <span className="tag zone">📍 {p.zone_code}</span>}
-                {p.condition && <span className="tag">{p.condition}</span>}
-                {p.source_type && <span className="tag">{p.source_type}</span>}
-                {p.status && <span className="tag">{p.status}</span>}
-                {p.photo_urls?.length > 1 && (
-                  <span className="tag">📷 {p.photo_urls.length} รูป</span>
-                )}
-              </div>
-              {p.price && (
-                <div className="card-sub" style={{ marginTop: 2 }}>
-                  ราคา: {Number(p.price).toLocaleString()} บาท
+        parts.map((p) => {
+          const isSelected = selectedIds.includes(p.id);
+          const CardWrapper = selectMode ? "div" : Link;
+          const wrapperProps = selectMode
+            ? {
+                onClick: () =>
+                  setSelectedIds((prev) =>
+                    prev.includes(p.id) ? prev.filter((id) => id !== p.id) : [...prev, p.id]
+                  ),
+              }
+            : { href: `/edit/${p.id}` };
+
+          return (
+            <CardWrapper
+              {...wrapperProps}
+              className="card"
+              key={p.id}
+              style={{
+                textDecoration: "none",
+                color: "inherit",
+                position: "relative",
+                border: isSelected ? "2px solid #2563eb" : undefined,
+              }}
+            >
+              {selectMode && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: isSelected ? "#2563eb" : "var(--surface-alt)",
+                    border: "1px solid var(--border-strong)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: 13,
+                  }}
+                >
+                  {isSelected ? "✓" : ""}
                 </div>
               )}
-            </div>
+              {p.photo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.photo_url} alt={p.part_name} loading="lazy" decoding="async" />
+              ) : (
+                <div className="no-photo">ไม่มีรูป</div>
+              )}
+              <div className="card-body">
+                <div className="card-title">{p.part_name}</div>
+                <div className="card-sub">
+                  {p.car_brand} {p.car_model} {p.car_year_display ? `(${p.car_year_display})` : ""}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {p.item_type === "consumable" && <span className="tag">🧴 สิ้นเปลือง</span>}
+                  {p.zone_code && <span className="tag zone">📍 {p.zone_code}</span>}
+                  {p.condition && <span className="tag">{p.condition}</span>}
+                  {p.source_type && <span className="tag">{p.source_type}</span>}
+                  {p.status && <span className="tag">{p.status}</span>}
+                  {p.photo_urls?.length > 1 && (
+                    <span className="tag">📷 {p.photo_urls.length} รูป</span>
+                  )}
+                </div>
+                {p.price && canViewPrice && (
+                  <div className="card-sub" style={{ marginTop: 2 }}>
+                    ราคา: {Number(p.price).toLocaleString()} บาท
+                  </div>
+                )}
+              </div>
+            </CardWrapper>
+          );
+        })}
+
+      {selectMode && selectedIds.length > 0 && (
+        <div
+          className="no-print"
+          style={{
+            position: "sticky",
+            bottom: 16,
+            display: "flex",
+            justifyContent: "center",
+            marginTop: 16,
+          }}
+        >
+          <Link
+            href={`/print-labels?ids=${selectedIds.join(",")}`}
+            className="nav-link"
+            style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
+          >
+            🏷️ พิมพ์ QR ที่เลือก ({selectedIds.length})
           </Link>
-        ))}
+        </div>
+      )}
 
       {viewMode === "gallery" && (
         <div className="gallery-grid">
@@ -244,9 +395,9 @@ export default function HomePage() {
             padding: 14,
             marginTop: 8,
             borderRadius: 8,
-            border: "1px solid #333844",
-            background: "#1a1d24",
-            color: "#e8e8e8",
+            border: "1px solid var(--border-strong)",
+            background: "var(--surface)",
+            color: "var(--text)",
             fontSize: 14,
             fontWeight: 600,
             cursor: "pointer",
@@ -256,5 +407,13 @@ export default function HomePage() {
         </button>
       )}
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <RequireAuth>
+      <HomePageContent />
+    </RequireAuth>
   );
 }

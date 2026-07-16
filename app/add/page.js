@@ -1,20 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
+import { useAuth } from "../../lib/AuthProvider";
+import RequireAuth from "../../components/RequireAuth";
 
-export default function AddPartPage() {
+function AddPartPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const linkedJobId = searchParams.get("job_id");
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+  const { currentShopId } = useAuth();
 
   const [form, setForm] = useState({
+    item_type: "salvage",
     part_name: "",
     car_brand: "",
     car_model: "",
@@ -22,7 +28,9 @@ export default function AddPartPage() {
     zone_code: "",
     source_type: "",
     quantity: "1",
+    min_stock_level: "",
     price: "",
+    part_number: "",
     notes: "",
   });
 
@@ -49,15 +57,19 @@ export default function AddPartPage() {
     if (lastZone) {
       setForm((f) => ({ ...f, zone_code: lastZone }));
     }
-    fetchZones();
-    fetchOptions();
-  }, []);
+    if (currentShopId) {
+      fetchZones();
+      fetchOptions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentShopId]);
 
   async function fetchZones() {
     setZonesLoading(true);
     const { data, error } = await supabase
       .from("zones")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("code", { ascending: true });
     if (!error) setZones(data || []);
     setZonesLoading(false);
@@ -68,6 +80,7 @@ export default function AddPartPage() {
     const { data, error } = await supabase
       .from("options")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("sort_order", { ascending: true });
 
     if (!error && data) {
@@ -91,6 +104,21 @@ export default function AddPartPage() {
     if (name === "car_brand" || name === "car_model") {
       setSelectedGeneration(null);
     }
+  }
+
+  // ลิงก์ช่วยค้นเบอร์อะไหล่ — deep-link ไปหน้า catalog ของยี่ห้อรถที่เลือกไว้
+  // หมายเหตุ: ลิงก์ระดับ "ยี่ห้อ" เท่านั้น เพราะ id ของแต่ละรุ่นในเว็บเหล่านี้เป็น token
+  // ภายในที่เดารูปแบบไม่ได้ ผู้ใช้ต้องคลิกเลือกรุ่นต่อเองอีก 1 ครั้งจากหน้ายี่ห้อ
+  function getPartSouqUrl() {
+    const brand = (form.car_brand || "").trim();
+    if (!brand) return "https://partsouq.com/en/catalog/genuine";
+    return `https://partsouq.com/en/catalog/genuine/locate?c=${encodeURIComponent(brand)}`;
+  }
+
+  function getAmayamaUrl() {
+    const brand = (form.car_brand || "").trim().toLowerCase().replace(/\s+/g, "-");
+    if (!brand) return "https://www.amayama.com/en/genuine-catalogs";
+    return `https://www.amayama.com/en/genuine-catalogs/${encodeURIComponent(brand)}`;
   }
 
   function handleZoneChange(e) {
@@ -136,6 +164,7 @@ export default function AddPartPage() {
       const photoUrls = await uploadPartPhotos(photos.map((p) => p.file));
 
       const { error: insertError } = await supabase.from("parts").insert({
+        shop_id: currentShopId,
         part_name: form.part_name,
         car_brand: form.car_brand || null,
         car_model: form.car_model || null,
@@ -145,7 +174,11 @@ export default function AddPartPage() {
         zone_code: form.zone_code || null,
         source_type: form.source_type || null,
         quantity: form.quantity ? Number(form.quantity) : 1,
+        item_type: form.item_type,
+        job_id: linkedJobId || null,
+        min_stock_level: form.min_stock_level ? Number(form.min_stock_level) : null,
         price: form.price ? Number(form.price) : null,
+        part_number: form.part_number || null,
         notes: form.notes || null,
         photo_url: photoUrls[0] || null,
         photo_urls: photoUrls,
@@ -166,6 +199,7 @@ export default function AddPartPage() {
         zone_code: keepZone,
         source_type: sourceTypes[0] || "",
         price: "",
+        part_number: "",
       });
       setSelectedGeneration(null);
       setPhotos([]);
@@ -220,9 +254,9 @@ export default function AddPartPage() {
                 flex: 1,
                 padding: 14,
                 borderRadius: 8,
-                border: "1px dashed #333844",
-                background: "#1a1d24",
-                color: "#e8e8e8",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                color: "var(--text)",
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -242,9 +276,9 @@ export default function AddPartPage() {
                 flex: 1,
                 padding: 14,
                 borderRadius: 8,
-                border: "1px dashed #333844",
-                background: "#1a1d24",
-                color: "#e8e8e8",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                color: "var(--text)",
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -282,7 +316,7 @@ export default function AddPartPage() {
           </div>
         )}
 
-        {photoError && <span style={{ fontSize: 12, color: "#fca5a5" }}>{photoError}</span>}
+        {photoError && <span style={{ fontSize: 12, color: "var(--danger-text)" }}>{photoError}</span>}
 
         {lightboxUrl && (
           <div
@@ -307,6 +341,63 @@ export default function AddPartPage() {
             />
           </div>
         )}
+
+        {linkedJobId && (
+          <div
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              background: "var(--zone-bg)",
+              color: "var(--zone-text)",
+              fontSize: 13,
+            }}
+          >
+            🔗 อะไหล่ชิ้นนี้จะผูกกับงาน #{linkedJobId} อัตโนมัติ
+          </div>
+        )}
+
+        <label>
+          ประเภทอะไหล่ *
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, item_type: "salvage" }))}
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid var(--border-strong)",
+                background: form.item_type === "salvage" ? "#2563eb" : "var(--surface)",
+                color: form.item_type === "salvage" ? "white" : "var(--text)",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🔧 อะไหล่ถอด
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, item_type: "consumable" }))}
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid var(--border-strong)",
+                background: form.item_type === "consumable" ? "#0f766e" : "var(--surface)",
+                color: form.item_type === "consumable" ? "white" : "var(--text)",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🧴 ของสิ้นเปลือง
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {form.item_type === "salvage"
+              ? "อะไหล่ถอดจากรถชน/น้ำท่วม รอขาย (ประตู, กันชน, เครื่องยนต์ ฯลฯ)"
+              : "ของใช้สิ้นเปลืองในงานซ่อม (น้ำมันเครื่อง, ไส้กรอง, ผ้าเบรก ฯลฯ)"}
+          </div>
+        </label>
 
         <label>
           ชื่อชิ้นส่วน *
@@ -362,9 +453,9 @@ export default function AddPartPage() {
             style={{
               padding: 12,
               borderRadius: 8,
-              border: "1px solid #333844",
-              background: "#14161b",
-              color: selectedGeneration ? "#e8e8e8" : "#6b7280",
+              border: "1px solid var(--border-strong)",
+              background: "var(--surface-dim)",
+              color: selectedGeneration ? "var(--text)" : "var(--text-muted)",
               fontSize: 14,
             }}
           >
@@ -379,6 +470,40 @@ export default function AddPartPage() {
         </label>
 
         <label>
+          เลขที่อะไหล่ (Part Number) — ไม่บังคับ
+          <input
+            type="text"
+            name="part_number"
+            value={form.part_number}
+            onChange={handleChange}
+            placeholder="เช่น 67002-0K120"
+          />
+          <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+            <a
+              href={getPartSouqUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 12, color: "var(--link)" }}
+            >
+              🔍 ค้นเบอร์ที่ PartSouq
+            </a>
+            <a
+              href={getAmayamaUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 12, color: "var(--link)" }}
+            >
+              🔍 ค้นเบอร์ที่ Amayama
+            </a>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+            {form.car_brand
+              ? `จะพาไปหน้า catalog ของ "${form.car_brand}" แล้วเลือกรุ่นต่อเอง`
+              : "เลือก/พิมพ์ยี่ห้อรถก่อน ลิงก์จะพาไปตรงยี่ห้อนั้นให้อัตโนมัติ"}
+          </div>
+        </label>
+
+        <label>
           สภาพ
           <select name="condition" value={form.condition} onChange={handleChange}>
             {conditions.map((c) => (
@@ -388,9 +513,9 @@ export default function AddPartPage() {
             ))}
           </select>
           {!optionsLoading && conditions.length === 0 && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
               ยังไม่มีตัวเลือก —{" "}
-              <Link href="/admin/options" style={{ color: "#93c5fd" }}>
+              <Link href="/admin/options" style={{ color: "var(--link)" }}>
                 เพิ่มที่หน้าตั้งค่า
               </Link>
             </span>
@@ -407,9 +532,9 @@ export default function AddPartPage() {
             ))}
           </select>
           {!optionsLoading && sourceTypes.length === 0 && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
               ยังไม่มีตัวเลือก —{" "}
-              <Link href="/admin/options" style={{ color: "#93c5fd" }}>
+              <Link href="/admin/options" style={{ color: "var(--link)" }}>
                 เพิ่มที่หน้าตั้งค่า
               </Link>
             </span>
@@ -428,9 +553,9 @@ export default function AddPartPage() {
             ))}
           </select>
           {!zonesLoading && zones.length === 0 && (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
               ยังไม่มีโซนในระบบ —{" "}
-              <Link href="/admin/zones" style={{ color: "#93c5fd" }}>
+              <Link href="/admin/zones" style={{ color: "var(--link)" }}>
                 เพิ่มโซนก่อน
               </Link>
             </span>
@@ -449,6 +574,21 @@ export default function AddPartPage() {
             step="any"
           />
         </label>
+
+        {form.item_type === "consumable" && (
+          <label>
+            แจ้งเตือนเมื่อเหลือน้อยกว่า (ไม่บังคับ)
+            <input
+              type="number"
+              name="min_stock_level"
+              value={form.min_stock_level}
+              onChange={handleChange}
+              placeholder="เช่น 5"
+              min="0"
+              step="any"
+            />
+          </label>
+        )}
 
         <label>
           ราคา (บาท)
@@ -479,3 +619,14 @@ export default function AddPartPage() {
     </div>
   );
 }
+
+export default function AddPartPage() {
+  return (
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+      <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
+        <AddPartPageContent />
+      </Suspense>
+    </RequireAuth>
+  );
+}
+

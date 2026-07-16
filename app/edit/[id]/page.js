@@ -8,13 +8,16 @@ import CarAutocomplete from "../../../components/CarAutocomplete";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
+import { useAuth } from "../../../lib/AuthProvider";
+import RequireAuth from "../../../components/RequireAuth";
 
-export default function EditPartPage() {
+function EditPartPageContent() {
   const params = useParams();
   const router = useRouter();
   const { id } = params;
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+  const { currentShopId, currentRole } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
@@ -35,23 +38,101 @@ export default function EditPartPage() {
   const [zones, setZones] = useState([]);
   const [zonesLoading, setZonesLoading] = useState(true);
 
+  const [sales, setSales] = useState([]);
+  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "" });
+  const [selling, setSelling] = useState(false);
+  const [saleMsg, setSaleMsg] = useState(null);
+
   const [conditions, setConditions] = useState([]);
   const [sourceTypes, setSourceTypes] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentShopId) return;
     fetchPart();
     fetchZones();
     fetchOptions();
+    fetchSales();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, currentShopId]);
+
+  async function fetchSales() {
+    const { data } = await supabase
+      .from("part_sales")
+      .select("*")
+      .eq("part_id", id)
+      .order("sold_at", { ascending: false });
+    setSales(data || []);
+  }
+
+  async function handleSell(e) {
+    e.preventDefault();
+    setSaleMsg(null);
+
+    const qty = Number(saleForm.quantity);
+    const price = Number(saleForm.price);
+
+    if (!qty || qty <= 0) {
+      setSaleMsg({ type: "error", text: "กรุณาระบุจำนวนที่ขาย" });
+      return;
+    }
+    if (qty > Number(form.quantity)) {
+      setSaleMsg({ type: "error", text: `เหลือในสต็อกแค่ ${form.quantity} ชิ้น ขายเกินไม่ได้` });
+      return;
+    }
+    if (!price && price !== 0) {
+      setSaleMsg({ type: "error", text: "กรุณาระบุราคาขาย" });
+      return;
+    }
+
+    setSelling(true);
+
+    try {
+      // ตัดสต็อกแบบ atomic ผ่าน RPC กันแข่งกันตัดพร้อมกันจนติดลบ
+      const { data: newQuantity, error: deductError } = await supabase.rpc("deduct_part_stock", {
+        p_part_id: id,
+        p_quantity: qty,
+      });
+      if (deductError) throw deductError;
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { error: saleError } = await supabase.from("part_sales").insert({
+        part_id: id,
+        shop_id: currentShopId,
+        quantity_sold: qty,
+        sale_price: price,
+        sold_to: saleForm.sold_to || null,
+        sold_by: userData?.user?.id || null,
+      });
+      if (saleError) throw saleError;
+
+      // ถ้าขายหมดสต็อกแล้ว ปิดสถานะเป็นขายแล้วอัตโนมัติ ซ่อนจากหน้าแรก
+      if (newQuantity <= 0) {
+        await supabase
+          .from("parts")
+          .update({ status: "sold", is_active: false })
+          .eq("id", id);
+      }
+
+      setSaleMsg({ type: "success", text: "บันทึกการขายสำเร็จ ✅" });
+      setSaleForm({ quantity: "", price: "", sold_to: "" });
+      fetchPart();
+      fetchSales();
+    } catch (err) {
+      setSaleMsg({ type: "error", text: "ขายไม่สำเร็จ: " + err.message });
+    } finally {
+      setSelling(false);
+    }
+  }
 
   async function fetchZones() {
     setZonesLoading(true);
     const { data, error } = await supabase
       .from("zones")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("code", { ascending: true });
     if (!error) setZones(data || []);
     setZonesLoading(false);
@@ -62,6 +143,7 @@ export default function EditPartPage() {
     const { data, error } = await supabase
       .from("options")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("sort_order", { ascending: true });
 
     if (!error && data) {
@@ -191,6 +273,8 @@ export default function EditPartPage() {
           source_type: form.source_type || null,
           status: form.status || null,
           quantity: form.quantity ? Number(form.quantity) : 1,
+          item_type: form.item_type || "salvage",
+          min_stock_level: form.min_stock_level ? Number(form.min_stock_level) : null,
           price: form.price ? Number(form.price) : null,
           notes: form.notes || null,
           photo_url: finalPhotoUrls[0] || null,
@@ -292,9 +376,9 @@ export default function EditPartPage() {
                 flex: 1,
                 padding: 14,
                 borderRadius: 8,
-                border: "1px dashed #333844",
-                background: "#1a1d24",
-                color: "#e8e8e8",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                color: "var(--text)",
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -314,9 +398,9 @@ export default function EditPartPage() {
                 flex: 1,
                 padding: 14,
                 borderRadius: 8,
-                border: "1px dashed #333844",
-                background: "#1a1d24",
-                color: "#e8e8e8",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                color: "var(--text)",
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -368,7 +452,7 @@ export default function EditPartPage() {
           </div>
         )}
 
-        {photoError && <span style={{ fontSize: 12, color: "#fca5a5" }}>{photoError}</span>}
+        {photoError && <span style={{ fontSize: 12, color: "var(--danger-text)" }}>{photoError}</span>}
 
         {lightboxIndex !== null && (
           <div
@@ -520,9 +604,9 @@ export default function EditPartPage() {
             style={{
               padding: 12,
               borderRadius: 8,
-              border: "1px solid #333844",
-              background: "#14161b",
-              color: selectedGeneration ? "#e8e8e8" : "#6b7280",
+              border: "1px solid var(--border-strong)",
+              background: "var(--surface-dim)",
+              color: selectedGeneration ? "var(--text)" : "var(--text-muted)",
               fontSize: 14,
             }}
           >
@@ -598,6 +682,65 @@ export default function EditPartPage() {
         </label>
 
         <label>
+          ประเภทอะไหล่
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, item_type: "salvage" }))}
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid var(--border-strong)",
+                background: form.item_type === "salvage" ? "#2563eb" : "var(--surface)",
+                color: form.item_type === "salvage" ? "white" : "var(--text)",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🔧 อะไหล่ถอด
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, item_type: "consumable" }))}
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid var(--border-strong)",
+                background: form.item_type === "consumable" ? "#0f766e" : "var(--surface)",
+                color: form.item_type === "consumable" ? "white" : "var(--text)",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🧴 ของสิ้นเปลือง
+            </button>
+          </div>
+        </label>
+
+        {form.item_type === "salvage" && form?.created_at && (
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--text-muted)",
+              padding: "8px 0",
+            }}
+          >
+            📦 อยู่ในสต็อกมาแล้ว{" "}
+            {Math.floor((Date.now() - new Date(form.created_at).getTime()) / (1000 * 60 * 60 * 24))} วัน
+            {form.job_id && (
+              <>
+                {" · "}
+                <Link href={`/jobs/${form.job_id}`} style={{ color: "var(--link)" }}>
+                  ถอดจากงาน #{form.job_id}
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+
+        <label>
           จำนวน
           <input
             type="number"
@@ -609,6 +752,21 @@ export default function EditPartPage() {
             step="any"
           />
         </label>
+
+        {form.item_type === "consumable" && (
+          <label>
+            แจ้งเตือนเมื่อเหลือน้อยกว่า (ไม่บังคับ)
+            <input
+              type="number"
+              name="min_stock_level"
+              value={form.min_stock_level ?? ""}
+              onChange={handleChange}
+              placeholder="เช่น 5"
+              min="0"
+              step="any"
+            />
+          </label>
+        )}
 
         <label>
           ราคา (บาท)
@@ -635,25 +793,136 @@ export default function EditPartPage() {
         </button>
       </form>
 
-      <button
-        type="button"
-        onClick={handleDeactivate}
-        disabled={saving || deleting}
+      {form.item_type === "salvage" && Number(form.quantity) > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>💰 ขายอะไหล่ชิ้นนี้</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+            เหลือในสต็อก {form.quantity} ชิ้น — ขายแล้วจะตัดสต็อกอัตโนมัติ ถ้าขายหมดจะปิดสถานะเป็น &quot;ขายแล้ว&quot; ให้เอง
+          </div>
+
+          {saleMsg && <div className={`msg ${saleMsg.type}`} style={{ marginBottom: 10 }}>{saleMsg.text}</div>}
+
+          <form onSubmit={handleSell}>
+            <label>
+              จำนวนที่ขาย
+              <input
+                type="number"
+                value={saleForm.quantity}
+                onChange={(e) => setSaleForm((f) => ({ ...f, quantity: e.target.value }))}
+                placeholder={`สูงสุด ${form.quantity}`}
+                min="0"
+                max={form.quantity}
+                step="any"
+                required
+              />
+            </label>
+            <label>
+              ราคาขายจริง (ต่อหน่วย)
+              <input
+                type="number"
+                value={saleForm.price}
+                onChange={(e) => setSaleForm((f) => ({ ...f, price: e.target.value }))}
+                placeholder={form.price ? `เช่น ${form.price}` : "บาท"}
+                required
+              />
+            </label>
+            <label>
+              ผู้ซื้อ (ไม่บังคับ)
+              <input
+                type="text"
+                value={saleForm.sold_to}
+                onChange={(e) => setSaleForm((f) => ({ ...f, sold_to: e.target.value }))}
+                placeholder="ชื่อ/เบอร์โทรลูกค้า"
+              />
+            </label>
+            <button type="submit" disabled={selling}>
+              {selling ? "กำลังบันทึก..." : "✓ บันทึกการขาย"}
+            </button>
+          </form>
+
+          {sales.length > 0 && (
+            <div style={{ marginTop: 16, fontSize: 13 }}>
+              <div style={{ color: "var(--text-muted)", marginBottom: 6 }}>ประวัติการขาย</div>
+              {sales.map((s) => (
+                <div
+                  key={s.sale_id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <span>
+                    {s.quantity_sold} ชิ้น × {Number(s.sale_price).toLocaleString()} บาท
+                    {s.sold_to && ` — ${s.sold_to}`}
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                    {new Date(s.sold_at).toLocaleDateString("th-TH")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Link
+        href={`/print-label/${id}`}
+        className="no-print"
         style={{
+          display: "block",
+          textAlign: "center",
           marginTop: 12,
-          width: "100%",
           padding: 14,
           borderRadius: 8,
-          border: "1px solid #7f1d1d",
-          background: "transparent",
-          color: "#fca5a5",
+          border: "1px solid var(--border-strong)",
+          background: "var(--surface)",
+          color: "var(--text)",
           fontSize: 15,
           fontWeight: 600,
-          cursor: "pointer",
+          textDecoration: "none",
         }}
       >
-        {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
-      </button>
+        🏷️ พิมพ์ป้าย QR
+      </Link>
+
+      {currentRole !== "assistant" && (
+        <button
+          type="button"
+          onClick={handleDeactivate}
+          disabled={saving || deleting}
+          style={{
+            marginTop: 12,
+            width: "100%",
+            padding: 14,
+            borderRadius: 8,
+            border: "1px solid var(--danger-border)",
+            background: "transparent",
+            color: "var(--danger-text)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
+        </button>
+      )}
     </div>
+  );
+}
+
+export default function EditPartPage() {
+  return (
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+      <EditPartPageContent />
+    </RequireAuth>
   );
 }

@@ -108,12 +108,12 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
             top: "calc(100% + 4px)",
             left: 0,
             right: 0,
-            background: "#1a1d24",
-            border: "1px solid #333844",
+            background: "var(--surface)",
+            border: "1px solid var(--border-strong)",
             borderRadius: 8,
             padding: "10px 12px",
             fontSize: 13,
-            color: "#6b7280",
+            color: "var(--text-muted)",
             zIndex: 20,
           }}
         >
@@ -128,8 +128,8 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
             top: "calc(100% + 4px)",
             left: 0,
             right: 0,
-            background: "#1a1d24",
-            border: "1px solid #333844",
+            background: "var(--surface)",
+            border: "1px solid var(--border-strong)",
             borderRadius: 8,
             maxHeight: 260,
             overflowY: "auto",
@@ -143,16 +143,16 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
               style={{
                 padding: "10px 12px",
                 cursor: "pointer",
-                background: i === activeIndex ? "#2a2d34" : "transparent",
+                background: i === activeIndex ? "var(--surface-alt)" : "transparent",
                 borderBottom:
-                  i !== results.length - 1 ? "1px solid #262a33" : "none",
+                  i !== results.length - 1 ? "1px solid var(--border)" : "none",
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 600 }}>
                 {item.brand_name} {item.model_name}
                 {item.generation_code ? ` (${item.generation_code})` : ""}
               </div>
-              <div style={{ fontSize: 12, color: "#a8adb8" }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 {item.vehicle_type} · {item.year_range_display}
               </div>
             </div>
@@ -167,12 +167,12 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
             top: "calc(100% + 4px)",
             left: 0,
             right: 0,
-            background: "#1a1d24",
-            border: "1px solid #333844",
+            background: "var(--surface)",
+            border: "1px solid var(--border-strong)",
             borderRadius: 8,
             padding: "10px 12px",
             fontSize: 13,
-            color: "#6b7280",
+            color: "var(--text-muted)",
             zIndex: 20,
           }}
         >

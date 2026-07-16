@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
+import { useAuth } from "../../../lib/AuthProvider";
+import RequireAuth from "../../../components/RequireAuth";
 
-export default function ZonesAdminPage() {
+function ZonesAdminPageContent() {
+  const { currentShopId } = useAuth();
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
@@ -14,14 +17,15 @@ export default function ZonesAdminPage() {
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
-    fetchZones();
-  }, []);
+    if (currentShopId) fetchZones();
+  }, [currentShopId]);
 
   async function fetchZones() {
     setLoading(true);
     const { data, error } = await supabase
       .from("zones")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("code", { ascending: true });
 
     if (error) {
@@ -40,6 +44,7 @@ export default function ZonesAdminPage() {
     setMsg(null);
 
     const { error } = await supabase.from("zones").insert({
+      shop_id: currentShopId,
       code: newCode.trim(),
       name: newName.trim() || null,
     });
@@ -68,7 +73,7 @@ export default function ZonesAdminPage() {
   }
 
   return (
-    <div className="container">
+      <div className="container">
       <div className="header">
         <h1>⚙️ จัดการโซนจัดเก็บ</h1>
         <Link href="/admin" className="nav-link secondary">
@@ -125,9 +130,9 @@ export default function ZonesAdminPage() {
             style={{
               padding: "8px 14px",
               borderRadius: 8,
-              border: "1px solid #7f1d1d",
+              border: "1px solid var(--danger-border)",
               background: "transparent",
-              color: "#fca5a5",
+              color: "var(--danger-text)",
               fontSize: 13,
               cursor: "pointer",
               flexShrink: 0,
@@ -137,6 +142,14 @@ export default function ZonesAdminPage() {
           </button>
         </div>
       ))}
-    </div>
+      </div>
+  );
+}
+
+export default function ZonesAdminPage() {
+  return (
+    <RequireAuth allowedRoles={["owner", "manager"]}>
+      <ZonesAdminPageContent />
+    </RequireAuth>
   );
 }

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
+import { useAuth } from "../../../lib/AuthProvider";
+import RequireAuth from "../../../components/RequireAuth";
 
 const CATEGORIES = [
   { key: "condition", label: "สภาพ" },
@@ -10,7 +12,8 @@ const CATEGORIES = [
   { key: "status", label: "สถานะ" },
 ];
 
-export default function OptionsAdminPage() {
+function OptionsAdminPageContent() {
+  const { currentShopId } = useAuth();
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
@@ -22,14 +25,15 @@ export default function OptionsAdminPage() {
   const [saving, setSaving] = useState(null); // category ที่กำลังบันทึก
 
   useEffect(() => {
-    fetchOptions();
-  }, []);
+    if (currentShopId) fetchOptions();
+  }, [currentShopId]);
 
   async function fetchOptions() {
     setLoading(true);
     const { data, error } = await supabase
       .from("options")
       .select("*")
+      .eq("shop_id", currentShopId)
       .order("sort_order", { ascending: true });
 
     if (error) {
@@ -52,6 +56,7 @@ export default function OptionsAdminPage() {
       .reduce((max, o) => Math.max(max, o.sort_order || 0), 0);
 
     const { error } = await supabase.from("options").insert({
+      shop_id: currentShopId,
       category,
       value,
       sort_order: maxSort + 1,
@@ -79,7 +84,7 @@ export default function OptionsAdminPage() {
   }
 
   return (
-    <div className="container">
+      <div className="container">
       <div className="header">
         <h1>⚙️ จัดการตัวเลือก</h1>
         <Link href="/admin" className="nav-link secondary">
@@ -155,9 +160,9 @@ export default function OptionsAdminPage() {
                     style={{
                       padding: "6px 12px",
                       borderRadius: 8,
-                      border: "1px solid #7f1d1d",
+                      border: "1px solid var(--danger-border)",
                       background: "transparent",
-                      color: "#fca5a5",
+                      color: "var(--danger-text)",
                       fontSize: 12,
                       cursor: "pointer",
                       flexShrink: 0,
@@ -170,6 +175,14 @@ export default function OptionsAdminPage() {
             </div>
           );
         })}
-    </div>
+      </div>
+  );
+}
+
+export default function OptionsAdminPage() {
+  return (
+    <RequireAuth allowedRoles={["owner", "manager"]}>
+      <OptionsAdminPageContent />
+    </RequireAuth>
   );
 }

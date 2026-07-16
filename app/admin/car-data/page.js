@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
+import RequireAuth from "../../../components/RequireAuth";
 
 const emptyGenForm = {
   generation_code: "",
@@ -15,7 +16,7 @@ const emptyGenForm = {
   note: "",
 };
 
-export default function CarDataAdminPage() {
+function CarDataAdminPageContent() {
   const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [newBrandName, setNewBrandName] = useState("");
@@ -239,7 +240,7 @@ export default function CarDataAdminPage() {
   }
 
   return (
-    <div className="container">
+      <div className="container">
       <div className="header">
         <h1>🚗 จัดการข้อมูลรถ</h1>
         <Link href="/admin" className="nav-link secondary">
@@ -350,9 +351,9 @@ export default function CarDataAdminPage() {
                     style={{
                       padding: "6px 12px",
                       borderRadius: 8,
-                      border: "1px solid #333844",
-                      background: "#1a1d24",
-                      color: "#e8e8e8",
+                      border: "1px solid var(--border-strong)",
+                      background: "var(--surface)",
+                      color: "var(--text)",
                       fontSize: 12,
                       cursor: "pointer",
                     }}
@@ -365,9 +366,9 @@ export default function CarDataAdminPage() {
                     style={{
                       padding: "6px 12px",
                       borderRadius: 8,
-                      border: "1px solid #333844",
-                      background: "#1a1d24",
-                      color: "#93c5fd",
+                      border: "1px solid var(--border-strong)",
+                      background: "var(--surface)",
+                      color: "var(--link)",
                       fontSize: 12,
                       cursor: "pointer",
                     }}
@@ -380,14 +381,14 @@ export default function CarDataAdminPage() {
               {auditOpenId === gen.generation_id && (
                 <div
                   style={{
-                    background: "#14161b",
-                    border: "1px solid #262a33",
+                    background: "var(--surface-dim)",
+                    border: "1px solid var(--border)",
                     borderRadius: 8,
                     padding: 12,
                     marginTop: -4,
                     marginBottom: 8,
                     fontSize: 12,
-                    color: "#a8adb8",
+                    color: "var(--text-muted)",
                   }}
                 >
                   {auditLoading && "กำลังโหลดประวัติ..."}
@@ -396,10 +397,10 @@ export default function CarDataAdminPage() {
                     auditRows.map((a) => (
                       <div
                         key={a.audit_id}
-                        style={{ paddingBottom: 8, marginBottom: 8, borderBottom: "1px solid #262a33" }}
+                        style={{ paddingBottom: 8, marginBottom: 8, borderBottom: "1px solid var(--border)" }}
                       >
                         <div>
-                          <strong style={{ color: "#e8e8e8" }}>{a.action}</strong> —{" "}
+                          <strong style={{ color: "var(--text)" }}>{a.action}</strong> —{" "}
                           {new Date(a.changed_at).toLocaleString("th-TH")}
                         </div>
                         <div>IP: {a.changed_by_ip || "ไม่ทราบ"}</div>
@@ -427,9 +428,9 @@ export default function CarDataAdminPage() {
                 width: "100%",
                 padding: 12,
                 borderRadius: 8,
-                border: "1px dashed #333844",
-                background: "#1a1d24",
-                color: "#e8e8e8",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                color: "var(--text)",
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -443,7 +444,7 @@ export default function CarDataAdminPage() {
           {editingGenId !== null && (
             <div
               style={{
-                border: "1px solid #333844",
+                border: "1px solid var(--border-strong)",
                 borderRadius: 8,
                 padding: 16,
                 marginTop: 8,
@@ -559,9 +560,9 @@ export default function CarDataAdminPage() {
                   style={{
                     padding: "0 16px",
                     borderRadius: 8,
-                    border: "1px solid #333844",
+                    border: "1px solid var(--border-strong)",
                     background: "transparent",
-                    color: "#a8adb8",
+                    color: "var(--text-muted)",
                     cursor: "pointer",
                   }}
                 >
@@ -572,6 +573,14 @@ export default function CarDataAdminPage() {
           )}
         </>
       )}
-    </div>
+      </div>
+  );
+}
+
+export default function CarDataAdminPage() {
+  return (
+    <RequireAuth>
+      <CarDataAdminPageContent />
+    </RequireAuth>
   );
 }
