@@ -69,11 +69,20 @@ function TeamPageContent() {
 
   async function fetchTeam() {
     setLoading(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
     const [membersRes, invitesRes] = await Promise.all([
-      supabase
-        .from("shop_members")
-        .select("member_id, role, status, user_id")
-        .eq("shop_id", currentShopId),
+      fetch("/api/team/list-with-emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ shop_id: currentShopId }),
+      }).then((r) => r.json()),
       supabase
         .from("shop_invites")
         .select("*")
@@ -490,7 +499,14 @@ function TeamPageContent() {
           style={{ cursor: "default", alignItems: "center", justifyContent: "space-between" }}
         >
           <div className="card-body">
-            <div className="card-title">{ROLE_LABELS[m.role]}</div>
+            <div className="card-title">
+              {m.contact_name || m.login_username || m.email || "ไม่ทราบชื่อ"}
+            </div>
+            <div className="card-sub">
+              {ROLE_LABELS[m.role]}
+              {m.login_username && ` · @${m.login_username}`}
+              {!m.login_username && m.email && ` · ${m.email}`}
+            </div>
             <div className="card-sub">{m.status === "disabled" ? "🚫 ปิดใช้งานแล้ว" : "✅ ใช้งานอยู่"}</div>
           </div>
           {canManage && m.role !== "owner" && (
