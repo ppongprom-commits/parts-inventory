@@ -239,6 +239,29 @@ function TeamPageContent() {
     setBusy(false);
   }
 
+  // ลบออกจากรายการ (ไม่ใช่ hard delete จริง — แค่เปลี่ยนสถานะเป็น 'removed'
+  // ให้หายจากหน้านี้ แต่ข้อมูลยังอยู่ครบให้ platform-admin ดูย้อนหลังได้)
+  async function handleRemove(memberId) {
+    const confirmed = window.confirm(
+      "ลบสมาชิกคนนี้ออกจากรายการใช่ไหม? (ข้อมูลจะไม่หายจริง แค่ไม่แสดงในหน้านี้อีก)"
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    const member = members.find((m) => m.member_id === memberId);
+    const { error } = await supabase.rpc("update_member_role", {
+      p_member_id: memberId,
+      p_new_role: member.role,
+      p_new_status: "removed",
+    });
+    if (error) {
+      setMsg({ type: "error", text: "ลบไม่สำเร็จ: " + error.message });
+    } else {
+      fetchTeam();
+    }
+    setBusy(false);
+  }
+
   const canManage = currentRole === "owner" || currentRole === "manager";
 
   return (
@@ -523,7 +546,7 @@ function TeamPageContent() {
                   </option>
                 ))}
               </select>
-              {m.status !== "disabled" && (
+              {m.status === "active" && (
                 <button
                   type="button"
                   onClick={() => handleDisable(m.member_id)}
@@ -539,6 +562,24 @@ function TeamPageContent() {
                   }}
                 >
                   ปิดใช้งาน
+                </button>
+              )}
+              {m.status === "disabled" && (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(m.member_id)}
+                  disabled={busy}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--danger-border)",
+                    background: "var(--danger-border)",
+                    color: "white",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  🗑️ ลบ
                 </button>
               )}
             </div>

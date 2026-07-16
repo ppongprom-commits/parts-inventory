@@ -33,6 +33,7 @@ export async function POST(request) {
       .from("shop_members")
       .select("member_id, role, status, login_username, contact_name, user_id")
       .eq("shop_id", shopId)
+      .neq("status", "removed") // ซ่อนคนที่ถูกลบออกจากรายการนี้ (ข้อมูลยังอยู่ครบ)
       .order("member_id");
 
     if (error) throw error;
