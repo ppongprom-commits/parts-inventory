@@ -48,6 +48,9 @@ function TeamPageContent() {
 
   // ฟอร์มสร้างบัญชีทันที (ไม่ต้องผ่านอีเมลยืนยัน)
   const [directEmail, setDirectEmail] = useState("");
+  const [directContactName, setDirectContactName] = useState("");
+  const [editingNameId, setEditingNameId] = useState(null);
+  const [editingNameValue, setEditingNameValue] = useState("");
   const [directPassword, setDirectPassword] = useState(generateRandomPassword());
   const [directRole, setDirectRole] = useState("technician");
   const [creatingDirect, setCreatingDirect] = useState(false);
@@ -141,6 +144,7 @@ function TeamPageContent() {
           email: directEmail.trim(),
           password: directPassword,
           role: directRole,
+          contact_name: directContactName.trim() || null,
         }),
       });
 
@@ -150,6 +154,7 @@ function TeamPageContent() {
       setCreatedCredential({ email: directEmail.trim(), password: directPassword });
       setMsg({ type: "success", text: "สร้างบัญชีสำเร็จ ✅ — คัดลอกข้อมูลด้านล่างไปให้พนักงานได้เลย" });
       setDirectEmail("");
+      setDirectContactName("");
       setDirectPassword(generateRandomPassword());
       fetchTeam();
     } catch (err) {
@@ -215,6 +220,29 @@ function TeamPageContent() {
     if (error) {
       setMsg({ type: "error", text: "แก้ไขไม่สำเร็จ: " + error.message });
     } else {
+      fetchTeam();
+    }
+    setBusy(false);
+  }
+
+  function startEditName(member) {
+    setEditingNameId(member.member_id);
+    setEditingNameValue(member.contact_name || "");
+  }
+
+  async function handleUpdateName(memberId) {
+    setBusy(true);
+    const member = members.find((m) => m.member_id === memberId);
+    const { error } = await supabase.rpc("update_member_role", {
+      p_member_id: memberId,
+      p_new_role: member.role,
+      p_new_status: member.status,
+      p_new_contact_name: editingNameValue.trim() || null,
+    });
+    if (error) {
+      setMsg({ type: "error", text: "แก้ไขชื่อไม่สำเร็จ: " + error.message });
+    } else {
+      setEditingNameId(null);
       fetchTeam();
     }
     setBusy(false);
@@ -411,6 +439,15 @@ function TeamPageContent() {
 
             <form onSubmit={handleCreateDirect}>
               <label>
+                ชื่อ-นามสกุล (ไม่บังคับ แต่แนะนำให้ใส่ จะได้ไม่งงว่าใครเป็นใคร)
+                <input
+                  type="text"
+                  value={directContactName}
+                  onChange={(e) => setDirectContactName(e.target.value)}
+                  placeholder="เช่น สมชาย ใจดี"
+                />
+              </label>
+              <label>
                 อีเมล/ชื่อผู้ใช้ (ไม่ซ้ำใคร)
                 <input
                   type="text"
@@ -522,9 +559,70 @@ function TeamPageContent() {
           style={{ cursor: "default", alignItems: "center", justifyContent: "space-between" }}
         >
           <div className="card-body">
-            <div className="card-title">
-              {m.contact_name || m.login_username || m.email || "ไม่ทราบชื่อ"}
-            </div>
+            {editingNameId === m.member_id ? (
+              <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                <input
+                  type="text"
+                  autoFocus
+                  value={editingNameValue}
+                  onChange={(e) => setEditingNameValue(e.target.value)}
+                  placeholder="ชื่อ-นามสกุล"
+                  style={{ flex: 1, fontSize: 13, padding: 8 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUpdateName(m.member_id)}
+                  disabled={busy}
+                  style={{
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#2563eb",
+                    color: "white",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  บันทึก
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingNameId(null)}
+                  style={{
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border-strong)",
+                    background: "transparent",
+                    color: "var(--text-muted)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            ) : (
+              <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {m.contact_name || m.login_username || m.email || "ไม่ทราบชื่อ"}
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => startEditName(m)}
+                    title="แก้ไขชื่อ"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      color: "var(--text-muted)",
+                      padding: 0,
+                    }}
+                  >
+                    ✏️
+                  </button>
+                )}
+              </div>
+            )}
             <div className="card-sub">
               {ROLE_LABELS[m.role]}
               {m.login_username && ` · @${m.login_username}`}

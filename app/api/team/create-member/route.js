@@ -17,7 +17,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { shop_id, email, password, role } = body;
+    const { shop_id, email, password, role, contact_name } = body;
 
     if (!shop_id || !email || !password || !role) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
@@ -42,10 +42,12 @@ export async function POST(request) {
     }
 
     // สร้าง auth user ใหม่ทันที พร้อม email_confirm: true = ข้ามขั้นตอนยืนยันอีเมลไปเลย
+    // ใส่ full_name ไว้ด้วยเผื่ออยากเห็น Display name ใน Supabase Dashboard
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
+      user_metadata: contact_name ? { full_name: contact_name } : undefined,
     });
 
     if (createError) throw createError;
@@ -57,6 +59,7 @@ export async function POST(request) {
       role,
       status: "active",
       invited_by: callerData.user.id,
+      contact_name: contact_name || null,
     });
 
     if (memberError) throw memberError;
