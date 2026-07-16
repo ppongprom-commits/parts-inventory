@@ -698,7 +698,7 @@ function JobDetailPageContent() {
           </select>
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           แผนภาพจุดเสียหาย
           <CarDamageDiagram
             points={job.damage_points || []}
@@ -706,7 +706,7 @@ function JobDetailPageContent() {
             carType={job.car_diagram_type || "sedan"}
             onCarTypeChange={(type) => setJob((j) => ({ ...j, car_diagram_type: type }))}
           />
-        </label>
+        </div>
 
         <label>
           หมายเหตุ
