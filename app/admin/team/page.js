@@ -439,7 +439,7 @@ function TeamPageContent() {
 
             <form onSubmit={handleCreateDirect}>
               <label>
-                ชื่อผู้ติดต่อ (ไม่บังคับ แต่แนะนำให้ใส่ จะได้ไม่งงว่าใครเป็นใคร)
+                ชื่อผู้ติดต่อ (ไม่บังคับ แต่แนะนำให้ใส่)
                 <input
                   type="text"
                   value={directContactName}
