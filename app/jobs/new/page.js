@@ -14,9 +14,15 @@ import { JOB_SOURCE_TYPES } from "../../../lib/jobStatusLabels";
 
 function NewJobPageContent() {
   const router = useRouter();
-  const { currentShopId, user } = useAuth();
+  const { currentShopId } = useAuth();
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+  // สร้างครั้งเดียวต่อการเปิดฟอร์ม 1 รอบ แล้วส่งไปกับทุกครั้งที่ submit (รวมถึง retry)
+  // เพื่อให้ RPC ฝั่ง DB รู้จำได้ว่านี่คือ "การส่งซ้ำของงานเดิม" ไม่ใช่งานใหม่
+  // (กันเคสกด submit ซ้ำหลัง error / double-click สร้างงานซ้ำ — ดู JOB-203)
+  const clientTokenRef = useRef(
+    typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : null
+  );
 
   const [form, setForm] = useState({
     customer_name: "",
@@ -140,9 +146,12 @@ function NewJobPageContent() {
         }
       }
 
-      const { data, error } = await supabase
-        .from("jobs")
-        .insert({
+      // สร้างงาน + ผูกกลุ่ม visibility ผ่าน RPC เดียว (atomic — ถ้าฝั่งไหน fail จะ rollback
+      // ทั้งหมด ไม่ทิ้งงานที่ insert ไปแล้วให้กลายเป็น "เห็นได้ทุกคน" โดยไม่ตั้งใจ เหมือนที่เคยเกิด
+      // จากการ insert 2 รอบแยกกัน — ดู JOB-202/JOB-203) client_token ทำให้กด submit ซ้ำ
+      // ปลอดภัย: ถ้า retry ด้วย token เดิม จะได้ job เดิมกลับมาแทนที่จะสร้างซ้ำ
+      const { data: jobId, error } = await supabase.rpc("create_job_with_visibility_groups", {
+        p_job: {
           shop_id: currentShopId,
           customer_id: customerId,
           customer_name: form.customer_name || null,
@@ -155,31 +164,22 @@ function NewJobPageContent() {
           license_plate: form.license_plate || null,
           source_type: form.source_type || null,
           notes: form.notes || null,
-          photo_urls: photoUrls,
-          damage_points: damagePoints,
           car_diagram_type: carDiagramType,
-          status: "received",
-          created_by: user?.id || null,
-        })
-        .select()
-        .single();
+        },
+        p_group_ids: selectedGroupIds.length > 0 ? selectedGroupIds : null,
+        p_client_token: clientTokenRef.current,
+        p_photo_urls: photoUrls.length > 0 ? photoUrls : null,
+        p_damage_points: damagePoints,
+      });
 
       if (error) throw error;
-
-      // ผูกงานเข้ากับกลุ่มที่เลือก (เลือกได้หลายกลุ่ม — ไม่เลือกเลย = ทุกคนเห็น)
-      if (selectedGroupIds.length > 0) {
-        const { error: groupError } = await supabase.from("job_visibility_groups").insert(
-          selectedGroupIds.map((groupId) => ({ job_id: data.job_id, group_id: groupId }))
-        );
-        if (groupError) throw groupError;
-      }
 
       // บันทึกขั้นตอนงานคร่าวๆ ที่ระบุไว้ (ถ้ามี)
       const validSteps = workflowSteps.filter((s) => s.step_name.trim());
       if (validSteps.length > 0) {
         const { error: stepsError } = await supabase.from("job_workflow_steps").insert(
           validSteps.map((s, i) => ({
-            job_id: data.job_id,
+            job_id: jobId,
             shop_id: currentShopId,
             step_order: i,
             step_name: s.step_name.trim(),
@@ -190,7 +190,7 @@ function NewJobPageContent() {
       }
 
       setMsg({ type: "success", text: "รับงานเรียบร้อยแล้ว ✅" });
-      setTimeout(() => router.push(`/jobs/${data.job_id}`), 600);
+      setTimeout(() => router.push(`/jobs/${jobId}`), 600);
     } catch (err) {
       setMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + err.message });
       setSaving(false);

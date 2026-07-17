@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/AuthProvider";
+import { supabase } from "../lib/supabaseClient";
 import IdleSessionGuard from "./IdleSessionGuard";
 import AppShell from "./AppShell";
 
@@ -22,6 +23,21 @@ export default function RequireAuth({ children, allowedRoles }) {
       router.replace("/signup"); // login แล้วแต่ไม่เคยมีอู่มาก่อนเลยจริงๆ ให้ไปสร้างอู่แรก
     }
   }, [loading, session, memberships, isDisabledAccount, router]);
+
+  // ⚠️ กันเคส sign out แล้วกด back ของ browser กลับมาหน้านี้ — browser อาจคืนหน้าจาก
+  // back/forward cache (bfcache) ทั้งอันโดยไม่รัน effect ข้างบนใหม่ ทำให้เห็นเนื้อหาเดิมค้างไว้
+  // ชั่วขณะทั้งที่ sign out ไปแล้วจริง (ดู TC-303) — pageshow + persisted=true คือสัญญาณว่าเพิ่ง
+  // กลับมาจาก bfcache ให้ตรวจ session สดจาก Supabase อีกทีก่อนเชื่อ state เดิมที่ค้างอยู่
+  useEffect(() => {
+    function handlePageShow(event) {
+      if (!event.persisted) return;
+      supabase.auth.getSession().then(({ data }) => {
+        if (!data.session) router.replace("/login");
+      });
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [router]);
 
   if (loading) {
     return (

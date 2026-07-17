@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../lib/AuthProvider";
 import { useTheme } from "../lib/ThemeProvider";
 
@@ -39,8 +39,17 @@ function isActive(pathname, href) {
 export default function AppShell({ children, title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { currentShop, currentRole, signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  // ⚠️ ต้อง router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ที่ว่างลง
+  // แล้ว redirect เฉยๆ — ทำให้ผู้ใช้ค้างอยู่หน้าเดิม (หรือ "/") ชั่วขณะหลังกด "ออกจากระบบ"
+  // ก่อนเปลี่ยนหน้าจริง (ดู TC-303)
+  async function handleSignOut() {
+    await signOut();
+    router.replace("/login");
+  }
 
   const canSeeReports = currentRole === "owner" || currentRole === "manager";
   const navItems = canSeeReports ? [...NAV_ITEMS, REPORTS_ITEM] : NAV_ITEMS;
@@ -116,7 +125,7 @@ export default function AppShell({ children, title }) {
             <br />
             {currentShop?.contact_name || currentShop?.login_username || user?.email || "-"}
           </div>
-          <button type="button" className="app-sidebar-signout" onClick={signOut}>
+          <button type="button" className="app-sidebar-signout" onClick={handleSignOut}>
             ออกจากระบบ
           </button>
         </div>

@@ -31,7 +31,7 @@ export default function StaffLoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password: pin });
 
     if (error) {
-      setMsg({ type: "error", text: "เข้าสู่ระบบไม่สำเร็จ — username หรือ PIN ไม่ถูกต้อง" });
+      setMsg({ type: "error", text: "เข้าสู่ระบบไม่สำเร็จ — ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง" });
       setSubmitting(false);
     } else {
       router.replace("/");

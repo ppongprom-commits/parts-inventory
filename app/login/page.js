@@ -28,6 +28,16 @@ function LoginFormContent() {
     }
   }, [loading, session, router]);
 
+  // แปล error ของ Supabase auth เป็นไทยล้วน — ห้ามต่อ error.message (ภาษาอังกฤษ) ตรงๆ
+  // ลงในข้อความที่ผู้ใช้เห็น (ดู TC-504b)
+  function loginErrorMessage(error) {
+    const known = {
+      "Invalid login credentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+      "Email not confirmed": "อีเมลนี้ยังไม่ได้ยืนยัน กรุณาตรวจสอบกล่องอีเมลของคุณ",
+    };
+    return known[error?.message] || "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
@@ -36,7 +46,7 @@ function LoginFormContent() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setMsg({ type: "error", text: "เข้าสู่ระบบไม่สำเร็จ: " + error.message });
+      setMsg({ type: "error", text: loginErrorMessage(error) });
       setSubmitting(false);
     } else {
       router.replace("/");
