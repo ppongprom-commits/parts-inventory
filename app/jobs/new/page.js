@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
-import CarAutocomplete from "../../../components/CarAutocomplete";
+import CarCascadeSelect from "../../../components/CarCascadeSelect";
 import CarDamageDiagram from "../../../components/CarDamageDiagram";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadJobPhotos } from "../../../lib/storageHelpers";
@@ -88,7 +88,6 @@ function NewJobPageContent() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    if (name === "car_brand" || name === "car_model") setSelectedGeneration(null);
   }
 
   async function handlePhotoChange(e) {
@@ -161,6 +160,7 @@ function NewJobPageContent() {
           car_model: form.car_model || null,
           car_year_display: selectedGeneration?.year_range_display || null,
           generation_id: selectedGeneration?.generation_id || null,
+          trim_id: selectedGeneration?.trim_id || null,
           license_plate: form.license_plate || null,
           source_type: form.source_type || null,
           notes: form.notes || null,
@@ -328,23 +328,17 @@ function NewJobPageContent() {
         </label>
 
         <label>
-          🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
-          <CarAutocomplete
+          🔍 เลือกรถ (ยี่ห้อ → รุ่น → ปี → รุ่นย่อยถ้ามี)
+          <CarCascadeSelect
             onSelect={(item) => {
-              setForm((f) => ({ ...f, car_brand: item.brand_name, car_model: item.model_name }));
+              setForm((f) => ({
+                ...f,
+                car_brand: item?.brand_name || "",
+                car_model: item?.model_name || "",
+              }));
               setSelectedGeneration(item);
             }}
           />
-        </label>
-
-        <label>
-          ยี่ห้อรถ
-          <input type="text" name="car_brand" value={form.car_brand} onChange={handleChange} />
-        </label>
-
-        <label>
-          รุ่นรถ
-          <input type="text" name="car_model" value={form.car_model} onChange={handleChange} />
         </label>
 
         <label>

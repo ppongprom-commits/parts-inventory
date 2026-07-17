@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
-import CarAutocomplete from "../../../components/CarAutocomplete";
+import CarCascadeSelect from "../../../components/CarCascadeSelect";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
@@ -173,13 +173,6 @@ function EditPartPageContent() {
         ? [data.photo_url]
         : [];
       setExistingPhotos(photos);
-      if (data.car_year_display) {
-        setSelectedGeneration({
-          generation_id: data.generation_id,
-          year_range_display: data.car_year_display,
-          generation_code: null,
-        });
-      }
     }
     setLoading(false);
   }
@@ -187,9 +180,6 @@ function EditPartPageContent() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    if (name === "car_brand" || name === "car_model") {
-      setSelectedGeneration(null);
-    }
   }
 
   function handleZoneChange(e) {
@@ -269,6 +259,7 @@ function EditPartPageContent() {
           car_model: form.car_model || null,
           generation_id: selectedGeneration?.generation_id || null,
           car_year_display: selectedGeneration?.year_range_display || null,
+          trim_id: selectedGeneration?.trim_id || null,
           condition: form.condition || null,
           zone_code: form.zone_code || null,
           source_type: form.source_type || null,
@@ -566,37 +557,21 @@ function EditPartPageContent() {
         </label>
 
         <label>
-          🔍 ค้นหารถ (ยี่ห้อ/รุ่น) — เปลี่ยนถ้าต้องการ
-          <CarAutocomplete
-            onSelect={(item) => {
-              setForm((f) => ({
-                ...f,
-                car_brand: item.brand_name,
-                car_model: item.model_name,
-              }));
-              setSelectedGeneration(item);
-            }}
-          />
-        </label>
-
-        <label>
-          ยี่ห้อรถ
-          <input
-            type="text"
-            name="car_brand"
-            value={form.car_brand || ""}
-            onChange={handleChange}
-          />
-        </label>
-
-        <label>
-          รุ่นรถ
-          <input
-            type="text"
-            name="car_model"
-            value={form.car_model || ""}
-            onChange={handleChange}
-          />
+          🔍 เลือกรถ (ยี่ห้อ → รุ่น → ปี → รุ่นย่อยถ้ามี) — เปลี่ยนถ้าต้องการ
+          {!loading && (
+            <CarCascadeSelect
+              initialGenerationId={form.generation_id}
+              initialTrimId={form.trim_id}
+              onSelect={(item) => {
+                setForm((f) => ({
+                  ...f,
+                  car_brand: item?.brand_name || "",
+                  car_model: item?.model_name || "",
+                }));
+                setSelectedGeneration(item);
+              }}
+            />
+          )}
         </label>
 
         <label>
@@ -616,8 +591,8 @@ function EditPartPageContent() {
                   selectedGeneration.generation_code
                     ? ` (${selectedGeneration.generation_code})`
                     : ""
-                }`
-              : "— ไม่มีข้อมูลปี เลือกรถจากช่องค้นหาด้านบนเพื่ออัปเดต —"}
+                }${selectedGeneration.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""}`
+              : "— ไม่มีข้อมูลปี เลือกรถด้านบนเพื่ออัปเดต —"}
           </div>
         </label>
 

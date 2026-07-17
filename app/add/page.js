@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
-import CarAutocomplete from "../../components/CarAutocomplete";
+import CarCascadeSelect from "../../components/CarCascadeSelect";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
@@ -100,10 +100,6 @@ function AddPartPageContent() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    // ถ้าแก้ยี่ห้อ/รุ่นเองด้วยมือ (ไม่ผ่าน autocomplete) ให้ล้างข้อมูล generation ที่เคยเลือกไว้
-    if (name === "car_brand" || name === "car_model") {
-      setSelectedGeneration(null);
-    }
   }
 
   // ลิงก์ช่วยค้นเบอร์อะไหล่ — deep-link ไปหน้า catalog ของยี่ห้อรถที่เลือกไว้
@@ -171,6 +167,7 @@ function AddPartPageContent() {
         car_model: form.car_model || null,
         generation_id: selectedGeneration?.generation_id || null,
         car_year_display: selectedGeneration?.year_range_display || null,
+        trim_id: selectedGeneration?.trim_id || null,
         condition: form.condition || null,
         zone_code: form.zone_code || null,
         source_type: form.source_type || null,
@@ -413,39 +410,21 @@ function AddPartPageContent() {
         </label>
 
         <label>
-          🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
-          <CarAutocomplete
+          🔍 เลือกรถ (ยี่ห้อ → รุ่น → ปี → รุ่นย่อยถ้ามี)
+          <CarCascadeSelect
             onSelect={(item) => {
               setForm((f) => ({
                 ...f,
-                car_brand: item.brand_name,
-                car_model: item.model_name,
+                car_brand: item?.brand_name || "",
+                car_model: item?.model_name || "",
               }));
               setSelectedGeneration(item);
             }}
           />
-        </label>
-
-        <label>
-          ยี่ห้อรถ
-          <input
-            type="text"
-            name="car_brand"
-            value={form.car_brand}
-            onChange={handleChange}
-            placeholder="เช่น Nissan"
-          />
-        </label>
-
-        <label>
-          รุ่นรถ
-          <input
-            type="text"
-            name="car_model"
-            value={form.car_model}
-            onChange={handleChange}
-            placeholder="เช่น March"
-          />
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+            เลือกจากฐานข้อมูลเท่านั้น — ถ้าไม่เจอรุ่นที่ต้องการ แจ้งแอดมินให้เพิ่มในฐานข้อมูลก่อน
+            เพื่อกันข้อมูลปี/รุ่นเพี้ยน
+          </div>
         </label>
 
         <label>
@@ -465,8 +444,8 @@ function AddPartPageContent() {
                   selectedGeneration.generation_code
                     ? ` (${selectedGeneration.generation_code})`
                     : ""
-                }`
-              : "— เลือกรถจากช่องค้นหาด้านบนก่อน จะขึ้นปีให้อัตโนมัติ —"}
+                }${selectedGeneration.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""}`
+              : "— เลือกยี่ห้อ/รุ่น/ปีด้านบนก่อน จะขึ้นปีให้อัตโนมัติ —"}
           </div>
         </label>
 
