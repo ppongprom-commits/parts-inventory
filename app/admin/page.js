@@ -93,8 +93,7 @@ function ChangePinCard() {
 }
 
 function ShopInfoCard() {
-  const { currentShopId, currentShop } = useAuth();
-  const [companyName, setCompanyName] = useState("");
+  const { currentShopId } = useAuth();
   const [address, setAddress] = useState("");
   const [taxId, setTaxId] = useState("");
   const [phone, setPhone] = useState("");
@@ -106,12 +105,11 @@ function ShopInfoCard() {
     if (!currentShopId) return;
     supabase
       .from("shops")
-      .select("company_name, address, tax_id, phone")
+      .select("address, tax_id, phone")
       .eq("shop_id", currentShopId)
       .single()
       .then(({ data }) => {
         if (data) {
-          setCompanyName(data.company_name || "");
           setAddress(data.address || "");
           setTaxId(data.tax_id || "");
           setPhone(data.phone || "");
@@ -127,7 +125,7 @@ function ShopInfoCard() {
 
     const { data, error } = await supabase
       .from("shops")
-      .update({ company_name: companyName, address, tax_id: taxId, phone })
+      .update({ address, tax_id: taxId, phone })
       .eq("shop_id", currentShopId)
       .select();
 
@@ -156,19 +154,6 @@ function ShopInfoCard() {
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
 
       <form onSubmit={handleSave}>
-        <label>
-          ชื่อบริษัท (สำหรับพิมพ์บนเอกสาร)
-          <input
-            type="text"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder={`ถ้าไม่กรอก จะใช้ชื่ออู่ "${currentShop?.shop_name || ""}" แทน`}
-          />
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            เช่น ชื่อจดทะเบียนนิติบุคคล ("บริษัท ... จำกัด") ถ้าต่างจากชื่ออู่ที่ใช้เรียกกันประจำวัน —
-            ชื่ออู่ (แสดงในเมนูด้านข้าง) ยังคงเป็น &quot;{currentShop?.shop_name}&quot; เหมือนเดิม ไม่เปลี่ยน
-          </div>
-        </label>
         <label>
           ที่อยู่ร้าน/อู่
           <input
@@ -202,8 +187,6 @@ function ShopInfoCard() {
 
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
-  const { currentRole } = useAuth();
-  const canManage = currentRole === "owner" || currentRole === "manager";
 
   return (
     <div className="container">
@@ -241,83 +224,84 @@ function AdminHubPageContent() {
 
       <ChangePinCard />
 
-      {!canManage && (
-        <div className="msg" style={{ marginTop: 12, fontSize: 13, color: "var(--text-muted)" }}>
-          ℹ️ ส่วนจัดการอู่ (ข้อมูลร้าน/ทีม/กลุ่ม/ข้อมูลรถ ฯลฯ) เห็นได้เฉพาะเจ้าของ/ผู้จัดการ
+      <ShopInfoCard />
+
+      <Link
+        href="/admin/groups"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🧑‍🤝‍🧑 กลุ่มผู้ใช้</div>
+          <div className="card-sub">สร้างกลุ่ม กำหนดว่าใครเห็นงานไหนบ้าง</div>
         </div>
-      )}
+      </Link>
 
-      {canManage && (
-        <>
-          <ShopInfoCard />
+      <Link
+        href="/admin/team"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">👥 จัดการทีม</div>
+          <div className="card-sub">เชิญสมาชิก กำหนด/เปลี่ยนสิทธิ์ ปิดการใช้งาน</div>
+        </div>
+      </Link>
 
-          <Link
-            href="/admin/groups"
-            className="card"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div className="card-body">
-              <div className="card-title">🧑‍🤝‍🧑 กลุ่มผู้ใช้</div>
-              <div className="card-sub">สร้างกลุ่ม กำหนดว่าใครเห็นงานไหนบ้าง</div>
-            </div>
-          </Link>
+      <Link
+        href="/admin/car-data"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🚗 ข้อมูลรถ (ยี่ห้อ/รุ่น/ปี)</div>
+          <div className="card-sub">แก้ไข/เพิ่มยี่ห้อ รุ่น และช่วงปีผลิต พร้อมดูประวัติการแก้ไข</div>
+        </div>
+      </Link>
 
-          <Link
-            href="/admin/team"
-            className="card"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div className="card-body">
-              <div className="card-title">👥 จัดการทีม</div>
-              <div className="card-sub">เชิญสมาชิก กำหนด/เปลี่ยนสิทธิ์ ปิดการใช้งาน</div>
-            </div>
-          </Link>
+      <Link
+        href="/admin/zones"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">📍 โซนจัดเก็บ</div>
+          <div className="card-sub">เพิ่ม/ลบรหัสโซนที่ใช้ในอู่</div>
+        </div>
+      </Link>
 
-          <Link
-            href="/admin/car-data"
-            className="card"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div className="card-body">
-              <div className="card-title">🚗 ข้อมูลรถ (ยี่ห้อ/รุ่น/ปี)</div>
-              <div className="card-sub">แก้ไข/เพิ่มยี่ห้อ รุ่น และช่วงปีผลิต พร้อมดูประวัติการแก้ไข</div>
-            </div>
-          </Link>
+      <Link
+        href="/admin/options"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🏷️ สภาพ / ที่มา / สถานะ</div>
+          <div className="card-sub">แก้ไข/เพิ่มตัวเลือกที่ใช้ตอนเพิ่มอะไหล่</div>
+        </div>
+      </Link>
 
-          <Link
-            href="/admin/zones"
-            className="card"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div className="card-body">
-              <div className="card-title">📍 โซนจัดเก็บ</div>
-              <div className="card-sub">เพิ่ม/ลบรหัสโซนที่ใช้ในอู่</div>
-            </div>
-          </Link>
+      <Link
+        href="/admin/bulk-update"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🔁 Bulk Update</div>
+          <div className="card-sub">เปลี่ยนสภาพ/ที่มา/สถานะ/โซน ของอะไหล่หลายชิ้นพร้อมกันทีเดียว</div>
+        </div>
+      </Link>
 
-          <Link
-            href="/admin/options"
-            className="card"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div className="card-body">
-              <div className="card-title">🏷️ สภาพ / ที่มา / สถานะ</div>
-              <div className="card-sub">แก้ไข/เพิ่มตัวเลือกที่ใช้ตอนเพิ่มอะไหล่</div>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/trash"
-            className="card"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div className="card-body">
-              <div className="card-title">🗑️ ถังขยะ</div>
-              <div className="card-sub">กู้คืน หรือลบอะไหล่ที่ซ่อนไว้ถาวร</div>
-            </div>
-          </Link>
-        </>
-      )}
+      <Link
+        href="/admin/trash"
+        className="card"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
+        <div className="card-body">
+          <div className="card-title">🗑️ ถังขยะ</div>
+          <div className="card-sub">กู้คืน หรือลบอะไหล่ที่ซ่อนไว้ถาวร</div>
+        </div>
+      </Link>
     </div>
   );
 }

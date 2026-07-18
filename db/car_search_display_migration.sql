@@ -1,31 +1,15 @@
 -- ============================================================
--- Migration: รวมผลค้นหารถให้ครอบคลุมทั้งระดับ generation และ trim ในคิวรีเดียว
--- ให้กล่องค้นหาเดียว (CarAutocomplete) เลือกรุ่นย่อยได้ตรงๆ โดยไม่ต้องมี
--- dropdown แยกอีกขั้น
+-- Migration: car_search_display view (v2 — เวอร์ชันย่อ ตรงกับที่ apply จริงบน staging/beta)
 --
--- แต่ละ generation จะมีทั้ง:
---  - แถว "ทั่วไป" (ไม่ระบุ trim) เสมอ 1 แถว — สำหรับกรณีไม่รู้ว่า trim ไหน
---  - แถว "เจาะจง trim" อีกหลายแถวถ้า generation นั้นมี trim อยู่ในฐานข้อมูล
+-- v1 (เวอร์ชันแรก) เคยมี UNION ALL เพิ่มแถว "ไม่ระบุ trim" ให้ทุก generation เอง
+-- แต่พบว่าทุก generation มี trim "ไม่ระบุ" เป็น fallback สะสมไว้อยู่แล้วจากงาน
+-- Car Trim Database (398 แถวที่ beta, 397 แถวที่ staging) ทำให้ v1 สร้างตัวเลือก
+-- "ไม่ระบุ" ซ้ำกัน 2 อันในช่องค้นหา (bug ที่เจอและแก้ตรงบน DB ไปแล้ว)
+--
+-- v2 นี้แค่ query จาก model_trims ตรงๆ ไม่ต้องมี UNION อีก
 -- ============================================================
 
 create or replace view car_search_display as
-select
-  g.generation_id,
-  null::bigint as trim_id,
-  b.brand_name,
-  m.model_name,
-  g.generation_code,
-  gd.year_range_display,
-  g.vehicle_type,
-  null::text as trim_name,
-  null::text as powertrain_type
-from model_generations g
-join models m on m.model_id = g.model_id
-join brands b on b.brand_id = m.brand_id
-join model_generations_display gd on gd.generation_id = g.generation_id
-
-union all
-
 select
   g.generation_id,
   t.trim_id,
