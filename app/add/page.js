@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
-import ZoneCascadeSelect from "../../components/ZoneCascadeSelect";
+import ZoneAutocomplete from "../../components/ZoneAutocomplete";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
@@ -521,10 +521,10 @@ function AddPartPageContent() {
           )}
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           โซนจัดเก็บ
           {!zonesLoading && (
-            <ZoneCascadeSelect zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
+            <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
           )}
           {!zonesLoading && zones.length === 0 && (
             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -534,7 +534,7 @@ function AddPartPageContent() {
               </Link>
             </span>
           )}
-        </label>
+        </div>
 
         <label>
           จำนวน
