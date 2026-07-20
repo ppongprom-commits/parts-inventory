@@ -286,13 +286,16 @@ function JobDocumentPageContent() {
               <div style={{ width: "45%", minWidth: 260 }}>
                 {doc.signature_url ? (
                   <div style={{ textAlign: "center" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={doc.signature_url}
-                      alt="ลายเซ็นผู้ยินยอม"
-                      style={{ maxHeight: 90, marginBottom: 4 }}
-                    />
-                    <div style={{ borderTop: "1px solid var(--text-muted)", paddingTop: 6 }}>
+                    {/* พื้นหลังขาวทึบตายตัว — กันลายเซ็น (พื้นหลังโปร่งใส) มองไม่เห็นตอนหน้าเป็น dark mode */}
+                    <div style={{ background: "white", borderRadius: 4, display: "inline-block", padding: 4 }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={doc.signature_url}
+                        alt="ลายเซ็นผู้ยินยอม"
+                        style={{ maxHeight: 90, display: "block" }}
+                      />
+                    </div>
+                    <div style={{ borderTop: "1px solid var(--text-muted)", paddingTop: 6, marginTop: 4 }}>
                       ผู้ยินยอม (เจ้าของรถ/ผู้มอบรถ)
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
