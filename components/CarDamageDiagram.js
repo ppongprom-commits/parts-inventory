@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ประเภทรถที่มีชุดภาพให้เลือก — เพิ่มได้เรื่อยๆ ทีหลังแค่เติมชุดรูปใหม่ที่นี่
 const CAR_TYPES = [
@@ -49,6 +49,15 @@ export default function CarDamageDiagram({
 
   const [activeView, setActiveView] = useState("front");
   const [pendingNote, setPendingNote] = useState(null); // { view, x, y }
+  const noteInputRef = useRef(null);
+
+  // Focus แบบไม่ scroll — autoFocus ปกติของ browser จะ scroll-into-view เอง
+  // ซึ่งบางเคสคำนวณตำแหน่งเพี้ยนแล้วเด้งหน้าจอกลับขึ้นบนสุดแทน
+  useEffect(() => {
+    if (pendingNote && noteInputRef.current) {
+      noteInputRef.current.focus({ preventScroll: true });
+    }
+  }, [pendingNote?.view, pendingNote?.x, pendingNote?.y]);
 
   const VIEWS = getViews(carType);
   const normalizedPoints = points.map((p) => ({ ...p, view: normalizeView(p.view) }));
@@ -164,6 +173,24 @@ export default function CarDamageDiagram({
                     }}
                   />
                 ))}
+              {/* preview จุดที่กำลังจะมาร์ก (ยังไม่ยืนยัน) — สีเหลือง/ส้ม แยกจากจุดที่บันทึกแล้ว (แดง) */}
+              {pendingNote && pendingNote.view === v.key && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${pendingNote.x * 100}%`,
+                    top: `${pendingNote.y * 100}%`,
+                    transform: "translate(-50%, -50%)",
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: "rgba(245, 158, 11, 0.35)",
+                    border: "2px dashed #f59e0b",
+                    boxShadow: "0 0 0 1px rgba(0,0,0,0.3)",
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
             </div>
           </div>
         ))}
@@ -174,7 +201,7 @@ export default function CarDamageDiagram({
           <input
             type="text"
             placeholder="หมายเหตุจุดนี้ (เช่น รอยบุบ, รอยขีดข่วน)"
-            autoFocus
+            ref={noteInputRef}
             onChange={(e) => setPendingNote((n) => ({ ...n, text: e.target.value }))}
             style={{ flex: 1 }}
           />
