@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../../lib/supabaseAdminClient";
-import { requirePlatformRole, logPlatformAction } from "../../../../../../lib/platformAdmin";
+import { requirePlatformRole } from "../../../../../../lib/platformAdmin";
 
 // Platform admin เพิ่มตัวเองเป็นสมาชิก "สนับสนุน" ของอู่นี้แบบเปิดเผย
 // (โผล่ในหน้า /admin/team ของอู่นั้นด้วย ไม่ใช่การแอบดูข้อมูลแบบซ่อนเร้น)
@@ -20,31 +20,15 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: "shopId ไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("shop_members")
-      .upsert(
-        {
-          shop_id: shopId,
-          user_id: authResult.userId,
-          role: "manager",
-          status: "active",
-          invited_by: authResult.userId,
-          contact_name: "Platform Support",
-        },
-        { onConflict: "shop_id,user_id" }
-      )
-      .select()
-      .single();
+    // เขียนผ่าน RPC เดียว (mutation + audit log ในทรานแซคชันเดียวกัน — ถ้าเขียน log ไม่สำเร็จ
+    // การ join-as-support จะ rollback ไปด้วยทั้งหมด)
+    const { data, error } = await supabaseAdmin.rpc("platform_join_as_support", {
+      p_admin_user_id: authResult.userId,
+      p_admin_role: authResult.role,
+      p_shop_id: shopId,
+    });
 
     if (error) throw error;
-
-    await logPlatformAction({
-      adminUserId: authResult.userId,
-      adminRole: authResult.role,
-      action: "join_as_support",
-      targetShopId: shopId,
-      newData: data,
-    });
 
     return NextResponse.json({ data });
   } catch (err) {

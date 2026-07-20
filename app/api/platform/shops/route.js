@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdminClient";
-import { requirePlatformRole, logPlatformAction } from "../../../../lib/platformAdmin";
+import { requirePlatformRole } from "../../../../lib/platformAdmin";
 
 // Permission matrix (การ์ด Platform admin role tiers):
 // GET (ดูรายชื่ออู่/สถิติ) — ทั้ง 3 role เห็นเหมือนกันหมด (Analyst อ่านได้เท่า Super Admin/Support)
@@ -76,40 +76,19 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "ไม่พบ shop_id" }, { status: 400 });
     }
 
-    const { data: oldShop } = await supabaseAdmin
-      .from("shops")
-      .select("subscription_status, subscription_plan, trial_ends_at, current_period_end")
-      .eq("shop_id", shop_id)
-      .maybeSingle();
-
-    const updatePayload = {};
-    if (subscription_status !== undefined) updatePayload.subscription_status = subscription_status;
-    if (subscription_plan !== undefined) updatePayload.subscription_plan = subscription_plan;
-    if (trial_ends_at !== undefined) updatePayload.trial_ends_at = trial_ends_at || null;
-    if (current_period_end !== undefined)
-      updatePayload.current_period_end = current_period_end || null;
-
-    if (subscription_status === "suspended") updatePayload.suspended_at = new Date().toISOString();
-    if (subscription_status === "canceled") updatePayload.canceled_at = new Date().toISOString();
-    if (subscription_status === "past_due") updatePayload.past_due_since = new Date().toISOString();
-
-    const { data, error } = await supabaseAdmin
-      .from("shops")
-      .update(updatePayload)
-      .eq("shop_id", shop_id)
-      .select()
-      .single();
+    // เขียนผ่าน RPC เดียว (mutation + audit log ในทรานแซคชันเดียวกัน) — ถ้าเขียน log ไม่สำเร็จ
+    // การแก้ subscription จะ rollback ไปด้วยทั้งหมด (ตัดสินใจไว้แล้วในการ์ด Platform admin audit log)
+    const { data, error } = await supabaseAdmin.rpc("platform_update_shop_subscription", {
+      p_admin_user_id: authResult.userId,
+      p_admin_role: authResult.role,
+      p_shop_id: shop_id,
+      p_subscription_status: subscription_status ?? null,
+      p_subscription_plan: subscription_plan ?? null,
+      p_trial_ends_at: trial_ends_at || null,
+      p_current_period_end: current_period_end || null,
+    });
 
     if (error) throw error;
-
-    await logPlatformAction({
-      adminUserId: authResult.userId,
-      adminRole: authResult.role,
-      action: "update_shop_subscription",
-      targetShopId: shop_id,
-      oldData: oldShop,
-      newData: data,
-    });
 
     return NextResponse.json({ data });
   } catch (err) {

@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdminClient";
 import {
   requirePlatformRole,
-  logPlatformAction,
   wouldRemoveLastSuperAdmin,
   PLATFORM_ROLES,
 } from "../../../../lib/platformAdmin";
 
 // จัดการ platform_admins เอง (เพิ่ม/ลบ/เปลี่ยน role) — Super Admin เท่านั้นตาม permission
 // matrix (การ์ด "Platform admin role tiers") ทั้ง GET/POST/PATCH/DELETE
+//
+// POST/PATCH/DELETE เขียนผ่าน RPC (platform_add_admin / platform_change_admin_role /
+// platform_remove_admin) ที่ทำ mutation + insert เข้า platform_audit_log ในทรานแซคชันเดียวกัน
+// (การ์ด "Platform admin audit log" ตัดสินใจไว้: log เขียนไม่สำเร็จ = การกระทำหลัก rollback ด้วย)
 const MANAGE_ROLES = ["super_admin"];
 
 export async function GET(request) {
@@ -72,20 +75,13 @@ export async function POST(request) {
       return NextResponse.json({ error: `ไม่พบบัญชีอีเมล ${email} ในระบบ` }, { status: 404 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("platform_admins")
-      .insert({ user_id: targetUser.id, role })
-      .select()
-      .single();
-    if (error) throw error;
-
-    await logPlatformAction({
-      adminUserId: authResult.userId,
-      adminRole: authResult.role,
-      action: "add_platform_admin",
-      targetUserId: targetUser.id,
-      newData: data,
+    const { data, error } = await supabaseAdmin.rpc("platform_add_admin", {
+      p_actor_user_id: authResult.userId,
+      p_actor_role: authResult.role,
+      p_target_user_id: targetUser.id,
+      p_role: role,
     });
+    if (error) throw error;
 
     return NextResponse.json({ data });
   } catch (err) {
@@ -110,6 +106,8 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "role ไม่ถูกต้อง" }, { status: 400 });
     }
 
+    // เช็คระดับ API ก่อน (เร็ว, ให้ error message ชัดเจน) — ฟังก์ชัน RPC เองก็เช็คซ้ำอีกชั้น
+    // (defense in depth กัน race condition)
     if (await wouldRemoveLastSuperAdmin(user_id, role)) {
       return NextResponse.json(
         { error: "ไม่สามารถลดสิทธิ์ Super Admin คนสุดท้ายได้ — ต้องมี Super Admin อย่างน้อย 1 คนเสมอ" },
@@ -117,28 +115,13 @@ export async function PATCH(request) {
       );
     }
 
-    const { data: oldRow } = await supabaseAdmin
-      .from("platform_admins")
-      .select("role")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    const { data, error } = await supabaseAdmin
-      .from("platform_admins")
-      .update({ role })
-      .eq("user_id", user_id)
-      .select()
-      .single();
-    if (error) throw error;
-
-    await logPlatformAction({
-      adminUserId: authResult.userId,
-      adminRole: authResult.role,
-      action: "change_platform_admin_role",
-      targetUserId: user_id,
-      oldData: oldRow,
-      newData: data,
+    const { data, error } = await supabaseAdmin.rpc("platform_change_admin_role", {
+      p_actor_user_id: authResult.userId,
+      p_actor_role: authResult.role,
+      p_target_user_id: user_id,
+      p_new_role: role,
     });
+    if (error) throw error;
 
     return NextResponse.json({ data });
   } catch (err) {
@@ -167,22 +150,12 @@ export async function DELETE(request) {
       );
     }
 
-    const { data: oldRow } = await supabaseAdmin
-      .from("platform_admins")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    const { error } = await supabaseAdmin.from("platform_admins").delete().eq("user_id", userId);
-    if (error) throw error;
-
-    await logPlatformAction({
-      adminUserId: authResult.userId,
-      adminRole: authResult.role,
-      action: "remove_platform_admin",
-      targetUserId: userId,
-      oldData: oldRow,
+    const { error } = await supabaseAdmin.rpc("platform_remove_admin", {
+      p_actor_user_id: authResult.userId,
+      p_actor_role: authResult.role,
+      p_target_user_id: userId,
     });
+    if (error) throw error;
 
     return NextResponse.json({ data: { ok: true } });
   } catch (err) {
