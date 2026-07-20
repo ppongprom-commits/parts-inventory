@@ -12,7 +12,7 @@
  */
 
 export const GLOBAL_SESSION_CONFIG = {
-  maxDevicesPerUser: 2,
+  maxDevicesPerUser: 4,
   idleTimeoutMinutes: 15,        // ไม่มีกิจกรรมเกินเท่านี้ -> เริ่มนับถอยหลัง
   idleWarningCountdownSeconds: 100, // เวลานับถอยหลังก่อน logout อัตโนมัติ
   sessionStaleAfterMinutes: 3, // แถวใน user_sessions ที่ last_seen_at เก่ากว่านี้ถือว่าเป็น
