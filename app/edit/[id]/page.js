@@ -592,7 +592,7 @@ function EditPartPageContent() {
           </div>
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น) — พิมพ์แล้วเลือกเฉพาะเมื่อต้องการเปลี่ยนรถของอะไหล่ชิ้นนี้
           <CarAutocomplete
             onSelect={(item) => {
@@ -604,7 +604,7 @@ function EditPartPageContent() {
               setSelectedGeneration(item);
             }}
           />
-        </label>
+        </div>
 
         <label>
           ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)

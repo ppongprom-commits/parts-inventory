@@ -80,6 +80,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
       `${item.brand_name} ${item.model_name}${item.trim_name ? ` ${item.trim_name}` : ""}`
     );
     setOpen(false);
+    setResults([]);
     setActiveIndex(-1);
   }
 

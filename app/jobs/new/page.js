@@ -327,7 +327,7 @@ function NewJobPageContent() {
           />
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
           <CarAutocomplete
             onSelect={(item) => {
@@ -339,7 +339,7 @@ function NewJobPageContent() {
               setSelectedGeneration(item);
             }}
           />
-        </label>
+        </div>
 
         <label>
           ที่มา

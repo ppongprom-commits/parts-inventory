@@ -408,7 +408,7 @@ function AddPartPageContent() {
           />
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
           <CarAutocomplete
             onSelect={(item) => {
@@ -424,7 +424,7 @@ function AddPartPageContent() {
             เลือกจากรายการที่ค้นเจอเท่านั้น — ถ้าไม่เจอรุ่นที่ต้องการ แจ้งแอดมินให้เพิ่มในฐานข้อมูลก่อน
             เพื่อกันข้อมูลปี/รุ่นเพี้ยน
           </div>
-        </label>
+        </div>
 
         <label>
           ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
