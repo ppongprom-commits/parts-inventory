@@ -66,13 +66,19 @@ function PrintZoneLabelsPageContent() {
             </button>
           </div>
         </div>
+        <div className="no-print" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8, marginBottom: 16 }}>
+          ตั้งค่าเครื่องพิมพ์ label (เช่น EasyPrint ES-9920UX): เลือกขนาดกระดาษ 40 × 60 มม. margin 0 ก่อนกดพิมพ์ —
+          พิมพ์ทีละดวงต่อป้ายจริงอัตโนมัติ ไม่ใช่กระดาษ A4
+        </div>
 
         {selectedZones.length === 0 && <div className="empty">ไม่พบโซนที่เลือก</div>}
 
         <div className="label-grid">
           {selectedZones.map((zone) => (
             <div className="label-card" key={zone.id}>
-              <ZoneQRCode zoneId={zone.id} size={110} />
+              <div className="label-qr">
+                <ZoneQRCode zoneId={zone.id} size={110} />
+              </div>
               <div className="label-text">
                 <div className="label-title">{zone.code}</div>
                 <div className="label-sub">{formatBreadcrumb(zones, zone.id)}</div>
@@ -110,6 +116,9 @@ function PrintZoneLabelsPageContent() {
           color: var(--text-muted);
         }
 
+        /* โหมดพิมพ์จริง — เครื่องพิมพ์ label ความร้อน (เช่น EasyPrint ES-9920UX)
+           ป้ายจริงขนาด 40 x 60 มม. ม้วนต่อเนื่อง ตัดทีละดวงด้วยเซ็นเซอร์ —
+           1 การ์ด = 1 หน้ากระดาษ = 1 ดวงจริง ไม่ใช่ grid หลายคอลัมน์แบบ A4 */
         @media print {
           .no-print {
             display: none !important;
@@ -118,20 +127,39 @@ function PrintZoneLabelsPageContent() {
             background: white !important;
             color: black !important;
           }
+          @page {
+            size: 40mm 60mm;
+            margin: 2mm;
+          }
           .label-grid {
-            grid-template-columns: repeat(3, 1fr);
+            display: block;
           }
           .label-card {
-            border: 1px solid #999 !important;
-            break-inside: avoid;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            border: none !important;
+            border-radius: 0;
+            padding: 0;
+            justify-content: center;
+            page-break-after: always;
+            break-after: page;
           }
-          .label-title,
-          .label-sub {
+          .label-card:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          .label-qr canvas {
+            width: 30mm !important;
+            height: 30mm !important;
+          }
+          .label-title {
+            font-size: 10pt;
             color: black !important;
           }
-          @page {
-            size: A4;
-            margin: 10mm;
+          .label-sub {
+            font-size: 7pt;
+            color: black !important;
           }
         }
       `}</style>
