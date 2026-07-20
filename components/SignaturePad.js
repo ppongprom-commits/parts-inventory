@@ -1,22 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 export default function SignaturePad({ onSave, saving }) {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
   const lastPoint = useRef(null);
   const [hasSignature, setHasSignature] = useState(false);
-
-  // เติมพื้นหลังขาวทึบตั้งแต่แรกที่ mount — ถ้าไม่ทำ canvas จะโปร่งใส
-  // ทำให้ลายเซ็น (สีเข้ม) มองไม่เห็นตอนแสดงผลบนหน้าที่พื้นหลังเป็นสีเข้ม (dark mode)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }, []);
 
   function getPos(e) {
     const canvas = canvasRef.current;
