@@ -457,3 +457,48 @@ parts-inventory/
 - หน้า `/edit/[id]` โชว์ "อยู่ในสต็อกมาแล้ว N วัน" + ลิงก์ย้อนกลับไปงานต้นทาง (ใช้หลัก FSN Analysis หาของค้างสต็อก)
 
 **⚠️ ข้อจำกัด:** กำไรที่คำนวณเป็นตัวเลขประมาณการเทียบยอดขายสะสมกับราคาซื้อรถอย่างเดียว **ยังไม่รวมค่าแรงถอดแยก/ค่าใช้จ่ายอื่น** — เหมาะเป็นตัวเลขอ้างอิงคร่าวๆ ไม่ใช่ต้นทุนที่แม่นยำ 100%
+
+### 16. คืนวันที่ 20 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run)
+
+**ฟีเจอร์ใหม่/แก้ไข:**
+- **แก้บั๊ก Android Chrome ถ่ายรูปแล้วหน้า `/add` รีเซ็ต** (`lib/addFormRecovery.js`) — Android
+  อาจฆ่า background tab process ตอนเปิดแอปกล้อง native ทำให้ Chrome ต้อง reload หน้าใหม่ทั้งหมด
+  ตอนนี้กู้คืนฟอร์ม+รูปจาก sessionStorage อัตโนมัติพร้อมแจ้งเตือน
+- **เพิ่ม "ลืมรหัสผ่าน?" ที่ `/login`** + หน้า `/reset-password` รับลิงก์ — เจ้าของอู่รีเซ็ตรหัสผ่าน
+  ตัวเองได้เอง ไม่ต้องพึ่ง `scripts/reset-owner-password.mjs` รันมือถาวรอีกต่อไป (ปุ่มรีเซ็ต
+  PIN/รหัสผ่านให้สมาชิกคนอื่นใน `/admin/team` มีอยู่ก่อนแล้ว ใช้ได้ทั้งบัญชี username+PIN และอีเมล)
+- **Platform admin role tiers** (Super Admin / Support / Analyst) — บังคับ permission matrix
+  ที่ระดับ API ทุก endpoint ใต้ `/api/platform/*` ไม่ใช่แค่ซ่อนปุ่มใน UI ใหม่: route จัดการ
+  platform_admins เอง (`/api/platform/admins`) พร้อมกันคนสุดท้ายที่เป็น Super Admin ถูก demote/ลบ
+- **Platform admin Activity Log** — บันทึกทุกการกระทำที่กระทบลูกค้า (แก้ subscription, join-as-
+  support, จัดการ platform admin) ผ่าน Postgres RPC ที่ทำ mutation + เขียน log ในทรานแซคชัน
+  เดียวกัน (log เขียนไม่สำเร็จ = การกระทำหลัก rollback ด้วย) มีแท็บ "Activity Log" ในหน้า
+  `/platform-admin` ให้ดู timeline + filter
+- **Export CSV อะไหล่** (`/admin` → "Export CSV") — จำกัดสิทธิ์ Owner/Manager/Supervisor,
+  จำกัด tier Starter ขึ้นไป (Trial export ไม่ได้) ยังไม่รองรับ Jobs/Sales CSV (รอ payment_method
+  และ cart-based selling flow ที่ยังไม่มีจริงในระบบก่อน)
+- **แก้บั๊ก "silent session kick"** — user ที่ registerSession ล้มเหลว (เช่น ชนกับ concurrent
+  session limit ของ tier) ตอนนี้เห็นข้อความอธิบายที่ `/login`/`/staff-login` แทนที่จะโดนเด้ง
+  กลับเฉยๆ ไม่รู้สาเหตุ
+
+**Schema drift ที่แก้ (พบ 5 จุดคืนนี้ — DB จริงบน staging นำหน้าไฟล์ใน git ไปมาก):**
+- `db/car_data_full_resync_2026-07-20.sql` — export `model_trims` (1508 แถว) + `model_generations`
+  (397 แถว) ที่ขาดหายจากไฟล์ seed เดิม ใช้ name-based lookup (ไม่ใช่ raw id) กันปัญหา id ไม่ตรงกัน
+  ข้าม environment — พบด้วยว่า `db/vehicle_trims_toyota_honda_nissan_mazda_isuzu_mitsubishi.sql`
+  เดิมใช้ raw `generation_id` ทำให้ fresh install ที่ id ไม่ตรงจะเสียข้อมูลทั้งไฟล์แบบ atomic
+- `db/platform_admin_role_tiers_and_audit_log_migration.sql` + `db/platform_audit_log_transactional_rpc_migration.sql`
+  — `platform_admins.role` และ `platform_audit_log` มีอยู่แล้วบน DB จริงแต่ไม่เคย commit
+- `db/zones_owner_type_migration.sql` — `zones.owner_type` + `owner_entity_id` (prerequisite ของ
+  Accounting Module) มีอยู่แล้วบน DB จริง + มี UI ใน `/admin/zones` แล้ว แต่ไม่เคย commit
+- `db/audit_log_changed_by_user_id_fix_migration.sql` — 4 RPC เดิม (insert/update_model_generation,
+  insert/update_model_trim) ไม่เคยใส่ `changed_by_user_id` เลย รู้แค่ IP/user agent ไม่รู้ว่าใครแก้
+- `db/visibility_groups_and_workflow_schema.sql` — ไฟล์นี้ถูกอ้างอิงจาก README + migration อื่น
+  มาตลอดแต่ไม่เคยมีอยู่ใน repo จริงเลย ถูก reconstruct จาก schema จริงบน staging (verify แล้วว่า
+  fresh install ให้ผลตรงกับ staging ทุก column/constraint/policy)
+
+**เอกสารที่สร้างใหม่ (การ์ด Notion อ้างว่ามีอยู่แล้วแต่ไม่เคย commit จริง):** `SOP.md`,
+`USER_MANUAL.md`
+
+**⚠️ กระบวนการกัน drift รอบใหม่:** ดูหัวข้อ "กระบวนการกัน Schema Drift" ใน `SOP.md` — สรุปสั้นๆ
+คือ แก้ DB ตรงเมื่อไหร่ต้อง export กลับ repo วันเดียวกัน, seed ข้อมูลอ้างอิงกันด้วยชื่อไม่ใช่ raw id,
+รัน fresh-install test ก่อนปิดงานที่แตะ schema, migration ใหม่ต้อง idempotent เสมอ
