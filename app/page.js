@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { getViewMode, setViewMode } from "../lib/viewModeStorage";
 import { useAuth } from "../lib/AuthProvider";
@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
 
 function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentShopId, currentShop, currentRole, signOut } = useAuth();
 
   // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
@@ -35,7 +36,7 @@ function HomePageContent() {
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
-  const [zoneFilter, setZoneFilter] = useState("");
+  const [zoneFilter, setZoneFilter] = useState(searchParams.get("zone") || "");
   const [zones, setZones] = useState([]);
   const [brands, setBrands] = useState([]);
   const [lowStockCount, setLowStockCount] = useState(0);
@@ -72,7 +73,7 @@ function HomePageContent() {
     }, 300);
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, brandFilter, zoneFilter, lowStockOnly]);
+  }, [search, brandFilter, zoneFilter, lowStockOnly, zones]);
 
   function handleViewModeChange(mode) {
     setViewModeState(mode);
@@ -424,7 +425,9 @@ function HomePageContent() {
 export default function HomePage() {
   return (
     <RequireAuth>
-      <HomePageContent />
+      <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
+        <HomePageContent />
+      </Suspense>
     </RequireAuth>
   );
 }

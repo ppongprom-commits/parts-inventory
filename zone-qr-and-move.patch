@@ -1,0 +1,700 @@
+diff --git a/app/add/page.js b/app/add/page.js
+index 777b621..a6c24b5 100644
+--- a/app/add/page.js
++++ b/app/add/page.js
+@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
+ import { supabase } from "../../lib/supabaseClient";
+ import CarAutocomplete from "../../components/CarAutocomplete";
+ import ZoneAutocomplete from "../../components/ZoneAutocomplete";
++import { isLeaf } from "../../lib/zoneHelpers";
+ import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
+ import { resizeImageFile } from "../../lib/imageResize";
+ import { uploadPartPhotos } from "../../lib/storageHelpers";
+@@ -54,9 +55,11 @@ function AddPartPageContent() {
+   const [optionsLoading, setOptionsLoading] = useState(true);
+ 
+   useEffect(() => {
++    const scannedZoneId = searchParams.get("zone_id");
+     const lastZoneId = getDefaultZone();
+-    if (lastZoneId) {
+-      setForm((f) => ({ ...f, zone_id: lastZoneId }));
++    const initialZoneId = scannedZoneId || lastZoneId;
++    if (initialZoneId) {
++      setForm((f) => ({ ...f, zone_id: initialZoneId }));
+     }
+     if (currentShopId) {
+       fetchZones();
+@@ -65,6 +68,17 @@ function AddPartPageContent() {
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [currentShopId]);
+ 
++  // กันเคส ?zone_id= จาก URL (สแกน QR) ชี้ไปโซนที่ไม่ใช่ leaf (เช่น Area ที่มี Rack ข้างใน) —
++  // ZoneAutocomplete จะโชว์ช่องค้นหาว่างเปล่าให้ดูเหมือนไม่ได้เลือกอะไร แต่ค่าจริงยังค้างอยู่ใน
++  // form.zone_id ถ้าไม่เคลียร์ตรงนี้ อะไหล่จะถูกบันทึกด้วย zone_id ที่ไม่ใช่ leaf ได้
++  useEffect(() => {
++    if (zonesLoading || !form.zone_id) return;
++    if (!isLeaf(zones, form.zone_id)) {
++      setForm((f) => ({ ...f, zone_id: "" }));
++    }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [zonesLoading, zones]);
++
+   async function fetchZones() {
+     setZonesLoading(true);
+     const { data, error } = await supabase
+diff --git a/app/admin/zones/page.js b/app/admin/zones/page.js
+index cae82c2..b0b3c93 100644
+--- a/app/admin/zones/page.js
++++ b/app/admin/zones/page.js
+@@ -2,6 +2,7 @@
+ 
+ import { useEffect, useState } from "react";
+ import Link from "next/link";
++import { useRouter } from "next/navigation";
+ import { supabase } from "../../../lib/supabaseClient";
+ import { useAuth } from "../../../lib/AuthProvider";
+ import RequireAuth from "../../../components/RequireAuth";
+@@ -23,6 +24,7 @@ function levelLabelForIndex(idx) {
+ }
+ 
+ function ZonesAdminPageContent() {
++  const router = useRouter();
+   const { currentShopId } = useAuth();
+   const [zones, setZones] = useState([]);
+   const [loading, setLoading] = useState(true);
+@@ -386,6 +388,30 @@ function ZonesAdminPageContent() {
+         >
+           ย่อทั้งหมด
+         </button>
++        {zones.length > 0 && (
++          <button
++            type="button"
++            onClick={() => router.push(`/print-zone-labels?ids=${zones.map((z) => z.id).join(",")}`)}
++            style={{
++              padding: "8px 14px",
++              borderRadius: 8,
++              border: "1px solid var(--border-strong)",
++              background: "transparent",
++              color: "var(--text)",
++              fontSize: 13,
++              cursor: "pointer",
++            }}
++          >
++            🖨️ พิมพ์ QR ทั้งหมด ({zones.length})
++          </button>
++        )}
++        <Link
++          href="/move-parts"
++          className="nav-link secondary"
++          style={{ fontSize: 13, display: "inline-flex", alignItems: "center" }}
++        >
++          📦 ย้ายอะไหล่ทั้งโซน
++        </Link>
+       </div>
+ 
+       {addingUnderId === ROOT_LEVEL && renderAddForm(ROOT_LEVEL)}
+diff --git a/app/move-parts/page.js b/app/move-parts/page.js
+new file mode 100644
+index 0000000..5cc4b72
+--- /dev/null
++++ b/app/move-parts/page.js
+@@ -0,0 +1,161 @@
++"use client";
++
++import { useEffect, useState, Suspense } from "react";
++import { useSearchParams } from "next/navigation";
++import Link from "next/link";
++import { supabase } from "../../lib/supabaseClient";
++import { useAuth } from "../../lib/AuthProvider";
++import RequireAuth from "../../components/RequireAuth";
++import ZoneAutocomplete from "../../components/ZoneAutocomplete";
++import { getDescendantIds, formatBreadcrumb, getSortedZoneList } from "../../lib/zoneHelpers";
++
++function MovePartsPageContent() {
++  const searchParams = useSearchParams();
++  const { currentShopId } = useAuth();
++
++  const [zones, setZones] = useState([]);
++  const [loading, setLoading] = useState(true);
++
++  // ต้นทาง — เลือกได้ทุกระดับ (ทั้ง Area หรือ Rack/Level เจาะจงก็ได้) ผ่าน dropdown ธรรมดา
++  const [sourceZoneId, setSourceZoneId] = useState(searchParams.get("from") || "");
++  // ปลายทาง — ต้องเป็น leaf เสมอ (จุดที่อะไหล่อยู่จริงได้) ใช้ตัวค้นหาเดียวกับหน้า add/edit
++  const [destZoneId, setDestZoneId] = useState(null);
++
++  const [affectedCount, setAffectedCount] = useState(null);
++  const [countLoading, setCountLoading] = useState(false);
++  const [moving, setMoving] = useState(false);
++  const [msg, setMsg] = useState(null);
++
++  useEffect(() => {
++    if (currentShopId) fetchZones();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [currentShopId]);
++
++  useEffect(() => {
++    if (sourceZoneId) countAffected();
++    else setAffectedCount(null);
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [sourceZoneId, zones.length]);
++
++  async function fetchZones() {
++    const { data } = await supabase
++      .from("zones")
++      .select("*")
++      .eq("shop_id", currentShopId)
++      .order("code", { ascending: true });
++    setZones(data || []);
++    setLoading(false);
++  }
++
++  async function countAffected() {
++    setCountLoading(true);
++    const descendantIds = getDescendantIds(zones, sourceZoneId);
++    const { count } = await supabase
++      .from("parts")
++      .select("id", { count: "exact", head: true })
++      .eq("shop_id", currentShopId)
++      .eq("is_active", true)
++      .in("zone_id", descendantIds);
++    setAffectedCount(count ?? 0);
++    setCountLoading(false);
++  }
++
++  async function handleMove() {
++    if (!sourceZoneId || !destZoneId) return;
++
++    const confirmed = window.confirm(
++      `ย้ายอะไหล่ ${affectedCount} ชิ้น จาก "${formatBreadcrumb(zones, sourceZoneId)}" ไปที่ "${formatBreadcrumb(
++        zones,
++        destZoneId
++      )}" ใช่ไหม?`
++    );
++    if (!confirmed) return;
++
++    setMoving(true);
++    setMsg(null);
++
++    const descendantIds = getDescendantIds(zones, sourceZoneId);
++    const { error, count } = await supabase
++      .from("parts")
++      .update({ zone_id: destZoneId })
++      .eq("shop_id", currentShopId)
++      .in("zone_id", descendantIds)
++      .select("id", { count: "exact" });
++
++    if (error) {
++      setMsg({ type: "error", text: "ย้ายไม่สำเร็จ: " + error.message });
++    } else {
++      setMsg({ type: "success", text: `ย้ายอะไหล่ ${count ?? affectedCount} ชิ้นเรียบร้อยแล้ว ✅` });
++      setAffectedCount(0);
++    }
++    setMoving(false);
++  }
++
++  if (loading) {
++    return (
++      <div className="container">
++        <div className="empty">กำลังโหลด...</div>
++      </div>
++    );
++  }
++
++  return (
++    <div className="container">
++      <div className="header">
++        <h1>📦 ย้ายอะไหล่ทั้งโซน</h1>
++        <Link href="/admin/zones" className="nav-link secondary">
++          ← กลับ
++        </Link>
++      </div>
++
++      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
++        ย้ายอะไหล่ทั้งหมดจากโซนต้นทาง (รวมโซนย่อยข้างในทุกชั้น) ไปยังโซนปลายทางในทีเดียว —
++        ใช้ตอนจัดของใหม่ทั้งชั้น/ทั้งแร็ค ไม่ต้องแก้ทีละชิ้น
++      </div>
++
++      {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
++
++      <label>
++        โซนต้นทาง (ย้ายทุกอย่างข้างในออกทั้งหมด — เลือกทั้ง Area หรือเจาะจงถึง Rack/Level ก็ได้)
++        <select value={sourceZoneId} onChange={(e) => setSourceZoneId(e.target.value)}>
++          <option value="">— เลือกโซนต้นทาง —</option>
++          {getSortedZoneList(zones).map((z) => (
++            <option key={z.id} value={z.id}>
++              {formatBreadcrumb(zones, z.id)}
++              {z.name ? ` — ${z.name}` : ""}
++            </option>
++          ))}
++        </select>
++      </label>
++
++      {sourceZoneId && (
++        <div style={{ fontSize: 13, marginBottom: 16 }}>
++          {countLoading ? "กำลังนับ..." : `พบอะไหล่ ${affectedCount} ชิ้นในโซนนี้ (รวมโซนย่อย)`}
++        </div>
++      )}
++
++      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 6 }}>
++        <div>โซนปลายทาง</div>
++        <ZoneAutocomplete zones={zones} value={destZoneId} onChange={setDestZoneId} />
++      </div>
++
++      <button
++        type="button"
++        onClick={handleMove}
++        disabled={!sourceZoneId || !destZoneId || moving || affectedCount === 0}
++      >
++        {moving ? "กำลังย้าย..." : `ย้ายอะไหล่ ${affectedCount ?? ""} ชิ้น`}
++      </button>
++    </div>
++  );
++}
++
++export default function MovePartsPage() {
++  return (
++    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
++      <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
++        <MovePartsPageContent />
++      </Suspense>
++    </RequireAuth>
++  );
++}
+diff --git a/app/page.js b/app/page.js
+index 7191811..6a7f2a0 100644
+--- a/app/page.js
++++ b/app/page.js
+@@ -1,8 +1,8 @@
+ "use client";
+ 
+-import { useEffect, useRef, useState } from "react";
++import { useEffect, useRef, useState, Suspense } from "react";
+ import Link from "next/link";
+-import { useRouter } from "next/navigation";
++import { useRouter, useSearchParams } from "next/navigation";
+ import { supabase } from "../lib/supabaseClient";
+ import { getViewMode, setViewMode } from "../lib/viewModeStorage";
+ import { useAuth } from "../lib/AuthProvider";
+@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
+ 
+ function HomePageContent() {
+   const router = useRouter();
++  const searchParams = useSearchParams();
+   const { currentShopId, currentShop, currentRole, signOut } = useAuth();
+ 
+   // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
+@@ -35,7 +36,7 @@ function HomePageContent() {
+ 
+   const [search, setSearch] = useState("");
+   const [brandFilter, setBrandFilter] = useState("");
+-  const [zoneFilter, setZoneFilter] = useState("");
++  const [zoneFilter, setZoneFilter] = useState(searchParams.get("zone") || "");
+   const [zones, setZones] = useState([]);
+   const [brands, setBrands] = useState([]);
+   const [lowStockCount, setLowStockCount] = useState(0);
+@@ -72,7 +73,7 @@ function HomePageContent() {
+     }, 300);
+     return () => clearTimeout(debounceRef.current);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [search, brandFilter, zoneFilter, lowStockOnly]);
++  }, [search, brandFilter, zoneFilter, lowStockOnly, zones]);
+ 
+   function handleViewModeChange(mode) {
+     setViewModeState(mode);
+@@ -424,7 +425,9 @@ function HomePageContent() {
+ export default function HomePage() {
+   return (
+     <RequireAuth>
+-      <HomePageContent />
++      <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
++        <HomePageContent />
++      </Suspense>
+     </RequireAuth>
+   );
+ }
+diff --git a/app/print-zone-labels/page.js b/app/print-zone-labels/page.js
+new file mode 100644
+index 0000000..508ba5e
+--- /dev/null
++++ b/app/print-zone-labels/page.js
+@@ -0,0 +1,150 @@
++"use client";
++
++import { useEffect, useState, Suspense } from "react";
++import { useSearchParams } from "next/navigation";
++import Link from "next/link";
++import { supabase } from "../../lib/supabaseClient";
++import RequireAuth from "../../components/RequireAuth";
++import ZoneQRCode from "../../components/ZoneQRCode";
++import { formatBreadcrumb } from "../../lib/zoneHelpers";
++
++function PrintZoneLabelsPageContent() {
++  const searchParams = useSearchParams();
++  const ids = (searchParams.get("ids") || "").split(",").filter(Boolean);
++
++  const [zones, setZones] = useState([]);
++  const [selectedZones, setSelectedZones] = useState([]);
++  const [loading, setLoading] = useState(true);
++
++  useEffect(() => {
++    fetchZones();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, []);
++
++  async function fetchZones() {
++    if (ids.length === 0) {
++      setLoading(false);
++      return;
++    }
++    // ดึงโซนทั้งร้าน (ไม่ใช่แค่ ids ที่เลือก) เพื่อคำนวณ breadcrumb ให้ถูก แม้ parent จะไม่ได้ถูกเลือกพิมพ์ด้วย
++    const { data: firstZone } = await supabase.from("zones").select("shop_id").eq("id", ids[0]).maybeSingle();
++    if (!firstZone) {
++      setLoading(false);
++      return;
++    }
++    const { data: allZones } = await supabase.from("zones").select("*").eq("shop_id", firstZone.shop_id);
++    setZones(allZones || []);
++    const ordered = ids.map((id) => allZones?.find((z) => z.id === id)).filter(Boolean);
++    setSelectedZones(ordered);
++    setLoading(false);
++  }
++
++  if (loading) {
++    return (
++      <div className="container">
++        <div className="empty">กำลังโหลด...</div>
++      </div>
++    );
++  }
++
++  return (
++    <>
++      <div className="container">
++        <div className="header no-print">
++          <h1>🏷️ พิมพ์ป้าย QR โซน ({selectedZones.length})</h1>
++          <div style={{ display: "flex", gap: 8 }}>
++            <Link href="/admin/zones" className="nav-link secondary">
++              ← กลับ
++            </Link>
++            <button
++              type="button"
++              onClick={() => window.print()}
++              className="nav-link"
++              style={{ border: "none", cursor: "pointer" }}
++            >
++              🖨️ พิมพ์ทั้งหมด
++            </button>
++          </div>
++        </div>
++
++        {selectedZones.length === 0 && <div className="empty">ไม่พบโซนที่เลือก</div>}
++
++        <div className="label-grid">
++          {selectedZones.map((zone) => (
++            <div className="label-card" key={zone.id}>
++              <ZoneQRCode zoneId={zone.id} size={110} />
++              <div className="label-text">
++                <div className="label-title">{zone.code}</div>
++                <div className="label-sub">{formatBreadcrumb(zones, zone.id)}</div>
++                {zone.name && <div className="label-sub">{zone.name}</div>}
++              </div>
++            </div>
++          ))}
++        </div>
++      </div>
++
++      <style jsx global>{`
++        .label-grid {
++          display: grid;
++          grid-template-columns: repeat(3, 1fr);
++          gap: 12px;
++        }
++        .label-card {
++          display: flex;
++          flex-direction: column;
++          align-items: center;
++          gap: 6px;
++          padding: 12px;
++          border: 1px dashed var(--border-strong);
++          border-radius: 8px;
++        }
++        .label-text {
++          text-align: center;
++        }
++        .label-title {
++          font-weight: 700;
++          font-size: 12px;
++        }
++        .label-sub {
++          font-size: 10px;
++          color: var(--text-muted);
++        }
++
++        @media print {
++          .no-print {
++            display: none !important;
++          }
++          body {
++            background: white !important;
++            color: black !important;
++          }
++          .label-grid {
++            grid-template-columns: repeat(3, 1fr);
++          }
++          .label-card {
++            border: 1px solid #999 !important;
++            break-inside: avoid;
++          }
++          .label-title,
++          .label-sub {
++            color: black !important;
++          }
++          @page {
++            size: A4;
++            margin: 10mm;
++          }
++        }
++      `}</style>
++    </>
++  );
++}
++
++export default function PrintZoneLabelsPage() {
++  return (
++    <RequireAuth allowedRoles={["owner", "manager"]}>
++      <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
++        <PrintZoneLabelsPageContent />
++      </Suspense>
++    </RequireAuth>
++  );
++}
+diff --git a/app/zone/[id]/page.js b/app/zone/[id]/page.js
+new file mode 100644
+index 0000000..a5cff4c
+--- /dev/null
++++ b/app/zone/[id]/page.js
+@@ -0,0 +1,163 @@
++"use client";
++
++import { useEffect, useState } from "react";
++import { useParams, useRouter } from "next/navigation";
++import Link from "next/link";
++import { supabase } from "../../../lib/supabaseClient";
++import { useAuth } from "../../../lib/AuthProvider";
++import RequireAuth from "../../../components/RequireAuth";
++import { getAncestorChain, getChildren, getDescendantIds, isLeaf } from "../../../lib/zoneHelpers";
++
++function ZonePageContent() {
++  const { id: zoneId } = useParams();
++  const router = useRouter();
++  const { currentShopId } = useAuth();
++
++  const [zones, setZones] = useState([]);
++  const [partCount, setPartCount] = useState(null);
++  const [loading, setLoading] = useState(true);
++  const [notFound, setNotFound] = useState(false);
++
++  useEffect(() => {
++    if (currentShopId) load();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [currentShopId, zoneId]);
++
++  async function load() {
++    setLoading(true);
++    const { data: zoneRows } = await supabase
++      .from("zones")
++      .select("*")
++      .eq("shop_id", currentShopId)
++      .order("code", { ascending: true });
++
++    const allZones = zoneRows || [];
++    setZones(allZones);
++
++    if (!allZones.some((z) => z.id === zoneId)) {
++      setNotFound(true);
++      setLoading(false);
++      return;
++    }
++
++    const descendantIds = getDescendantIds(allZones, zoneId);
++    const { count } = await supabase
++      .from("parts")
++      .select("id", { count: "exact", head: true })
++      .eq("shop_id", currentShopId)
++      .eq("is_active", true)
++      .in("zone_id", descendantIds);
++
++    setPartCount(count ?? 0);
++    setLoading(false);
++  }
++
++  if (loading) {
++    return (
++      <div className="container">
++        <div className="empty">กำลังโหลด...</div>
++      </div>
++    );
++  }
++
++  if (notFound) {
++    return (
++      <div className="container">
++        <div className="header">
++          <h1>📍 ไม่พบโซนนี้</h1>
++        </div>
++        <div className="empty">โซนนี้อาจถูกลบไปแล้ว หรือ QR code เก่าเกินไป</div>
++        <Link href="/admin/zones" className="nav-link secondary">
++          ← ไปหน้าจัดการโซน
++        </Link>
++      </div>
++    );
++  }
++
++  const chain = getAncestorChain(zones, zoneId);
++  const zone = chain[chain.length - 1];
++  const children = getChildren(zones, zoneId);
++
++  return (
++    <div className="container">
++      <div className="header">
++        <h1>📍 {zone.code}</h1>
++        <Link href="/admin/zones" className="nav-link secondary">
++          จัดการโซน
++        </Link>
++      </div>
++
++      <div style={{ fontSize: 15, marginBottom: 4 }}>
++        {chain.map((z, i) => (
++          <span key={z.id}>
++            {i > 0 && <span style={{ color: "var(--text-muted)" }}> › </span>}
++            {z.code}
++          </span>
++        ))}
++      </div>
++      {zone.name && <div style={{ color: "var(--text-muted)", marginBottom: 16 }}>{zone.name}</div>}
++
++      <div className="card" style={{ cursor: "default", marginBottom: 16 }}>
++        <div className="card-body">
++          <div className="card-title">📦 อะไหล่ในโซนนี้ (รวมโซนย่อยข้างใน)</div>
++          <div className="card-sub">{partCount} ชิ้น</div>
++        </div>
++      </div>
++
++      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
++        {isLeaf(zones, zoneId) ? (
++          <button type="button" onClick={() => router.push(`/add?zone_id=${zoneId}`)}>
++            ➕ เพิ่มอะไหล่ที่นี่
++          </button>
++        ) : (
++          <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
++            โซนนี้มีโซนย่อยอยู่ข้างใน — เลือกโซนย่อยที่ต้องการด้านล่างก่อนถึงจะเพิ่มอะไหล่ได้
++          </div>
++        )}
++        <button
++          type="button"
++          className="secondary"
++          onClick={() => router.push(`/?zone=${zoneId}`)}
++        >
++          🔍 ดูอะไหล่ทั้งหมดในนี้
++        </button>
++        <button
++          type="button"
++          className="secondary"
++          onClick={() => router.push(`/move-parts?from=${zoneId}`)}
++        >
++          📦 ย้ายอะไหล่ทั้งหมดจากที่นี่ไปโซนอื่น
++        </button>
++      </div>
++
++      {children.length > 0 && (
++        <>
++          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
++            โซนย่อยข้างใน ({children.length})
++          </div>
++          {children.map((c) => (
++            <div
++              className="card"
++              key={c.id}
++              style={{ cursor: "pointer" }}
++              onClick={() => router.push(`/zone/${c.id}`)}
++            >
++              <div className="card-body">
++                <div className="card-title">{c.code}</div>
++                {c.name && <div className="card-sub">{c.name}</div>}
++              </div>
++            </div>
++          ))}
++        </>
++      )}
++    </div>
++  );
++}
++
++export default function ZonePage() {
++  return (
++    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
++      <ZonePageContent />
++    </RequireAuth>
++  );
++}
+diff --git a/components/ZoneQRCode.js b/components/ZoneQRCode.js
+new file mode 100644
+index 0000000..bf8e0b2
+--- /dev/null
++++ b/components/ZoneQRCode.js
+@@ -0,0 +1,22 @@
++"use client";
++
++import { useEffect, useRef } from "react";
++import QRCode from "qrcode";
++
++// QR เก็บ URL ตรงไปหน้า /zone/[id] — สแกนด้วยกล้องมือถือธรรมดา เปิดเบราว์เซอร์
++// เห็น breadcrumb ของโซนนั้นทันที พร้อมปุ่มเพิ่มอะไหล่/ย้ายอะไหล่ที่นี่
++export default function ZoneQRCode({ zoneId, size = 160 }) {
++  const canvasRef = useRef(null);
++
++  useEffect(() => {
++    if (!canvasRef.current || !zoneId) return;
++    const url = `${window.location.origin}/zone/${zoneId}`;
++    QRCode.toCanvas(canvasRef.current, url, {
++      width: size,
++      margin: 1,
++      color: { dark: "#000000", light: "#ffffff" },
++    });
++  }, [zoneId, size]);
++
++  return <canvas ref={canvasRef} style={{ display: "block" }} />;
++}
+diff --git a/components/ZoneTreeNode.js b/components/ZoneTreeNode.js
+index 44130e8..c2bbbfb 100644
+--- a/components/ZoneTreeNode.js
++++ b/components/ZoneTreeNode.js
+@@ -1,5 +1,6 @@
+ "use client";
+ 
++import Link from "next/link";
+ import { getChildren } from "../lib/zoneHelpers";
+ 
+ /**
+@@ -69,6 +70,21 @@ export default function ZoneTreeNode({
+           </div>
+         </div>
+         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
++          <Link
++            href={`/print-zone-labels?ids=${zone.id}`}
++            title="พิมพ์ QR โซนนี้"
++            style={{
++              padding: "8px 12px",
++              borderRadius: 8,
++              border: "1px solid var(--border-strong)",
++              background: "transparent",
++              color: "var(--text)",
++              fontSize: 13,
++              textDecoration: "none",
++            }}
++          >
++            🏷️ QR
++          </Link>
+           <button
+             type="button"
+             onClick={() => onStartAdd(zone.id)}
