@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
@@ -23,6 +24,7 @@ function levelLabelForIndex(idx) {
 }
 
 function ZonesAdminPageContent() {
+  const router = useRouter();
   const { currentShopId } = useAuth();
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -386,6 +388,30 @@ function ZonesAdminPageContent() {
         >
           ย่อทั้งหมด
         </button>
+        {zones.length > 0 && (
+          <button
+            type="button"
+            onClick={() => router.push(`/print-zone-labels?ids=${zones.map((z) => z.id).join(",")}`)}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--border-strong)",
+              background: "transparent",
+              color: "var(--text)",
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            🖨️ พิมพ์ QR ทั้งหมด ({zones.length})
+          </button>
+        )}
+        <Link
+          href="/move-parts"
+          className="nav-link secondary"
+          style={{ fontSize: 13, display: "inline-flex", alignItems: "center" }}
+        >
+          📦 ย้ายอะไหล่ทั้งโซน
+        </Link>
       </div>
 
       {addingUnderId === ROOT_LEVEL && renderAddForm(ROOT_LEVEL)}

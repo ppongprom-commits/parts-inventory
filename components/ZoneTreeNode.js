@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { getChildren } from "../lib/zoneHelpers";
 
 /**
@@ -69,6 +70,21 @@ export default function ZoneTreeNode({
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <Link
+            href={`/print-zone-labels?ids=${zone.id}`}
+            title="พิมพ์ QR โซนนี้"
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--border-strong)",
+              background: "transparent",
+              color: "var(--text)",
+              fontSize: 13,
+              textDecoration: "none",
+            }}
+          >
+            🏷️ QR
+          </Link>
           <button
             type="button"
             onClick={() => onStartAdd(zone.id)}

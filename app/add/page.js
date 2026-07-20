@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
 import ZoneAutocomplete from "../../components/ZoneAutocomplete";
+import { isLeaf } from "../../lib/zoneHelpers";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
@@ -54,9 +55,11 @@ function AddPartPageContent() {
   const [optionsLoading, setOptionsLoading] = useState(true);
 
   useEffect(() => {
+    const scannedZoneId = searchParams.get("zone_id");
     const lastZoneId = getDefaultZone();
-    if (lastZoneId) {
-      setForm((f) => ({ ...f, zone_id: lastZoneId }));
+    const initialZoneId = scannedZoneId || lastZoneId;
+    if (initialZoneId) {
+      setForm((f) => ({ ...f, zone_id: initialZoneId }));
     }
     if (currentShopId) {
       fetchZones();
@@ -64,6 +67,17 @@ function AddPartPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
+
+  // กันเคส ?zone_id= จาก URL (สแกน QR) ชี้ไปโซนที่ไม่ใช่ leaf (เช่น Area ที่มี Rack ข้างใน) —
+  // ZoneAutocomplete จะโชว์ช่องค้นหาว่างเปล่าให้ดูเหมือนไม่ได้เลือกอะไร แต่ค่าจริงยังค้างอยู่ใน
+  // form.zone_id ถ้าไม่เคลียร์ตรงนี้ อะไหล่จะถูกบันทึกด้วย zone_id ที่ไม่ใช่ leaf ได้
+  useEffect(() => {
+    if (zonesLoading || !form.zone_id) return;
+    if (!isLeaf(zones, form.zone_id)) {
+      setForm((f) => ({ ...f, zone_id: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zonesLoading, zones]);
 
   async function fetchZones() {
     setZonesLoading(true);
