@@ -1,0 +1,75 @@
+// โหลด credential ของ test account ทั้งหมดจาก .env
+// ตรงกับ Test Data Matrix ในไฟล์ test_cases_login_rbac_parts_inventory.xlsx
+import "dotenv/config";
+
+function required(name) {
+  const v = process.env[name];
+  if (!v) {
+    console.warn(`[test-data] ⚠️  ยังไม่ได้ตั้งค่า ${name} ใน .env — test ที่ใช้ค่านี้จะ fail`);
+  }
+  return v;
+}
+
+export const supabaseUrl = required("SUPABASE_URL");
+export const supabasePublishableKey = required("SUPABASE_PUBLISHABLE_KEY");
+
+export const accounts = {
+  owner: {
+    email: required("TEST_OWNER_EMAIL"),
+    password: required("TEST_OWNER_PASSWORD"),
+    role: "owner",
+  },
+  manager: {
+    email: required("TEST_MANAGER_EMAIL"),
+    password: required("TEST_MANAGER_PASSWORD"),
+    role: "manager",
+  },
+  supervisor: {
+    username: required("TEST_SUPERVISOR_USERNAME"),
+    pin: required("TEST_SUPERVISOR_PIN"),
+    role: "supervisor",
+  },
+  technician: {
+    username: required("TEST_TECHNICIAN_USERNAME"),
+    pin: required("TEST_TECHNICIAN_PIN"),
+    role: "technician",
+  },
+  assistant: {
+    username: required("TEST_ASSISTANT_USERNAME"),
+    pin: required("TEST_ASSISTANT_PIN"),
+    role: "assistant",
+  },
+  ownerPlatformAdmin: {
+    email: required("TEST_OWNER_PLATFORMADMIN_EMAIL"),
+    password: required("TEST_OWNER_PLATFORMADMIN_PASSWORD"),
+    role: "owner",
+  },
+  disabledOwner: {
+    email: required("TEST_DISABLED_OWNER_EMAIL"),
+    password: required("TEST_DISABLED_OWNER_PASSWORD"),
+    role: "owner",
+  },
+  newUser: {
+    email: required("TEST_NEWUSER_EMAIL"),
+    password: required("TEST_NEWUSER_PASSWORD"),
+    role: null,
+  },
+};
+
+// TC-302: 4 บัญชีแยกในอู่เฉพาะที่ตั้ง plan='trial' (maxConcurrentSessions=3)
+// เพื่อทดสอบว่าคนที่ 4 ที่ login พร้อมกันโดนบล็อกจริงไหม
+export const concurrentAccounts = [1, 2, 3, 4].map((n) => ({
+  email: required(`TEST_CONCURRENT${n}_EMAIL`),
+  password: required(`TEST_CONCURRENT${n}_PASSWORD`),
+}));
+
+// หน้าที่ตาม RequireAuth allowedRoles จริงในโค้ด (branch: staging)
+export const pageAccess = {
+  adminOnly: ["/admin/options", "/admin/zones", "/admin/reports", "/admin/trash"],
+  allShopRoles: ["/jobs", "/jobs/new", "/add", "/admin/groups"],
+};
+
+export const allowedRoles = {
+  adminOnly: ["owner", "manager"],
+  allShopRoles: ["owner", "manager", "supervisor", "technician", "assistant"],
+};

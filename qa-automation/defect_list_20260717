@@ -1,0 +1,1892 @@
+  3) [chromium] › tests/auth-email-login.spec.js:51:3 › Email + Password Login (/login) — owner / manager › TC-110 SQL injection payload ไม่ bypass login
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.msg.error')
+    Expected: visible
+    Timeout: 8000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 8000ms
+      - waiting for locator('.msg.error')
+
+
+       at ../fixtures/auth-helpers.js:33
+
+      31 | export async function expectLoginFailed(page, { onPath } = {}) {
+      32 |   const errorLocator = page.locator(".msg.error");
+    > 33 |   await expect(errorLocator).toBeVisible({ timeout: 8_000 });
+         |                              ^
+      34 |   if (onPath) {
+      35 |     await expect(page).toHaveURL(new RegExp(onPath));
+      36 |   }
+        at expectLoginFailed (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:33:30)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/auth-email-login.spec.js:53:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/rbac.spec.js:52:3 › RBAC — Platform admin isolation (platform_admins table, ไม่ใช่ shop role) › TC-204 owner ธรรมดา (ไม่มีแถวใน platform_admins) เข้า /platform-admin ต้องถูก 403
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.msg.error').filter({ hasText: 'ไม่มีสิทธิ์เข้าหน้า Platform Admin' })
+    Expected: visible
+    Timeout: 8000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 8000ms
+      - waiting for locator('.msg.error').filter({ hasText: 'ไม่มีสิทธิ์เข้าหน้า Platform Admin' })
+
+
+      56 |     await expect(
+      57 |       page.locator(".msg.error", { hasText: "ไม่มีสิทธิ์เข้าหน้า Platform Admin" })
+    > 58 |     ).toBeVisible({ timeout: 8000 });
+         |       ^
+      59 |   });
+      60 |
+      61 |   // TC-006
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:58:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Platform-admin-f089a--platform-admin-ต้องถูก-403-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Platform-admin-f089a--platform-admin-ต้องถูก-403-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Platform-admin-f089a--platform-admin-ต้องถูก-403-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Platform-admin-f089a--platform-admin-ต้องถูก-403-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Platform-admin-f089a--platform-admin-ต้องถูก-403-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+## 🔴 CRITICAL — ต้องแก้ก่อน deploy/ปล่อยฟีเจอร์ (16 รายการ)
+
+- **TC-205** TC-205a technician token เรียก /api/team/create-staff ตรงๆ ต้องโดน 403 — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-205** TC-205b technician token เรียก /api/team/reset-pin ของคนอื่น (ไม่ใช่ตัวเอง) ต้องโดน 403 — `failed`
+  - Error: expect(received).toBe(expected) // Object.is equality
+- **TC-205** TC-205d technician รีเซ็ต PIN ของตัวเอง (self-service) ต้องอนุญาต ไม่ใช่ 403 — `failed`
+  - Error: expect(received).toBeTruthy()
+- **TC-110** TC-110 SQL injection payload ไม่ bypass login — `failed`
+  - Error: expect(locator).toBeVisible() failed
+- **TC-206** TC-206a technician ของอู่หลัก SELECT zones ของอู่อื่น ต้องได้ผลลัพธ์ว่างเปล่า (ไม่ error, แค่ไม่เห็น) — `failed`
+  - Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **TC-206** TC-206b technician ของอู่หลัก SELECT shop_members ของอู่อื่น ต้องว่างเปล่าเช่นกัน — `failed`
+  - Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **TC-206** TC-206d technician INSERT zone ใหม่ในอู่ตัวเอง ต้องถูกปฏิเสธ — `failed`
+  - Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **TC-206** TC-206f assistant UPDATE status ของ job ต้องถูกปฏิเสธ (ไม่อยู่ใน update policy) — `failed`
+  - Error: signInEmail(qa_asst01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **TC-206** TC-206g technician UPDATE status ของ job ต้องสำเร็จ (positive control — technician อยู่ใน update policy) — `failed`
+  - Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **TC-206** TC-206h technician DELETE job ต้องถูกปฏิเสธ (delete policy = owner/manager เท่านั้น) — `failed`
+  - Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **JOB-202** JOB-202 job ถูกสร้างและ 'เห็นได้ทุกคน' ทันทีที่ insert กลุ่มล้มเหลว แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม — `failed`
+  - TimeoutError: locator.click: Timeout 10000ms exceeded.
+- **JOB-203** JOB-203 กด submit ซ้ำหลังเจอ error จาก JOB-202 -> เกิดงานซ้ำ (duplicate job) สำหรับลูกค้าคนเดียวกัน — `failed`
+  - TimeoutError: locator.click: Timeout 10000ms exceeded.
+- **TC-202** TC-202 technician เข้า /admin/options ต้องเจอ role-forbidden — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-202** TC-202 technician เข้า /admin/zones ต้องเจอ role-forbidden — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-202** TC-202 technician เข้า /admin/reports ต้องเจอ role-forbidden — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-202** TC-202 technician เข้า /admin/trash ต้องเจอ role-forbidden — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+
+## 🟠 HIGH — ควรแก้ก่อน release ถัดไป (13 รายการ)
+
+- **TC-401** TC-401 owner สร้างบัญชีพนักงานใหม่สำเร็จ ผ่าน username+PIN — `failed`
+  - Error: locator.fill: Error: strict mode violation: getByLabel('ชื่อ-นามสกุล') resolved to 2 elements:
+- **TC-402** TC-402 สร้าง staff ด้วย username ที่ซ้ำกับที่มีอยู่แล้ว ต้อง reject — `failed`
+  - Error: locator.fill: Error: strict mode violation: getByLabel('ชื่อ-นามสกุล') resolved to 2 elements:
+- **TC-004** TC-004 login สำเร็จด้วย technician — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-005** TC-005 login สำเร็จด้วย assistant — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **JOB-801** JOB-801 กลุ่ม/สมาชิกของอู่อื่นต้องไม่หลุดมาในฟอร์มสร้างงานของอู่หลัก — `failed`
+  - Error: expect(locator).toBeVisible() failed
+- **JOB-602** JOB-602 assistant สร้างงานสำเร็จ แต่แก้ไข/อัปเดตสถานะงานที่ตัวเองสร้างไม่ได้เลย — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **JOB-201** JOB-201 เลือก visibility group แล้วสร้างงานสำเร็จ -> เฉพาะสมาชิกกลุ่มนั้น (+owner/manager) เห็นงานนี้ — `failed`
+  - TimeoutError: locator.click: Timeout 10000ms exceeded.
+- **TC-203** TC-203 assistant เข้า /jobs ได้ปกติ — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-203** TC-203 assistant เข้า /jobs/new ได้ปกติ — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-203** TC-203 assistant เข้า /add ได้ปกติ — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-203** TC-203 assistant เข้า /admin/groups ได้ปกติ — `failed`
+  - Error: expect(page).not.toHaveURL(expected) failed
+- **TC-207** TC-207 owner เปลี่ยน status ของ technician เป็น disabled กลางคัน แล้ว technician (session เดิม ไม่ login ใหม่) ทำ insert/update ไม่ได้ทันที — `failed`
+  - Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+- **TC-303** TC-303 sign out แล้วกลับเข้าหน้า protected ซ้ำไม่ได้ ต้อง redirect ไป /login — `failed`
+  - Error: expect(page).toHaveURL(expected) failed
+
+
+    1) [chromium] › tests/account-provisioning.spec.js:21:3 › Account Provisioning — /admin/team (lib/staffAuth.js STAFF_ROLES) › TC-401 owner สร้างบัญชีพนักงานใหม่สำเร็จ ผ่าน username+PIN
+
+    Error: locator.fill: Error: strict mode violation: getByLabel('ชื่อ-นามสกุล') resolved to 2 elements:
+        1) <input value="" required="" type="text" placeholder="เช่น สมชาย ใจดี"/> aka getByRole('textbox', { name: 'ชื่อ-นามสกุล', exact: true })
+        2) <input value="" type="text" placeholder="เช่น สมชาย ใจดี"/> aka getByRole('textbox', { name: 'ชื่อ-นามสกุล (ไม่บังคับ แต่แนะนำให้ใส่ จะได้ไม่งงว่าใครเป็นใคร)' })
+
+    Call log:
+      - waiting for getByLabel('ชื่อ-นามสกุล')
+
+
+       9 |   const pinRow = page.locator("label", { hasText: /^PIN/ });
+      10 |   await pinRow.locator("input").fill(pin);
+    > 11 |   await page.getByLabel("ชื่อ-นามสกุล").fill(contactName);
+         |                                         ^
+      12 |   await page.getByLabel("เบอร์โทร").fill(contactPhone);
+      13 |   if (role) {
+      14 |     await page.getByLabel("บทบาท").selectOption(role);
+        at fillCreateStaffForm (/Users/ammonium/git/ppongprom-project/qa-automation/tests/account-provisioning.spec.js:11:41)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/account-provisioning.spec.js:27:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-f20f3-หม่สำเร็จ-ผ่าน-username-PIN-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-f20f3-หม่สำเร็จ-ผ่าน-username-PIN-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/account-provisioning-Accou-f20f3-หม่สำเร็จ-ผ่าน-username-PIN-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-f20f3-หม่สำเร็จ-ผ่าน-username-PIN-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/account-provisioning-Accou-f20f3-หม่สำเร็จ-ผ่าน-username-PIN-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/account-provisioning.spec.js:51:3 › Account Provisioning — /admin/team (lib/staffAuth.js STAFF_ROLES) › TC-402 สร้าง staff ด้วย username ที่ซ้ำกับที่มีอยู่แล้ว ต้อง reject
+
+    Error: locator.fill: Error: strict mode violation: getByLabel('ชื่อ-นามสกุล') resolved to 2 elements:
+        1) <input value="" required="" type="text" placeholder="เช่น สมชาย ใจดี"/> aka getByRole('textbox', { name: 'ชื่อ-นามสกุล', exact: true })
+        2) <input value="" type="text" placeholder="เช่น สมชาย ใจดี"/> aka getByRole('textbox', { name: 'ชื่อ-นามสกุล (ไม่บังคับ แต่แนะนำให้ใส่ จะได้ไม่งงว่าใครเป็นใคร)' })
+
+    Call log:
+      - waiting for getByLabel('ชื่อ-นามสกุล')
+
+
+       9 |   const pinRow = page.locator("label", { hasText: /^PIN/ });
+      10 |   await pinRow.locator("input").fill(pin);
+    > 11 |   await page.getByLabel("ชื่อ-นามสกุล").fill(contactName);
+         |                                         ^
+      12 |   await page.getByLabel("เบอร์โทร").fill(contactPhone);
+      13 |   if (role) {
+      14 |     await page.getByLabel("บทบาท").selectOption(role);
+        at fillCreateStaffForm (/Users/ammonium/git/ppongprom-project/qa-automation/tests/account-provisioning.spec.js:11:41)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/account-provisioning.spec.js:57:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-f8b98-ับที่มีอยู่แล้ว-ต้อง-reject-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-f8b98-ับที่มีอยู่แล้ว-ต้อง-reject-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/account-provisioning-Accou-f8b98-ับที่มีอยู่แล้ว-ต้อง-reject-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-f8b98-ับที่มีอยู่แล้ว-ต้อง-reject-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/account-provisioning-Accou-f8b98-ับที่มีอยู่แล้ว-ต้อง-reject-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/account-provisioning.spec.js:73:3 › Account Provisioning — /admin/team (lib/staffAuth.js STAFF_ROLES) › TC-403 manager (ไม่ใช่ owner) สร้างบัญชีพนักงานได้สำเร็จเช่นกัน
+
+    Error: locator.fill: Error: strict mode violation: getByLabel('ชื่อ-นามสกุล') resolved to 2 elements:
+        1) <input value="" required="" type="text" placeholder="เช่น สมชาย ใจดี"/> aka getByRole('textbox', { name: 'ชื่อ-นามสกุล', exact: true })
+        2) <input value="" type="text" placeholder="เช่น สมชาย ใจดี"/> aka getByRole('textbox', { name: 'ชื่อ-นามสกุล (ไม่บังคับ แต่แนะนำให้ใส่ จะได้ไม่งงว่าใครเป็นใคร)' })
+
+    Call log:
+      - waiting for getByLabel('ชื่อ-นามสกุล')
+
+
+       9 |   const pinRow = page.locator("label", { hasText: /^PIN/ });
+      10 |   await pinRow.locator("input").fill(pin);
+    > 11 |   await page.getByLabel("ชื่อ-นามสกุล").fill(contactName);
+         |                                         ^
+      12 |   await page.getByLabel("เบอร์โทร").fill(contactPhone);
+      13 |   if (role) {
+      14 |     await page.getByLabel("บทบาท").selectOption(role);
+        at fillCreateStaffForm (/Users/ammonium/git/ppongprom-project/qa-automation/tests/account-provisioning.spec.js:11:41)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/account-provisioning.spec.js:79:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-107f1-ัญชีพนักงานได้สำเร็จเช่นกัน-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-107f1-ัญชีพนักงานได้สำเร็จเช่นกัน-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/account-provisioning-Accou-107f1-ัญชีพนักงานได้สำเร็จเช่นกัน-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/account-provisioning-Accou-107f1-ัญชีพนักงานได้สำเร็จเช่นกัน-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/account-provisioning-Accou-107f1-ัญชีพนักงานได้สำเร็จเช่นกัน-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/api-rbac.spec.js:9:3 › RBAC — API level (lib/teamAuth.js verifyShopManager) › TC-205a technician token เรียก /api/team/create-staff ตรงๆ ต้องโดน 403
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/api-rbac.spec.js:15:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--c7a11-eate-staff-ตรงๆ-ต้องโดน-403-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--c7a11-eate-staff-ตรงๆ-ต้องโดน-403-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/api-rbac-RBAC-—-API-level--c7a11-eate-staff-ตรงๆ-ต้องโดน-403-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--c7a11-eate-staff-ตรงๆ-ต้องโดน-403-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/api-rbac-RBAC-—-API-level--c7a11-eate-staff-ตรงๆ-ต้องโดน-403-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests/api-rbac.spec.js:40:3 › RBAC — API level (lib/teamAuth.js verifyShopManager) › TC-205b technician token เรียก /api/team/reset-pin ของคนอื่น (ไม่ใช่ตัวเอง) ต้องโดน 403
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      61 |     });
+      62 |
+    > 63 |     expect(res.status()).toBe(403);
+         |                          ^
+      64 |     const json = await res.json();
+      65 |     expect(json.error).toContain("ไม่มีสิทธิ์จัดการทีมของอู่นี้");
+      66 |   });
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/api-rbac.spec.js:63:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/error-context.md
+
+    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/api-rbac-RBAC-—-API-level--5f3d5-่น-ไม่ใช่ตัวเอง-ต้องโดน-403-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › tests/api-rbac.spec.js:87:3 › RBAC — API level (lib/teamAuth.js verifyShopManager) › TC-205d technician รีเซ็ต PIN ของตัวเอง (self-service) ต้องอนุญาต ไม่ใช่ 403
+
+    Error: expect(received).toBeTruthy()
+
+    Received: false
+
+      108 |     });
+      109 |
+    > 110 |     expect(res.ok()).toBeTruthy();
+          |                      ^
+      111 |     const json = await res.json();
+      112 |     expect(json.data?.ok).toBe(true);
+      113 |   });
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/api-rbac.spec.js:110:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/error-context.md
+
+    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/api-rbac-RBAC-—-API-level--1b81c-rvice-ต้องอนุญาต-ไม่ใช่-403-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium] › tests/auth-email-login.spec.js:30:3 › Email + Password Login (/login) — owner / manager › TC-108 validation error เมื่อเว้นว่างอีเมล
+
+    Error: expect(locator).toHaveJSProperty(expected) failed
+
+    Locator:  getByLabel('อีเมล')
+    Expected: /.+/
+    Received: "Please fill out this field."
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toHaveJSProperty" with timeout 8000ms
+      - waiting for getByLabel('อีเมล')
+        20 × locator resolved to <input value="" required="" type="email" autocomplete="email"/>
+           - unexpected value "Please fill out this field."
+
+
+      34 |     // ช่อง email เป็น required + type=email -> browser-native validation จะ block submit
+      35 |     const emailInput = page.getByLabel("อีเมล");
+    > 36 |     await expect(emailInput).toHaveJSProperty("validationMessage", /.+/);
+         |                              ^
+      37 |     await expect(page).toHaveURL(/\/login/);
+      38 |   });
+      39 |
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/auth-email-login.spec.js:36:30
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-3d41c-on-error-เมื่อเว้นว่างอีเมล-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-3d41c-on-error-เมื่อเว้นว่างอีเมล-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/auth-email-login-Email-Pas-3d41c-on-error-เมื่อเว้นว่างอีเมล-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-3d41c-on-error-เมื่อเว้นว่างอีเมล-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auth-email-login-Email-Pas-3d41c-on-error-เมื่อเว้นว่างอีเมล-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium] › tests/auth-email-login.spec.js:41:3 › Email + Password Login (/login) — owner / manager › TC-109 validation error เมื่อเว้นว่างรหัสผ่าน
+
+    Error: expect(locator).toHaveJSProperty(expected) failed
+
+    Locator:  getByLabel('รหัสผ่าน')
+    Expected: /.+/
+    Received: "Please fill out this field."
+    Timeout:  8000ms
+
+    Call log:
+      - Expect "toHaveJSProperty" with timeout 8000ms
+      - waiting for getByLabel('รหัสผ่าน')
+        20 × locator resolved to <input value="" required="" type="password" autocomplete="current-password"/>
+           - unexpected value "Please fill out this field."
+
+
+      44 |     await page.getByRole("button", { name: /เข้าสู่ระบบ/ }).click();
+      45 |     const pwInput = page.getByLabel("รหัสผ่าน");
+    > 46 |     await expect(pwInput).toHaveJSProperty("validationMessage", /.+/);
+         |                           ^
+      47 |     await expect(page).toHaveURL(/\/login/);
+      48 |   });
+      49 |
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/auth-email-login.spec.js:46:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-cad7f-error-เมื่อเว้นว่างรหัสผ่าน-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-cad7f-error-เมื่อเว้นว่างรหัสผ่าน-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/auth-email-login-Email-Pas-cad7f-error-เมื่อเว้นว่างรหัสผ่าน-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-cad7f-error-เมื่อเว้นว่างรหัสผ่าน-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auth-email-login-Email-Pas-cad7f-error-เมื่อเว้นว่างรหัสผ่าน-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [chromium] › tests/auth-email-login.spec.js:51:3 › Email + Password Login (/login) — owner / manager › TC-110 SQL injection payload ไม่ bypass login
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.msg.error')
+    Expected: visible
+    Timeout: 8000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 8000ms
+      - waiting for locator('.msg.error')
+
+
+       at ../fixtures/auth-helpers.js:33
+
+      31 | export async function expectLoginFailed(page, { onPath } = {}) {
+      32 |   const errorLocator = page.locator(".msg.error");
+    > 33 |   await expect(errorLocator).toBeVisible({ timeout: 8_000 });
+         |                              ^
+      34 |   if (onPath) {
+      35 |     await expect(page).toHaveURL(new RegExp(onPath));
+      36 |   }
+        at expectLoginFailed (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:33:30)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/auth-email-login.spec.js:53:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auth-email-login-Email-Pas-de073-on-payload-ไม่-bypass-login-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [chromium] › tests/auth-staff-login.spec.js:17:3 › Username + PIN Login (/staff-login) — supervisor / technician / assistant › TC-004 login สำเร็จด้วย technician
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/auth-staff-login.spec.js:19:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/auth-staff-login-Username--f2729-login-สำเร็จด้วย-technician-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/auth-staff-login-Username--f2729-login-สำเร็จด้วย-technician-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/auth-staff-login-Username--f2729-login-สำเร็จด้วย-technician-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auth-staff-login-Username--f2729-login-สำเร็จด้วย-technician-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auth-staff-login-Username--f2729-login-สำเร็จด้วย-technician-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [chromium] › tests/auth-staff-login.spec.js:23:3 › Username + PIN Login (/staff-login) — supervisor / technician / assistant › TC-005 login สำเร็จด้วย assistant
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/auth-staff-login.spec.js:25:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/auth-staff-login-Username--cefd2--login-สำเร็จด้วย-assistant-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/auth-staff-login-Username--cefd2--login-สำเร็จด้วย-assistant-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/auth-staff-login-Username--cefd2--login-สำเร็จด้วย-assistant-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/auth-staff-login-Username--cefd2--login-สำเร็จด้วย-assistant-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/auth-staff-login-Username--cefd2--login-สำเร็จด้วย-assistant-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [chromium] › tests/concurrent-session.spec.js:23:1 › TC-302a คนที่ 4 (distinct user) login พร้อมกันในอู่ที่ tier=trial (cap=3) ต้องโดน force sign-out ทันที
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 2
+
+      40 |       .select("session_id, user_id")
+      41 |       .eq("shop_id", concurrentShopId);
+    > 42 |     expect(before?.length).toBe(3);
+         |                            ^
+      43 |
+      44 |     // คนที่ 4 (distinct user คนใหม่) login เข้าอู่เดียวกัน -> ต้องโดน signOut อัตโนมัติ
+      45 |     // (ดู lib/AuthProvider.js: ถ้า registerSession().ok===false จะเรียก supabase.auth.signOut()
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/concurrent-session.spec.js:42:28
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302a-fa188-้องโดน-force-sign-out-ทันที-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302a-fa188-้องโดน-force-sign-out-ทันที-chromium/test-failed-3.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302a-fa188-้องโดน-force-sign-out-ทันที-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/concurrent-session-TC-302a-fa188-้องโดน-force-sign-out-ทันที-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302a-fa188-้องโดน-force-sign-out-ทันที-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/concurrent-session-TC-302a-fa188-้องโดน-force-sign-out-ทันที-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [chromium] › tests/concurrent-session.spec.js:71:1 › TC-302b user เดิม login เครื่องที่ 3 (เกิน maxDevicesPerUser=2) ไม่ถูกบล็อก แค่ evict session เก่าสุดแบบเงียบๆ (ไม่ signOut ใคร)
+
+    Error: expect(received).not.toContain(expected) // indexOf
+
+    Expected value: not 179
+    Received array:     [179, 180]
+
+      113 |     expect(after3?.length).toBe(2);
+      114 |     const remainingIds = after3.map((r) => r.session_id);
+    > 115 |     expect(remainingIds).not.toContain(oldestSessionId); // แถวเก่าสุดถูกลบไปแล้วจริง
+          |                              ^
+      116 |
+      117 |     // ⚠️ ข้อสังเกตสำคัญที่ 2: การ "evict" นี้แค่ลบแถวใน user_sessions (bookkeeping table)
+      118 |     // ไม่ได้เรียก supabase.auth.signOut() ให้อุปกรณ์ตัวที่ 1 (เก่าสุด) เลย — โทเค็น auth ของ
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/concurrent-session.spec.js:115:30
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302b-ae8d0-ดแบบเงียบๆ-ไม่-signOut-ใคร--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302b-ae8d0-ดแบบเงียบๆ-ไม่-signOut-ใคร--chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302b-ae8d0-ดแบบเงียบๆ-ไม่-signOut-ใคร--chromium/test-failed-3.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/concurrent-session-TC-302b-ae8d0-ดแบบเงียบๆ-ไม่-signOut-ใคร--chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/concurrent-session-TC-302b-ae8d0-ดแบบเงียบๆ-ไม่-signOut-ใคร--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/concurrent-session-TC-302b-ae8d0-ดแบบเงียบๆ-ไม่-signOut-ใคร--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [chromium] › tests/db-rls.spec.js:33:3 › TC-206 — RLS: cross-tenant isolation › TC-206a technician ของอู่หลัก SELECT zones ของอู่อื่น ต้องได้ผลลัพธ์ว่างเปล่า (ไม่ error, แค่ไม่เห็น)
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/db-rls.spec.js:34:24
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-cross--0061e-เปล่า-ไม่-error-แค่ไม่เห็น--chromium/error-context.md
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-cross--0061e-เปล่า-ไม่-error-แค่ไม่เห็น--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/db-rls-TC-206-—-RLS-cross--0061e-เปล่า-ไม่-error-แค่ไม่เห็น--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/db-rls-TC-206-—-RLS-cross--0061e-เปล่า-ไม่-error-แค่ไม่เห็น--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [chromium] › tests/db-rls.spec.js:40:3 › TC-206 — RLS: cross-tenant isolation › TC-206b technician ของอู่หลัก SELECT shop_members ของอู่อื่น ต้องว่างเปล่าเช่นกัน
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/db-rls.spec.js:41:24
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-cross--c64d4-ู่อื่น-ต้องว่างเปล่าเช่นกัน-chromium/error-context.md
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-cross--c64d4-ู่อื่น-ต้องว่างเปล่าเช่นกัน-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/db-rls-TC-206-—-RLS-cross--c64d4-ู่อื่น-ต้องว่างเปล่าเช่นกัน-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/db-rls-TC-206-—-RLS-cross--c64d4-ู่อื่น-ต้องว่างเปล่าเช่นกัน-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [chromium] › tests/db-rls.spec.js:59:3 › TC-206 — RLS: zones/options (managers+ only ตาม policy จริง) › TC-206d technician INSERT zone ใหม่ในอู่ตัวเอง ต้องถูกปฏิเสธ
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/db-rls.spec.js:60:24
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-zones--c659c-ม่ในอู่ตัวเอง-ต้องถูกปฏิเสธ-chromium/error-context.md
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-zones--c659c-ม่ในอู่ตัวเอง-ต้องถูกปฏิเสธ-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/db-rls-TC-206-—-RLS-zones--c659c-ม่ในอู่ตัวเอง-ต้องถูกปฏิเสธ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/db-rls-TC-206-—-RLS-zones--c659c-ม่ในอู่ตัวเอง-ต้องถูกปฏิเสธ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [chromium] › tests/db-rls.spec.js:91:3 › TC-206 — RLS: jobs UPDATE/DELETE ตาม role (assistant อัปเดตงานไม่ได้) › TC-206f assistant UPDATE status ของ job ต้องถูกปฏิเสธ (ไม่อยู่ใน update policy)
+
+    Error: signInEmail(qa_asst01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/db-rls.spec.js:92:24
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-jobs-U-f96b6-สธ-ไม่อยู่ใน-update-policy--chromium/error-context.md
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-jobs-U-f96b6-สธ-ไม่อยู่ใน-update-policy--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/db-rls-TC-206-—-RLS-jobs-U-f96b6-สธ-ไม่อยู่ใน-update-policy--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/db-rls-TC-206-—-RLS-jobs-U-f96b6-สธ-ไม่อยู่ใน-update-policy--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [chromium] › tests/db-rls.spec.js:109:3 › TC-206 — RLS: jobs UPDATE/DELETE ตาม role (assistant อัปเดตงานไม่ได้) › TC-206g technician UPDATE status ของ job ต้องสำเร็จ (positive control — technician อยู่ใน update policy)
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/db-rls.spec.js:110:24
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-jobs-U-3a67e-ician-อยู่ใน-update-policy--chromium/error-context.md
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-jobs-U-3a67e-ician-อยู่ใน-update-policy--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/db-rls-TC-206-—-RLS-jobs-U-3a67e-ician-อยู่ใน-update-policy--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/db-rls-TC-206-—-RLS-jobs-U-3a67e-ician-อยู่ใน-update-policy--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [chromium] › tests/db-rls.spec.js:120:3 › TC-206 — RLS: jobs UPDATE/DELETE ตาม role (assistant อัปเดตงานไม่ได้) › TC-206h technician DELETE job ต้องถูกปฏิเสธ (delete policy = owner/manager เท่านั้น)
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/db-rls.spec.js:121:24
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-jobs-U-3e498-icy-owner-manager-เท่านั้น--chromium/error-context.md
+
+    Error Context: test-results/db-rls-TC-206-—-RLS-jobs-U-3e498-icy-owner-manager-เท่านั้น--chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/db-rls-TC-206-—-RLS-jobs-U-3e498-icy-owner-manager-เท่านั้น--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/db-rls-TC-206-—-RLS-jobs-U-3e498-icy-owner-manager-เท่านั้น--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [chromium] › tests/job-creation-basic.spec.js:178:3 › JOB-701 — UI/UX: ปุ่ม submit disable ระหว่างบันทึก › ปุ่ม 'รับงานเข้าอู่' disable + เปลี่ยนข้อความระหว่างรอ response
+
+    Error: expect(locator).toBeDisabled() failed
+
+    Locator: getByRole('button', { name: /รับงานเข้าอู่/ })
+    Expected: disabled
+    Timeout: 8000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeDisabled" with timeout 8000ms
+      - waiting for getByRole('button', { name: /รับงานเข้าอู่/ })
+
+
+      186 |     await button.click();
+      187 |
+    > 188 |     await expect(button).toBeDisabled();
+          |                          ^
+      189 |     await expect(button).toHaveText("กำลังบันทึก...");
+      190 |
+      191 |     const jobId = await expectJobSavedSuccessfully(page);
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-basic.spec.js:188:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-basic-JOB-701-9aa08-ยนข้อความระหว่างรอ-response-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-basic-JOB-701-9aa08-ยนข้อความระหว่างรอ-response-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-basic-JOB-701-9aa08-ยนข้อความระหว่างรอ-response-chromium/error-context.md
+
+    Error Context: test-results/job-creation-basic-JOB-701-9aa08-ยนข้อความระหว่างรอ-response-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-basic-JOB-701-9aa08-ยนข้อความระหว่างรอ-response-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-basic-JOB-701-9aa08-ยนข้อความระหว่างรอ-response-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [chromium] › tests/job-creation-multitenancy.spec.js:27:1 › JOB-801 กลุ่ม/สมาชิกของอู่อื่นต้องไม่หลุดมาในฟอร์มสร้างงานของอู่หลัก
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: /QA Test Group A/ })
+    Expected: visible
+    Timeout: 8000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 8000ms
+      - waiting for getByRole('button', { name: /QA Test Group A/ })
+
+
+      34 |
+      35 |   // กลุ่มของอู่หลักเอง (ที่ setup-test-data.mjs สร้างไว้) ต้องยังเห็นปกติ — sanity ว่า query ทำงานจริง
+    > 36 |   await expect(page.getByRole("button", { name: /QA Test Group A/ })).toBeVisible();
+         |                                                                       ^
+      37 |
+      38 |   // ช่องมอบหมายขั้นตอนงาน (dropdown สมาชิก) ต้องไม่มีใครจากอู่อื่นปนมาด้วย
+      39 |   const assigneeSelect = page.locator("select").filter({ has: page.locator('option:has-text("ยังไม่มอบหมาย")') });
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-multitenancy.spec.js:36:71
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-multitenancy--d54b2-มาในฟอร์มสร้างงานของอู่หลัก-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-multitenancy--d54b2-มาในฟอร์มสร้างงานของอู่หลัก-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-multitenancy--d54b2-มาในฟอร์มสร้างงานของอู่หลัก-chromium/error-context.md
+
+    Error Context: test-results/job-creation-multitenancy--d54b2-มาในฟอร์มสร้างงานของอู่หลัก-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-multitenancy--d54b2-มาในฟอร์มสร้างงานของอู่หลัก-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-multitenancy--d54b2-มาในฟอร์มสร้างงานของอู่หลัก-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [chromium] › tests/job-creation-photos.spec.js:36:1 › JOB-502 แนบหลายรูปพร้อมกันจากคลังภาพ (multiple)
+
+    Error: ENOENT: no such file or directory, stat '/Users/ammonium/git/ppongprom-project/qa-automation/tests/test-assets/tiny.png'
+
+      40 |   // input ตัวที่ 2 คือ galleryInputRef (มี multiple attribute) — ตัวแรกคือ cameraInputRef
+      41 |   const galleryInput = page.locator('input[type="file"][multiple]');
+    > 42 |   await galleryInput.setInputFiles([TINY_PNG, TINY_PNG, TINY_PNG]);
+         |   ^
+      43 |
+      44 |   // รอให้ resize/preview เสร็จก่อน (ปุ่มถ่ายรูป/เลือกคลังจะ disable ระหว่างประมวลผล)
+      45 |   await expect(page.getByRole("button", { name: /กำลังประมวลผล/ })).toHaveCount(0, { timeout: 8000 });
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-photos.spec.js:42:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-photos-JOB-50-64bdd-ร้อมกันจากคลังภาพ-multiple--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-photos-JOB-50-64bdd-ร้อมกันจากคลังภาพ-multiple--chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-photos-JOB-50-64bdd-ร้อมกันจากคลังภาพ-multiple--chromium/error-context.md
+
+    Error Context: test-results/job-creation-photos-JOB-50-64bdd-ร้อมกันจากคลังภาพ-multiple--chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-photos-JOB-50-64bdd-ร้อมกันจากคลังภาพ-multiple--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-photos-JOB-50-64bdd-ร้อมกันจากคลังภาพ-multiple--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [chromium] › tests/job-creation-photos.spec.js:56:1 › JOB-503 ลบรูปออกจากลิสต์ก่อน submit — เหลือแค่รูปที่ไม่ถูกลบเท่านั้นที่อัปโหลดจริง
+
+    Error: ENOENT: no such file or directory, stat '/Users/ammonium/git/ppongprom-project/qa-automation/tests/test-assets/tiny.png'
+
+      61 |
+      62 |   const galleryInput = page.locator('input[type="file"][multiple]');
+    > 63 |   await galleryInput.setInputFiles([TINY_PNG, TINY_PNG, TINY_PNG]);
+         |   ^
+      64 |   await expect(page.locator(".photo-thumb")).toHaveCount(3);
+      65 |
+      66 |   // ลบรูปที่ 2 (index 1) ออก
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-photos.spec.js:63:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-photos-JOB-50-6dfdb-ถูกลบเท่านั้นที่อัปโหลดจริง-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-photos-JOB-50-6dfdb-ถูกลบเท่านั้นที่อัปโหลดจริง-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-photos-JOB-50-6dfdb-ถูกลบเท่านั้นที่อัปโหลดจริง-chromium/error-context.md
+
+    Error Context: test-results/job-creation-photos-JOB-50-6dfdb-ถูกลบเท่านั้นที่อัปโหลดจริง-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-photos-JOB-50-6dfdb-ถูกลบเท่านั้นที่อัปโหลดจริง-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-photos-JOB-50-6dfdb-ถูกลบเท่านั้นที่อัปโหลดจริง-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [chromium] › tests/job-creation-rbac.spec.js:30:5 › JOB-601 — ทั้ง 5 role สร้างงานได้ปกติ (sanity) › technician สร้างงานสำเร็จ
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-rbac.spec.js:32:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-601--e5c9b-y-technician-สร้างงานสำเร็จ-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-601--e5c9b-y-technician-สร้างงานสำเร็จ-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-rbac-JOB-601--e5c9b-y-technician-สร้างงานสำเร็จ-chromium/error-context.md
+
+    Error Context: test-results/job-creation-rbac-JOB-601--e5c9b-y-technician-สร้างงานสำเร็จ-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-601--e5c9b-y-technician-สร้างงานสำเร็จ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-rbac-JOB-601--e5c9b-y-technician-สร้างงานสำเร็จ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) [chromium] › tests/job-creation-rbac.spec.js:30:5 › JOB-601 — ทั้ง 5 role สร้างงานได้ปกติ (sanity) › assistant สร้างงานสำเร็จ
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-rbac.spec.js:32:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-601--7eb3c-ty-assistant-สร้างงานสำเร็จ-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-601--7eb3c-ty-assistant-สร้างงานสำเร็จ-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-rbac-JOB-601--7eb3c-ty-assistant-สร้างงานสำเร็จ-chromium/error-context.md
+
+    Error Context: test-results/job-creation-rbac-JOB-601--7eb3c-ty-assistant-สร้างงานสำเร็จ-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-601--7eb3c-ty-assistant-สร้างงานสำเร็จ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-rbac-JOB-601--7eb3c-ty-assistant-สร้างงานสำเร็จ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [chromium] › tests/job-creation-rbac.spec.js:43:1 › JOB-602 assistant สร้างงานสำเร็จ แต่แก้ไข/อัปเดตสถานะงานที่ตัวเองสร้างไม่ได้เลย
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-rbac.spec.js:45:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-602--f5121-ะงานที่ตัวเองสร้างไม่ได้เลย-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-602--f5121-ะงานที่ตัวเองสร้างไม่ได้เลย-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-rbac-JOB-602--f5121-ะงานที่ตัวเองสร้างไม่ได้เลย-chromium/error-context.md
+
+    Error Context: test-results/job-creation-rbac-JOB-602--f5121-ะงานที่ตัวเองสร้างไม่ได้เลย-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-rbac-JOB-602--f5121-ะงานที่ตัวเองสร้างไม่ได้เลย-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-rbac-JOB-602--f5121-ะงานที่ตัวเองสร้างไม่ได้เลย-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [chromium] › tests/job-creation-visibility-groups.spec.js:66:1 › JOB-201 เลือก visibility group แล้วสร้างงานสำเร็จ -> เฉพาะสมาชิกกลุ่มนั้น (+owner/manager) เห็นงานนี้
+
+    TimeoutError: locator.click: Timeout 10000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /QA Test Group A/ })
+
+
+       at ../fixtures/job-helpers.js:41
+
+      39 | /** เลือก visibility group ตามชื่อ (toggle button — ดู app/jobs/new/page.js บรรทัด groups.map) */
+      40 | export async function toggleVisibilityGroup(page, groupName) {
+    > 41 |   await page.getByRole("button", { name: new RegExp(groupName) }).click();
+         |                                                                   ^
+      42 | }
+      43 |
+      44 | /** เพิ่มแถวขั้นตอนงาน + กรอกชื่อ (แถวแรกมีอยู่แล้วตั้งแต่ต้น ไม่ต้องกด + เพิ่มสำหรับแถวแรก) */
+        at toggleVisibilityGroup (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/job-helpers.js:41:67)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-visibility-groups.spec.js:71:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-84c60-้น-owner-manager-เห็นงานนี้-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-84c60-้น-owner-manager-เห็นงานนี้-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-visibility-gr-84c60-้น-owner-manager-เห็นงานนี้-chromium/error-context.md
+
+    Error Context: test-results/job-creation-visibility-gr-84c60-้น-owner-manager-เห็นงานนี้-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-84c60-้น-owner-manager-เห็นงานนี้-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-visibility-gr-84c60-้น-owner-manager-เห็นงานนี้-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [chromium] › tests/job-creation-visibility-groups.spec.js:110:1 › JOB-204 ไม่เลือก visibility group เลย -> ทุกคนในอู่เห็นงานนี้ได้ (ค่า default ที่ตั้งใจ)
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-visibility-groups.spec.js:125:40
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-cbfa6-้ได้-ค่า-default-ที่ตั้งใจ--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-cbfa6-้ได้-ค่า-default-ที่ตั้งใจ--chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-visibility-gr-cbfa6-้ได้-ค่า-default-ที่ตั้งใจ--chromium/error-context.md
+
+    Error Context: test-results/job-creation-visibility-gr-cbfa6-้ได้-ค่า-default-ที่ตั้งใจ--chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-cbfa6-้ได้-ค่า-default-ที่ตั้งใจ--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-visibility-gr-cbfa6-้ได้-ค่า-default-ที่ตั้งใจ--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  29) [chromium] › tests/job-creation-visibility-groups.spec.js:136:1 › JOB-205 เลือก 2 กลุ่มพร้อมกัน -> สมาชิกกลุ่มใดกลุ่มหนึ่ง (OR logic) เห็นงานได้ทั้งคู่
+
+    TimeoutError: locator.click: Timeout 10000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /QA Test Group A/ })
+
+
+       at ../fixtures/job-helpers.js:41
+
+      39 | /** เลือก visibility group ตามชื่อ (toggle button — ดู app/jobs/new/page.js บรรทัด groups.map) */
+      40 | export async function toggleVisibilityGroup(page, groupName) {
+    > 41 |   await page.getByRole("button", { name: new RegExp(groupName) }).click();
+         |                                                                   ^
+      42 | }
+      43 |
+      44 | /** เพิ่มแถวขั้นตอนงาน + กรอกชื่อ (แถวแรกมีอยู่แล้วตั้งแต่ต้น ไม่ต้องกด + เพิ่มสำหรับแถวแรก) */
+        at toggleVisibilityGroup (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/job-helpers.js:41:67)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-visibility-groups.spec.js:141:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-16abf--OR-logic-เห็นงานได้ทั้งคู่-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-16abf--OR-logic-เห็นงานได้ทั้งคู่-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-visibility-gr-16abf--OR-logic-เห็นงานได้ทั้งคู่-chromium/error-context.md
+
+    Error Context: test-results/job-creation-visibility-gr-16abf--OR-logic-เห็นงานได้ทั้งคู่-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-16abf--OR-logic-เห็นงานได้ทั้งคู่-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-visibility-gr-16abf--OR-logic-เห็นงานได้ทั้งคู่-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30) [chromium] › tests/job-creation-visibility-groups.spec.js:175:3 › 🔴 JOB-202/203 — Non-atomic insert: job_visibility_groups fail หลัง jobs insert สำเร็จ › JOB-202 job ถูกสร้างและ 'เห็นได้ทุกคน' ทันทีที่ insert กลุ่มล้มเหลว แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม
+
+    TimeoutError: locator.click: Timeout 10000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /QA Test Group A/ })
+
+
+       at ../fixtures/job-helpers.js:41
+
+      39 | /** เลือก visibility group ตามชื่อ (toggle button — ดู app/jobs/new/page.js บรรทัด groups.map) */
+      40 | export async function toggleVisibilityGroup(page, groupName) {
+    > 41 |   await page.getByRole("button", { name: new RegExp(groupName) }).click();
+         |                                                                   ^
+      42 | }
+      43 |
+      44 | /** เพิ่มแถวขั้นตอนงาน + กรอกชื่อ (แถวแรกมีอยู่แล้วตั้งแต่ต้น ไม่ต้องกด + เพิ่มสำหรับแถวแรก) */
+        at toggleVisibilityGroup (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/job-helpers.js:41:67)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-visibility-groups.spec.js:184:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-5f8f1-แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-5f8f1-แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-visibility-gr-5f8f1-แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม-chromium/error-context.md
+
+    Error Context: test-results/job-creation-visibility-gr-5f8f1-แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-5f8f1-แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-visibility-gr-5f8f1-แม้ผู้ใช้เลือกกลุ่มไว้ก็ตาม-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  31) [chromium] › tests/job-creation-visibility-groups.spec.js:221:3 › 🔴 JOB-202/203 — Non-atomic insert: job_visibility_groups fail หลัง jobs insert สำเร็จ › JOB-203 กด submit ซ้ำหลังเจอ error จาก JOB-202 -> เกิดงานซ้ำ (duplicate job) สำหรับลูกค้าคนเดียวกัน
+
+    TimeoutError: locator.click: Timeout 10000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: /QA Test Group A/ })
+
+
+       at ../fixtures/job-helpers.js:41
+
+      39 | /** เลือก visibility group ตามชื่อ (toggle button — ดู app/jobs/new/page.js บรรทัด groups.map) */
+      40 | export async function toggleVisibilityGroup(page, groupName) {
+    > 41 |   await page.getByRole("button", { name: new RegExp(groupName) }).click();
+         |                                                                   ^
+      42 | }
+      43 |
+      44 | /** เพิ่มแถวขั้นตอนงาน + กรอกชื่อ (แถวแรกมีอยู่แล้วตั้งแต่ต้น ไม่ต้องกด + เพิ่มสำหรับแถวแรก) */
+        at toggleVisibilityGroup (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/job-helpers.js:41:67)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/job-creation-visibility-groups.spec.js:228:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-deeb6--job-สำหรับลูกค้าคนเดียวกัน-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-deeb6--job-สำหรับลูกค้าคนเดียวกัน-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/job-creation-visibility-gr-deeb6--job-สำหรับลูกค้าคนเดียวกัน-chromium/error-context.md
+
+    Error Context: test-results/job-creation-visibility-gr-deeb6--job-สำหรับลูกค้าคนเดียวกัน-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/job-creation-visibility-gr-deeb6--job-สำหรับลูกค้าคนเดียวกัน-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/job-creation-visibility-gr-deeb6--job-สำหรับลูกค้าคนเดียวกัน-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  32) [chromium] › tests/rbac.spec.js:21:5 › RBAC — Admin-only pages (allowedRoles: owner, manager) › TC-202 technician เข้า /admin/options ต้องเจอ role-forbidden
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:23:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-7b93a-ions-ต้องเจอ-role-forbidden-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-7b93a-ions-ต้องเจอ-role-forbidden-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Admin-only-pag-7b93a-ions-ต้องเจอ-role-forbidden-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-7b93a-ions-ต้องเจอ-role-forbidden-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Admin-only-pag-7b93a-ions-ต้องเจอ-role-forbidden-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33) [chromium] › tests/rbac.spec.js:21:5 › RBAC — Admin-only pages (allowedRoles: owner, manager) › TC-202 technician เข้า /admin/zones ต้องเจอ role-forbidden
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:23:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-80e69-ones-ต้องเจอ-role-forbidden-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-80e69-ones-ต้องเจอ-role-forbidden-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Admin-only-pag-80e69-ones-ต้องเจอ-role-forbidden-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-80e69-ones-ต้องเจอ-role-forbidden-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Admin-only-pag-80e69-ones-ต้องเจอ-role-forbidden-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  34) [chromium] › tests/rbac.spec.js:21:5 › RBAC — Admin-only pages (allowedRoles: owner, manager) › TC-202 technician เข้า /admin/reports ต้องเจอ role-forbidden
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:23:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-34099-orts-ต้องเจอ-role-forbidden-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-34099-orts-ต้องเจอ-role-forbidden-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Admin-only-pag-34099-orts-ต้องเจอ-role-forbidden-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-34099-orts-ต้องเจอ-role-forbidden-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Admin-only-pag-34099-orts-ต้องเจอ-role-forbidden-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  35) [chromium] › tests/rbac.spec.js:21:5 › RBAC — Admin-only pages (allowedRoles: owner, manager) › TC-202 technician เข้า /admin/trash ต้องเจอ role-forbidden
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:23:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-95b97-rash-ต้องเจอ-role-forbidden-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-95b97-rash-ต้องเจอ-role-forbidden-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Admin-only-pag-95b97-rash-ต้องเจอ-role-forbidden-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Admin-only-pag-95b97-rash-ต้องเจอ-role-forbidden-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Admin-only-pag-95b97-rash-ต้องเจอ-role-forbidden-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  36) [chromium] › tests/rbac.spec.js:41:5 › RBAC — Shared operational pages (allowedRoles: ทุก shop role) › TC-203 assistant เข้า /jobs ได้ปกติ
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:43:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-2fb81-assistant-เข้า-jobs-ได้ปกติ-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-2fb81-assistant-เข้า-jobs-ได้ปกติ-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Shared-operati-2fb81-assistant-เข้า-jobs-ได้ปกติ-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-2fb81-assistant-เข้า-jobs-ได้ปกติ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Shared-operati-2fb81-assistant-เข้า-jobs-ได้ปกติ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  37) [chromium] › tests/rbac.spec.js:41:5 › RBAC — Shared operational pages (allowedRoles: ทุก shop role) › TC-203 assistant เข้า /jobs/new ได้ปกติ
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:43:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-98f63-stant-เข้า-jobs-new-ได้ปกติ-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-98f63-stant-เข้า-jobs-new-ได้ปกติ-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Shared-operati-98f63-stant-เข้า-jobs-new-ได้ปกติ-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-98f63-stant-เข้า-jobs-new-ได้ปกติ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Shared-operati-98f63-stant-เข้า-jobs-new-ได้ปกติ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  38) [chromium] › tests/rbac.spec.js:41:5 › RBAC — Shared operational pages (allowedRoles: ทุก shop role) › TC-203 assistant เข้า /add ได้ปกติ
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:43:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-51fb0--assistant-เข้า-add-ได้ปกติ-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-51fb0--assistant-เข้า-add-ได้ปกติ-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Shared-operati-51fb0--assistant-เข้า-add-ได้ปกติ-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-51fb0--assistant-เข้า-add-ได้ปกติ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Shared-operati-51fb0--assistant-เข้า-add-ได้ปกติ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  39) [chromium] › tests/rbac.spec.js:41:5 › RBAC — Shared operational pages (allowedRoles: ทุก shop role) › TC-203 assistant เข้า /admin/groups ได้ปกติ
+
+    Error: expect(page).not.toHaveURL(expected) failed
+
+    Expected pattern: not /\/login|\/staff-login/
+    Received string: "https://parts-inventory-staging.vercel.app/staff-login"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "not toHaveURL" with timeout 10000ms
+        24 × unexpected value "https://parts-inventory-staging.vercel.app/staff-login"
+
+
+       at ../fixtures/auth-helpers.js:27
+
+      25 | /** รอจน login สำเร็จแล้ว redirect ออกจากหน้า /login หรือ /staff-login */
+      26 | export async function expectLoginSucceeded(page) {
+    > 27 |   await expect(page).not.toHaveURL(/\/login|\/staff-login/, { timeout: 10_000 });
+         |                          ^
+      28 | }
+      29 |
+      30 | /** ตรวจว่า login ล้มเหลว และยังค้างอยู่หน้าเดิมพร้อม error message */
+        at expectLoginSucceeded (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/auth-helpers.js:27:26)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/rbac.spec.js:43:13
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-68893-t-เข้า-admin-groups-ได้ปกติ-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-68893-t-เข้า-admin-groups-ได้ปกติ-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/rbac-RBAC-—-Shared-operati-68893-t-เข้า-admin-groups-ได้ปกติ-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/rbac-RBAC-—-Shared-operati-68893-t-เข้า-admin-groups-ได้ปกติ-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/rbac-RBAC-—-Shared-operati-68893-t-เข้า-admin-groups-ได้ปกติ-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  40) [chromium] › tests/role-change-live.spec.js:37:1 › TC-207 owner เปลี่ยน status ของ technician เป็น disabled กลางคัน แล้ว technician (session เดิม ไม่ login ใหม่) ทำ insert/update ไม่ได้ทันที
+
+    Error: signInEmail(qa_tech01@staff.internal.partsinventory.app) ล้มเหลว: Invalid login credentials
+
+       at ../fixtures/db-client.js:22
+
+      20 |   const client = freshClient();
+      21 |   const { data, error } = await client.auth.signInWithPassword({ email, password });
+    > 22 |   if (error) throw new Error(`signInEmail(${email}) ล้มเหลว: ${error.message}`);
+         |                    ^
+      23 |   return { client, userId: data.user.id };
+      24 | }
+      25 |
+        at signInEmail (/Users/ammonium/git/ppongprom-project/qa-automation/fixtures/db-client.js:22:20)
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/role-change-live.spec.js:39:40
+
+    Error Context: test-results/role-change-live-TC-207-ow-08429-ำ-insert-update-ไม่ได้ทันที-chromium/error-context.md
+
+    Error Context: test-results/role-change-live-TC-207-ow-08429-ำ-insert-update-ไม่ได้ทันที-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/role-change-live-TC-207-ow-08429-ำ-insert-update-ไม่ได้ทันที-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/role-change-live-TC-207-ow-08429-ำ-insert-update-ไม่ได้ทันที-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  41) [chromium] › tests/session.spec.js:11:3 › Session — Idle timeout (lib/useIdleTimeout.js + components/IdleLogoutModal.js) › TC-301 idle ครบ 15 นาที -> ขึ้น modal นับถอยหลัง -> ปล่อยจนหมดเวลา -> logout ไป /login?reason=idle
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('ไม่มีการใช้งาน')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText('ไม่มีการใช้งาน')
+
+
+      21 |
+      22 |     // ต้องเห็น modal เตือนก่อน logout จริง
+    > 23 |     await expect(page.getByText("ไม่มีการใช้งาน")).toBeVisible({ timeout: 5000 });
+         |                                                    ^
+      24 |     await expect(page.getByRole("button", { name: "ยังใช้งานอยู่" })).toBeVisible();
+      25 |
+      26 |     // fast-forward ต่อจนครบ countdown โดยไม่กด "ยังใช้งานอยู่"
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/session.spec.js:23:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/session-Session-—-Idle-tim-b9603-logout-ไป-login-reason-idle-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/session-Session-—-Idle-tim-b9603-logout-ไป-login-reason-idle-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/session-Session-—-Idle-tim-b9603-logout-ไป-login-reason-idle-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/session-Session-—-Idle-tim-b9603-logout-ไป-login-reason-idle-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/session-Session-—-Idle-tim-b9603-logout-ไป-login-reason-idle-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  42) [chromium] › tests/session.spec.js:33:3 › Session — Idle timeout (lib/useIdleTimeout.js + components/IdleLogoutModal.js) › Idle warning: กด 'ยังใช้งานอยู่' แล้วต้อง reset ไม่ logout
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('ไม่มีการใช้งาน')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText('ไม่มีการใช้งาน')
+
+
+      37 |
+      38 |     await page.clock.fastForward((IDLE_TIMEOUT_MINUTES * 60 + 1) * 1000);
+    > 39 |     await expect(page.getByText("ไม่มีการใช้งาน")).toBeVisible({ timeout: 5000 });
+         |                                                    ^
+      40 |
+      41 |     await page.getByRole("button", { name: "ยังใช้งานอยู่" }).click();
+      42 |     await expect(page.getByText("ไม่มีการใช้งาน")).toHaveCount(0);
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/session.spec.js:39:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/session-Session-—-Idle-tim-46116-่-แล้วต้อง-reset-ไม่-logout-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/session-Session-—-Idle-tim-46116-่-แล้วต้อง-reset-ไม่-logout-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/session-Session-—-Idle-tim-46116-่-แล้วต้อง-reset-ไม่-logout-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/session-Session-—-Idle-tim-46116-่-แล้วต้อง-reset-ไม่-logout-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/session-Session-—-Idle-tim-46116-่-แล้วต้อง-reset-ไม่-logout-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  43) [chromium] › tests/session.spec.js:52:3 › Session — Sign out › TC-303 sign out แล้วกลับเข้าหน้า protected ซ้ำไม่ได้ ต้อง redirect ไป /login
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/login/
+    Received string:  "https://parts-inventory-staging.vercel.app/"
+    Timeout: 8000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 8000ms
+        20 × unexpected value "https://parts-inventory-staging.vercel.app/"
+
+
+      58 |     const protectedUrl = page.url();
+      59 |     await signOut(page);
+    > 60 |     await expect(page).toHaveURL(/\/login/, { timeout: 8000 });
+         |                        ^
+      61 |
+      62 |     // จำลองการกด back ของ browser / เรียกหน้า protected ซ้ำตรงๆ
+      63 |     await page.goto(protectedUrl);
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/session.spec.js:60:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/session-Session-—-Sign-out-3c88c-่ได้-ต้อง-redirect-ไป-login-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/session-Session-—-Sign-out-3c88c-่ได้-ต้อง-redirect-ไป-login-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/session-Session-—-Sign-out-3c88c-่ได้-ต้อง-redirect-ไป-login-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/session-Session-—-Sign-out-3c88c-่ได้-ต้อง-redirect-ไป-login-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/session-Session-—-Sign-out-3c88c-่ได้-ต้อง-redirect-ไป-login-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  44) [chromium] › tests/ui-ux-login.spec.js:85:3 › UI/UX — /login และ /staff-login › TC-504a /staff-login แสดง error เป็นภาษาไทยล้วน ไม่มีข้อความ default ของ Supabase หลุดมา
+
+    Error: expect(received).not.toMatch(expected)
+
+    Expected pattern: not /[A-Za-z]{4,}/
+    Received string:      "เข้าสู่ระบบไม่สำเร็จ — username หรือ PIN ไม่ถูกต้อง"
+
+       95 |     const text = await err.textContent();
+       96 |     // ข้อความใน app/staff-login/page.js เป็น hardcoded ภาษาไทยล้วน ไม่ต่อ error.message เลย
+    >  97 |     expect(text).not.toMatch(/[A-Za-z]{4,}/); // ไม่ควรมีคำภาษาอังกฤษยาวๆ ปนอยู่
+          |                      ^
+       98 |   });
+       99 |
+      100 |   // ⚠️ พบว่า /login (ต่างจาก /staff-login) เขียนโค้ดต่อ error.message ของ Supabase เข้าไปตรงๆ:
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/ui-ux-login.spec.js:97:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/ui-ux-login-UI-UX-—-login--f2389-default-ของ-Supabase-หลุดมา-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/ui-ux-login-UI-UX-—-login--f2389-default-ของ-Supabase-หลุดมา-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/ui-ux-login-UI-UX-—-login--f2389-default-ของ-Supabase-หลุดมา-chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-ux-login-UI-UX-—-login--f2389-default-ของ-Supabase-หลุดมา-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-ux-login-UI-UX-—-login--f2389-default-ของ-Supabase-หลุดมา-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  45) [chromium] › tests/ui-ux-login.spec.js:105:3 › UI/UX — /login และ /staff-login › TC-504b /login ไม่ควรมีข้อความ error ภาษาอังกฤษของ Supabase หลุดออกมา (คาดว่าจะ FAIL ในโค้ดปัจจุบัน)
+
+    Error: expect(received).not.toMatch(expected)
+
+    Expected pattern: not /[A-Za-z]{4,}/
+    Received string:      "เข้าสู่ระบบไม่สำเร็จ: Invalid login credentials"
+
+      119 |     // แนะนำให้ทีม dev แก้ app/login/page.js ให้ map error.message เป็นข้อความไทย
+      120 |     // แทนการต่อ string ตรงๆ แล้วค่อยลบ .skip / แก้ assertion นี้ให้ strict เหมือน TC-504a
+    > 121 |     expect(text).not.toMatch(/[A-Za-z]{4,}/);
+          |                      ^
+      122 |   });
+      123 | });
+      124 |
+        at /Users/ammonium/git/ppongprom-project/qa-automation/tests/ui-ux-login.spec.js:121:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/ui-ux-login-UI-UX-—-login--f92b5-ดว่าจะ-FAIL-ในโค้ดปัจจุบัน--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/ui-ux-login-UI-UX-—-login--f92b5-ดว่าจะ-FAIL-ในโค้ดปัจจุบัน--chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/ui-ux-login-UI-UX-—-login--f92b5-ดว่าจะ-FAIL-ในโค้ดปัจจุบัน--chromium/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-ux-login-UI-UX-—-login--f92b5-ดว่าจะ-FAIL-ในโค้ดปัจจุบัน--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-ux-login-UI-UX-—-login--f92b5-ดว่าจะ-FAIL-ในโค้ดปัจจุบัน--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────

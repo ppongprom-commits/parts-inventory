@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/AuthProvider";
 import { SUBSCRIPTION_TIERS, getTierConfig } from "../../config/subscriptionTiers";
+import IdleSessionGuard from "../../components/IdleSessionGuard";
 
 const STATUS_OPTIONS = ["trialing", "active", "past_due", "suspended", "canceled"];
 const PLAN_OPTIONS = Object.keys(SUBSCRIPTION_TIERS);
@@ -231,7 +232,29 @@ function ShopDetailPanel({ shop, onClose, onSaved }) {
 
 export default function PlatformAdminPage() {
   const router = useRouter();
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, memberships, switchShop, refreshMemberships, signOut } = useAuth();
+
+  const myShopIds = useMemo(() => new Set(memberships.map((m) => m.shop_id)), [memberships]);
+  const [joiningShopId, setJoiningShopId] = useState(null);
+
+  async function handleViewShop(shopId) {
+    switchShop(shopId);
+    router.push("/");
+  }
+
+  async function handleJoinAsSupport(shopId) {
+    setJoiningShopId(shopId);
+    try {
+      await authedFetch(`/api/platform/shops/${shopId}/join-as-support`, { method: "POST" });
+      await refreshMemberships();
+      switchShop(shopId);
+      router.push("/");
+    } catch (err) {
+      setError("เพิ่มตัวเองเป็นสมาชิกไม่สำเร็จ: " + err.message);
+    } finally {
+      setJoiningShopId(null);
+    }
+  }
 
   const [shops, setShops] = useState(null);
   const [error, setError] = useState(null);
@@ -313,7 +336,13 @@ export default function PlatformAdminPage() {
   }
 
   return (
-    <div className="container">
+    <IdleSessionGuard
+      onTimeout={async () => {
+        await signOut();
+        router.replace("/login?reason=idle");
+      }}
+    >
+      <div className="container">
       <div className="header">
         <h1>🛠️ Platform Admin</h1>
         <Link href="/" className="nav-link secondary">
@@ -395,6 +424,45 @@ export default function PlatformAdminPage() {
                   <> · ครบรอบบิล {new Date(shop.current_period_end).toLocaleDateString("th-TH")}</>
                 )}
               </div>
+
+              <div style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                {myShopIds.has(shop.shop_id) ? (
+                  <button
+                    type="button"
+                    onClick={() => handleViewShop(shop.shop_id)}
+                    style={{
+                      fontSize: 12,
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "1px solid var(--border-strong)",
+                      background: "transparent",
+                      color: "var(--link)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    👀 เข้าดูอู่นี้
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleJoinAsSupport(shop.shop_id)}
+                    disabled={joiningShopId === shop.shop_id}
+                    style={{
+                      fontSize: 12,
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "1px solid var(--border-strong)",
+                      background: "transparent",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {joiningShopId === shop.shop_id
+                      ? "กำลังเพิ่ม..."
+                      : "➕ เพิ่มตัวเองเป็นผู้ดูแล (สนับสนุน) แล้วเข้าดู"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -407,6 +475,7 @@ export default function PlatformAdminPage() {
           )}
         </div>
       ))}
-    </div>
+      </div>
+    </IdleSessionGuard>
   );
 }

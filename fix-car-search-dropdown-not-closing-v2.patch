@@ -1,0 +1,78 @@
+diff --git a/app/add/page.js b/app/add/page.js
+index c66a153..517c327 100644
+--- a/app/add/page.js
++++ b/app/add/page.js
+@@ -408,7 +408,7 @@ function AddPartPageContent() {
+           />
+         </label>
+ 
+-        <label>
++        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
+           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
+           <CarAutocomplete
+             onSelect={(item) => {
+@@ -424,7 +424,7 @@ function AddPartPageContent() {
+             เลือกจากรายการที่ค้นเจอเท่านั้น — ถ้าไม่เจอรุ่นที่ต้องการ แจ้งแอดมินให้เพิ่มในฐานข้อมูลก่อน
+             เพื่อกันข้อมูลปี/รุ่นเพี้ยน
+           </div>
+-        </label>
++        </div>
+ 
+         <label>
+           ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
+diff --git a/app/edit/[id]/page.js b/app/edit/[id]/page.js
+index f179822..1a6c62f 100644
+--- a/app/edit/[id]/page.js
++++ b/app/edit/[id]/page.js
+@@ -592,7 +592,7 @@ function EditPartPageContent() {
+           </div>
+         </label>
+ 
+-        <label>
++        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
+           🔍 ค้นหารถ (ยี่ห้อ/รุ่น) — พิมพ์แล้วเลือกเฉพาะเมื่อต้องการเปลี่ยนรถของอะไหล่ชิ้นนี้
+           <CarAutocomplete
+             onSelect={(item) => {
+@@ -604,7 +604,7 @@ function EditPartPageContent() {
+               setSelectedGeneration(item);
+             }}
+           />
+-        </label>
++        </div>
+ 
+         <label>
+           ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
+diff --git a/app/jobs/new/page.js b/app/jobs/new/page.js
+index 32b52bb..96d6cc4 100644
+--- a/app/jobs/new/page.js
++++ b/app/jobs/new/page.js
+@@ -327,7 +327,7 @@ function NewJobPageContent() {
+           />
+         </label>
+ 
+-        <label>
++        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
+           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
+           <CarAutocomplete
+             onSelect={(item) => {
+@@ -339,7 +339,7 @@ function NewJobPageContent() {
+               setSelectedGeneration(item);
+             }}
+           />
+-        </label>
++        </div>
+ 
+         <label>
+           ที่มา
+diff --git a/components/CarAutocomplete.js b/components/CarAutocomplete.js
+index 04c5d83..672a425 100644
+--- a/components/CarAutocomplete.js
++++ b/components/CarAutocomplete.js
+@@ -80,6 +80,7 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
+       `${item.brand_name} ${item.model_name}${item.trim_name ? ` ${item.trim_name}` : ""}`
+     );
+     setOpen(false);
++    setResults([]);
+     setActiveIndex(-1);
+   }
+ 

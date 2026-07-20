@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { getViewMode, setViewMode } from "../lib/viewModeStorage";
 import { useAuth } from "../lib/AuthProvider";
@@ -11,7 +12,15 @@ import { ROLE_PERMISSIONS } from "../config/rolePermissions";
 const PAGE_SIZE = 50;
 
 function HomePageContent() {
+  const router = useRouter();
   const { currentShopId, currentShop, currentRole, signOut } = useAuth();
+
+  // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
+  // (ดู TC-303 — ไม่งั้นผู้ใช้ค้างอยู่หน้าเดิมชั่วขณะหลังกด "ออกจากระบบ")
+  async function handleSignOut() {
+    await signOut();
+    router.replace("/login");
+  }
 
   const [parts, setParts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +166,7 @@ function HomePageContent() {
         <span>บทบาทของคุณ: {currentRole}</span>
         <button
           type="button"
-          onClick={signOut}
+          onClick={handleSignOut}
           style={{ background: "none", border: "none", color: "var(--link)", cursor: "pointer", fontSize: 12 }}
         >
           ออกจากระบบ

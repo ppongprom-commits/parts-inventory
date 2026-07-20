@@ -39,11 +39,12 @@ function isActive(pathname, href) {
 export default function AppShell({ children, title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { currentShop, currentRole, signOut, user } = useAuth();
+  const { currentShop, currentShopId, memberships, switchShop, currentRole, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const canSeeReports = currentRole === "owner" || currentRole === "manager";
   const navItems = canSeeReports ? [...NAV_ITEMS, REPORTS_ITEM] : NAV_ITEMS;
+  const hasMultipleShops = memberships.length > 1;
 
   return (
     <div className="app-shell">
@@ -86,6 +87,25 @@ export default function AppShell({ children, title }) {
           + เพิ่มอะไหล่
         </Link>
 
+        {hasMultipleShops && (
+          <div style={{ padding: "8px 12px 4px" }}>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+              🏢 กำลังดูอู่
+            </label>
+            <select
+              value={currentShopId || ""}
+              onChange={(e) => switchShop(Number(e.target.value))}
+              style={{ width: "100%", fontSize: 13, padding: "6px 8px" }}
+            >
+              {memberships.map((m) => (
+                <option key={m.shop_id} value={m.shop_id}>
+                  {m.shop_name || `อู่ #${m.shop_id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <nav className="app-sidebar-nav">
           {navItems.map((item) => (
             <Link
@@ -111,11 +131,7 @@ export default function AppShell({ children, title }) {
             <ThemeSwitchArrow theme={theme} />
             <span className="app-theme-switch-text">{theme === "light" ? "Dark" : "Light"}</span>
           </button>
-          <div className="app-sidebar-role">
-            บทบาท: {currentRole}
-            <br />
-            {currentShop?.contact_name || currentShop?.login_username || user?.email || "-"}
-          </div>
+          <div className="app-sidebar-role">บทบาท: {currentRole}</div>
           <button type="button" className="app-sidebar-signout" onClick={signOut}>
             ออกจากระบบ
           </button>

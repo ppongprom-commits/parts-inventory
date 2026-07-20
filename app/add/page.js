@@ -100,10 +100,6 @@ function AddPartPageContent() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    // ถ้าแก้ยี่ห้อ/รุ่นเองด้วยมือ (ไม่ผ่าน autocomplete) ให้ล้างข้อมูล generation ที่เคยเลือกไว้
-    if (name === "car_brand" || name === "car_model") {
-      setSelectedGeneration(null);
-    }
   }
 
   // ลิงก์ช่วยค้นเบอร์อะไหล่ — deep-link ไปหน้า catalog ของยี่ห้อรถที่เลือกไว้
@@ -154,7 +150,6 @@ function AddPartPageContent() {
 
     if (photos.length === 0) {
       setPhotoError("ต้องมีรูปอย่างน้อย 1 รูปก่อนบันทึก");
-      alert("⚠️ กรุณาถ่าย/แนบรูปอย่างน้อย 1 รูปก่อนบันทึก");
       return;
     }
 
@@ -171,6 +166,7 @@ function AddPartPageContent() {
         car_model: form.car_model || null,
         generation_id: selectedGeneration?.generation_id || null,
         car_year_display: selectedGeneration?.year_range_display || null,
+        trim_id: selectedGeneration?.trim_id || null,
         condition: form.condition || null,
         zone_code: form.zone_code || null,
         source_type: form.source_type || null,
@@ -412,41 +408,23 @@ function AddPartPageContent() {
           />
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
           <CarAutocomplete
             onSelect={(item) => {
               setForm((f) => ({
                 ...f,
-                car_brand: item.brand_name,
-                car_model: item.model_name,
+                car_brand: item?.brand_name || "",
+                car_model: item?.model_name || "",
               }));
               setSelectedGeneration(item);
             }}
           />
-        </label>
-
-        <label>
-          ยี่ห้อรถ
-          <input
-            type="text"
-            name="car_brand"
-            value={form.car_brand}
-            onChange={handleChange}
-            placeholder="เช่น Nissan"
-          />
-        </label>
-
-        <label>
-          รุ่นรถ
-          <input
-            type="text"
-            name="car_model"
-            value={form.car_model}
-            onChange={handleChange}
-            placeholder="เช่น March"
-          />
-        </label>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+            เลือกจากรายการที่ค้นเจอเท่านั้น — ถ้าไม่เจอรุ่นที่ต้องการ แจ้งแอดมินให้เพิ่มในฐานข้อมูลก่อน
+            เพื่อกันข้อมูลปี/รุ่นเพี้ยน
+          </div>
+        </div>
 
         <label>
           ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
@@ -465,7 +443,7 @@ function AddPartPageContent() {
                   selectedGeneration.generation_code
                     ? ` (${selectedGeneration.generation_code})`
                     : ""
-                }`
+                }${selectedGeneration.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""}`
               : "— เลือกรถจากช่องค้นหาด้านบนก่อน จะขึ้นปีให้อัตโนมัติ —"}
           </div>
         </label>

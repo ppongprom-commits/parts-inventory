@@ -82,7 +82,6 @@ function NewJobPageContent() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    if (name === "car_brand" || name === "car_model") setSelectedGeneration(null);
   }
 
   async function handlePhotoChange(e) {
@@ -152,6 +151,7 @@ function NewJobPageContent() {
           car_model: form.car_model || null,
           car_year_display: selectedGeneration?.year_range_display || null,
           generation_id: selectedGeneration?.generation_id || null,
+          trim_id: selectedGeneration?.trim_id || null,
           license_plate: form.license_plate || null,
           source_type: form.source_type || null,
           notes: form.notes || null,
@@ -327,25 +327,19 @@ function NewJobPageContent() {
           />
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
           <CarAutocomplete
             onSelect={(item) => {
-              setForm((f) => ({ ...f, car_brand: item.brand_name, car_model: item.model_name }));
+              setForm((f) => ({
+                ...f,
+                car_brand: item?.brand_name || "",
+                car_model: item?.model_name || "",
+              }));
               setSelectedGeneration(item);
             }}
           />
-        </label>
-
-        <label>
-          ยี่ห้อรถ
-          <input type="text" name="car_brand" value={form.car_brand} onChange={handleChange} />
-        </label>
-
-        <label>
-          รุ่นรถ
-          <input type="text" name="car_model" value={form.car_model} onChange={handleChange} />
-        </label>
+        </div>
 
         <label>
           ที่มา

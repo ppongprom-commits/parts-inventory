@@ -1,0 +1,57 @@
+diff --git a/app/jobs/[id]/documents/[documentId]/page.js b/app/jobs/[id]/documents/[documentId]/page.js
+index d9406aa..d460632 100644
+--- a/app/jobs/[id]/documents/[documentId]/page.js
++++ b/app/jobs/[id]/documents/[documentId]/page.js
+@@ -286,13 +286,16 @@ function JobDocumentPageContent() {
+               <div style={{ width: "45%", minWidth: 260 }}>
+                 {doc.signature_url ? (
+                   <div style={{ textAlign: "center" }}>
+-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+-                    <img
+-                      src={doc.signature_url}
+-                      alt="ลายเซ็นผู้ยินยอม"
+-                      style={{ maxHeight: 90, marginBottom: 4 }}
+-                    />
+-                    <div style={{ borderTop: "1px solid var(--text-muted)", paddingTop: 6 }}>
++                    {/* พื้นหลังขาวทึบตายตัว — กันลายเซ็น (พื้นหลังโปร่งใส) มองไม่เห็นตอนหน้าเป็น dark mode */}
++                    <div style={{ background: "white", borderRadius: 4, display: "inline-block", padding: 4 }}>
++                      {/* eslint-disable-next-line @next/next/no-img-element */}
++                      <img
++                        src={doc.signature_url}
++                        alt="ลายเซ็นผู้ยินยอม"
++                        style={{ maxHeight: 90, display: "block" }}
++                      />
++                    </div>
++                    <div style={{ borderTop: "1px solid var(--text-muted)", paddingTop: 6, marginTop: 4 }}>
+                       ผู้ยินยอม (เจ้าของรถ/ผู้มอบรถ)
+                     </div>
+                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+diff --git a/components/SignaturePad.js b/components/SignaturePad.js
+index 30e2026..1527f5d 100644
+--- a/components/SignaturePad.js
++++ b/components/SignaturePad.js
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useRef, useState } from "react";
++import { useEffect, useRef, useState } from "react";
+ 
+ export default function SignaturePad({ onSave, saving }) {
+   const canvasRef = useRef(null);
+@@ -8,6 +8,16 @@ export default function SignaturePad({ onSave, saving }) {
+   const lastPoint = useRef(null);
+   const [hasSignature, setHasSignature] = useState(false);
+ 
++  // เติมพื้นหลังขาวทึบตั้งแต่แรกที่ mount — ถ้าไม่ทำ canvas จะโปร่งใส
++  // ทำให้ลายเซ็น (สีเข้ม) มองไม่เห็นตอนแสดงผลบนหน้าที่พื้นหลังเป็นสีเข้ม (dark mode)
++  useEffect(() => {
++    const canvas = canvasRef.current;
++    if (!canvas) return;
++    const ctx = canvas.getContext("2d");
++    ctx.fillStyle = "#ffffff";
++    ctx.fillRect(0, 0, canvas.width, canvas.height);
++  }, []);
++
+   function getPos(e) {
+     const canvas = canvasRef.current;
+     const rect = canvas.getBoundingClientRect();
