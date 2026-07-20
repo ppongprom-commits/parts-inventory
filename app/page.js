@@ -84,7 +84,7 @@ function HomePageContent() {
       .from("zones")
       .select("*")
       .eq("shop_id", currentShopId)
-      .order("code", { ascending: true });
+      .order("name", { ascending: true });
     if (!error) setZones(data || []);
   }
 
