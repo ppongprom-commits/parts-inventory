@@ -200,10 +200,65 @@ function ShopInfoCard() {
   );
 }
 
+function ExportCsvCard() {
+  const { currentShopId } = useAuth();
+  const [exporting, setExporting] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function handleExport() {
+    setExporting(true);
+    setMsg(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch(`/api/parts/export-csv?shop_id=${currentShopId}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Export ไม่สำเร็จ");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `parts-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setMsg({ type: "error", text: err.message });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch" }}>
+      <div className="card-body" style={{ marginBottom: 10 }}>
+        <div className="card-title">📤 Export CSV</div>
+        <div className="card-sub">
+          ดาวน์โหลดรายการอะไหล่ทั้งหมดเป็นไฟล์ CSV (เปิดด้วย Excel ได้ ไม่มีปัญหาภาษาไทยเพี้ยน)
+        </div>
+      </div>
+      {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
+      <button type="button" onClick={handleExport} disabled={exporting}>
+        {exporting ? "กำลังสร้างไฟล์..." : "📤 ดาวน์โหลด CSV (อะไหล่)"}
+      </button>
+    </div>
+  );
+}
+
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
   const { currentRole } = useAuth();
   const canManage = currentRole === "owner" || currentRole === "manager";
+  const canExport = ["owner", "manager", "supervisor"].includes(currentRole);
 
   return (
     <div className="container">
@@ -242,6 +297,8 @@ function AdminHubPageContent() {
       <ChangePinCard />
 
       {canManage && <ShopInfoCard />}
+
+      {canExport && <ExportCsvCard />}
 
       <Link
         href="/admin/groups"
