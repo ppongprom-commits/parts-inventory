@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
+import ZoneAutocomplete from "../../../components/ZoneAutocomplete";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
@@ -200,10 +201,9 @@ function EditPartPageContent() {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
-  function handleZoneChange(e) {
-    const value = e.target.value;
-    setForm((f) => ({ ...f, zone_code: value }));
-    setDefaultZone(value);
+  function handleZoneChange(zoneId) {
+    setForm((f) => ({ ...f, zone_id: zoneId || "" }));
+    setDefaultZone(zoneId || "");
   }
 
   async function handlePhotoChange(e) {
@@ -279,7 +279,7 @@ function EditPartPageContent() {
           car_year_display: selectedGeneration?.year_range_display || null,
           trim_id: selectedGeneration?.trim_id || null,
           condition: form.condition || null,
-          zone_code: form.zone_code || null,
+          zone_id: form.zone_id || null,
           source_type: form.source_type || null,
           status: form.status || null,
           quantity: form.quantity ? Number(form.quantity) : 1,
@@ -674,21 +674,17 @@ function EditPartPageContent() {
           </select>
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           โซนจัดเก็บ
-          <select name="zone_code" value={form.zone_code || ""} onChange={handleZoneChange}>
-            <option value="">ไม่ระบุโซน</option>
-            {zones.map((z) => (
-              <option key={z.id} value={z.code}>
-                {z.code}
-                {z.name ? ` — ${z.name}` : ""}
-              </option>
-            ))}
-            {form.zone_code && !zones.some((z) => z.code === form.zone_code) && (
-              <option value={form.zone_code}>{form.zone_code} (ไม่อยู่ในลิสต์แล้ว)</option>
-            )}
-          </select>
-        </label>
+          {!zonesLoading && (
+            <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
+          )}
+          {form.zone_code && !form.zone_id && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              ข้อมูลเก่า: &quot;{form.zone_code}&quot; (ยังไม่ได้แมตช์กับโซนใหม่ — เลือกโซนด้านบนเพื่ออัปเดต)
+            </div>
+          )}
+        </div>
 
         <label>
           ประเภทอะไหล่

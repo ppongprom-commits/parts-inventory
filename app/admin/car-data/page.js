@@ -5,6 +5,16 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
 import RequireAuth from "../../../components/RequireAuth";
 
+async function getAuthHeaders() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session?.access_token}`,
+  };
+}
+
 const emptyGenForm = {
   generation_code: "",
   vehicle_type: "",
@@ -92,7 +102,7 @@ function CarDataAdminPageContent() {
     try {
       const res = await fetch("/api/car-generations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ mode: "get_or_create_brand", brand_name: newBrandName.trim() }),
       });
       const json = await res.json();
@@ -117,7 +127,7 @@ function CarDataAdminPageContent() {
     try {
       const res = await fetch("/api/car-generations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           mode: "get_or_create_model",
           brand_id: Number(selectedBrandId),
@@ -187,13 +197,13 @@ function CarDataAdminPageContent() {
       if (editingGenId === "new") {
         res = await fetch("/api/car-generations", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await getAuthHeaders(),
           body: JSON.stringify({ mode: "insert", model_id: Number(selectedModelId), ...payload }),
         });
       } else {
         res = await fetch("/api/car-generations", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await getAuthHeaders(),
           body: JSON.stringify({ mode: "update", generation_id: editingGenId, ...payload }),
         });
       }
@@ -579,7 +589,7 @@ function CarDataAdminPageContent() {
 
 export default function CarDataAdminPage() {
   return (
-    <RequireAuth>
+    <RequireAuth allowedRoles={["owner", "manager"]}>
       <CarDataAdminPageContent />
     </RequireAuth>
   );

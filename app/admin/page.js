@@ -202,6 +202,8 @@ function ShopInfoCard() {
 
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
+  const { currentRole } = useAuth();
+  const canManage = currentRole === "owner" || currentRole === "manager";
 
   return (
     <div className="container">
@@ -239,7 +241,7 @@ function AdminHubPageContent() {
 
       <ChangePinCard />
 
-      <ShopInfoCard />
+      {canManage && <ShopInfoCard />}
 
       <Link
         href="/admin/groups"
@@ -263,60 +265,70 @@ function AdminHubPageContent() {
         </div>
       </Link>
 
-      <Link
-        href="/admin/car-data"
-        className="card"
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div className="card-body">
-          <div className="card-title">🚗 ข้อมูลรถ (ยี่ห้อ/รุ่น/ปี)</div>
-          <div className="card-sub">แก้ไข/เพิ่มยี่ห้อ รุ่น และช่วงปีผลิต พร้อมดูประวัติการแก้ไข</div>
-        </div>
-      </Link>
+      {canManage && (
+        <Link
+          href="/admin/car-data"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🚗 ข้อมูลรถ (ยี่ห้อ/รุ่น/ปี)</div>
+            <div className="card-sub">แก้ไข/เพิ่มยี่ห้อ รุ่น และช่วงปีผลิต พร้อมดูประวัติการแก้ไข</div>
+          </div>
+        </Link>
+      )}
 
-      <Link
-        href="/admin/zones"
-        className="card"
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div className="card-body">
-          <div className="card-title">📍 โซนจัดเก็บ</div>
-          <div className="card-sub">เพิ่ม/ลบรหัสโซนที่ใช้ในอู่</div>
-        </div>
-      </Link>
+      {canManage && (
+        <Link
+          href="/admin/zones"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">📍 โซนจัดเก็บ</div>
+            <div className="card-sub">เพิ่ม/ลบรหัสโซนที่ใช้ในอู่</div>
+          </div>
+        </Link>
+      )}
 
-      <Link
-        href="/admin/options"
-        className="card"
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div className="card-body">
-          <div className="card-title">🏷️ สภาพ / ที่มา / สถานะ</div>
-          <div className="card-sub">แก้ไข/เพิ่มตัวเลือกที่ใช้ตอนเพิ่มอะไหล่</div>
-        </div>
-      </Link>
+      {canManage && (
+        <Link
+          href="/admin/options"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🏷️ สภาพ / ที่มา / สถานะ</div>
+            <div className="card-sub">แก้ไข/เพิ่มตัวเลือกที่ใช้ตอนเพิ่มอะไหล่</div>
+          </div>
+        </Link>
+      )}
 
-      <Link
-        href="/admin/bulk-update"
-        className="card"
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div className="card-body">
-          <div className="card-title">🔁 Bulk Update</div>
-          <div className="card-sub">เปลี่ยนสภาพ/ที่มา/สถานะ/โซน ของอะไหล่หลายชิ้นพร้อมกันทีเดียว</div>
-        </div>
-      </Link>
+      {canManage && (
+        <Link
+          href="/admin/bulk-update"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🔁 Bulk Update</div>
+            <div className="card-sub">เปลี่ยนสภาพ/ที่มา/สถานะ/โซน ของอะไหล่หลายชิ้นพร้อมกันทีเดียว</div>
+          </div>
+        </Link>
+      )}
 
-      <Link
-        href="/admin/trash"
-        className="card"
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div className="card-body">
-          <div className="card-title">🗑️ ถังขยะ</div>
-          <div className="card-sub">กู้คืน หรือลบอะไหล่ที่ซ่อนไว้ถาวร</div>
-        </div>
-      </Link>
+      {canManage && (
+        <Link
+          href="/admin/trash"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🗑️ ถังขยะ</div>
+            <div className="card-sub">กู้คืน หรือลบอะไหล่ที่ซ่อนไว้ถาวร</div>
+          </div>
+        </Link>
+      )}
     </div>
   );
 }
