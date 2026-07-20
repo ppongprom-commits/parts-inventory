@@ -1,35 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdminClient";
+import { requirePlatformRole, logPlatformAction } from "../../../../lib/platformAdmin";
 
-async function verifyPlatformAdmin(request) {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.replace("Bearer ", "").trim();
-
-  if (!token) {
-    return { error: "ไม่พบ token กรุณาเข้าสู่ระบบใหม่", status: 401 };
-  }
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !userData?.user) {
-    return { error: "session ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่", status: 401 };
-  }
-
-  const { data: adminRow } = await supabaseAdmin
-    .from("platform_admins")
-    .select("user_id")
-    .eq("user_id", userData.user.id)
-    .maybeSingle();
-
-  if (!adminRow) {
-    return { error: "บัญชีนี้ไม่มีสิทธิ์เข้าหน้า Platform Admin", status: 403 };
-  }
-
-  return { userId: userData.user.id };
-}
+// Permission matrix (การ์ด Platform admin role tiers):
+// GET (ดูรายชื่ออู่/สถิติ) — ทั้ง 3 role เห็นเหมือนกันหมด (Analyst อ่านได้เท่า Super Admin/Support)
+// PATCH (แก้ subscription/billing) — Super Admin เท่านั้น
+const VIEW_ROLES = ["super_admin", "support", "analyst"];
+const BILLING_ROLES = ["super_admin"];
 
 export async function GET(request) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, VIEW_ROLES);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
@@ -82,7 +63,7 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, BILLING_ROLES);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
@@ -94,6 +75,12 @@ export async function PATCH(request) {
     if (!shop_id) {
       return NextResponse.json({ error: "ไม่พบ shop_id" }, { status: 400 });
     }
+
+    const { data: oldShop } = await supabaseAdmin
+      .from("shops")
+      .select("subscription_status, subscription_plan, trial_ends_at, current_period_end")
+      .eq("shop_id", shop_id)
+      .maybeSingle();
 
     const updatePayload = {};
     if (subscription_status !== undefined) updatePayload.subscription_status = subscription_status;
@@ -114,6 +101,15 @@ export async function PATCH(request) {
       .single();
 
     if (error) throw error;
+
+    await logPlatformAction({
+      adminUserId: authResult.userId,
+      adminRole: authResult.role,
+      action: "update_shop_subscription",
+      targetShopId: shop_id,
+      oldData: oldShop,
+      newData: data,
+    });
 
     return NextResponse.json({ data });
   } catch (err) {

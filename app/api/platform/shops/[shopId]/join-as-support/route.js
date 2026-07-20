@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../../lib/supabaseAdminClient";
-import { verifyPlatformAdmin } from "../../../../../../lib/platformAdmin";
+import { requirePlatformRole, logPlatformAction } from "../../../../../../lib/platformAdmin";
 
 // Platform admin เพิ่มตัวเองเป็นสมาชิก "สนับสนุน" ของอู่นี้แบบเปิดเผย
 // (โผล่ในหน้า /admin/team ของอู่นั้นด้วย ไม่ใช่การแอบดูข้อมูลแบบซ่อนเร้น)
 // ใช้ตอนต้องเข้าไปดู/จำลองปัญหาที่ลูกค้าแจ้งมา
+//
+// Permission matrix (การ์ด Platform admin role tiers): Super Admin + Support เท่านั้น
+// Analyst ห้าม join-as-support (read-only เต็มรูปแบบ)
 export async function POST(request, { params }) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, ["super_admin", "support"]);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
@@ -34,6 +37,14 @@ export async function POST(request, { params }) {
       .single();
 
     if (error) throw error;
+
+    await logPlatformAction({
+      adminUserId: authResult.userId,
+      adminRole: authResult.role,
+      action: "join_as_support",
+      targetShopId: shopId,
+      newData: data,
+    });
 
     return NextResponse.json({ data });
   } catch (err) {
