@@ -12,6 +12,7 @@ import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
 import { useAuth } from "../../lib/AuthProvider";
 import RequireAuth from "../../components/RequireAuth";
+import { saveRecoveryState, loadRecoveryState, clearRecoveryState } from "../../lib/addFormRecovery";
 
 function AddPartPageContent() {
   const router = useRouter();
@@ -43,6 +44,7 @@ function AddPartPageContent() {
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [restoredNotice, setRestoredNotice] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -67,6 +69,32 @@ function AddPartPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
+
+  // กู้คืนฟอร์ม+รูปที่ค้างจาก sessionStorage (เช่น Android ฆ่า tab ตอนเปิดกล้องแล้วต้อง reload)
+  // รันครั้งเดียวตอน mount — ต้องมาหลัง effect ด้านบนในลำดับ declare เพื่อให้ zone_id ที่กู้คืนมา
+  // (ถ้ามี) มีผลทับค่า default/scan-from-URL ได้ ตรงกับสถานะก่อนหน้าที่ผู้ใช้เลือกไว้จริง
+  useEffect(() => {
+    const recovered = loadRecoveryState();
+    if (recovered) {
+      setForm((f) => ({ ...f, ...recovered.form }));
+      if (recovered.selectedGeneration) setSelectedGeneration(recovered.selectedGeneration);
+      if (recovered.photos?.length) setPhotos(recovered.photos);
+      setRestoredNotice(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // เขียนฟอร์ม+รูปลง sessionStorage ทุกครั้งที่รูป/ฟอร์มเปลี่ยน (หลังมีรูปอย่างน้อย 1 รูปแล้ว)
+  // กันหายถ้าเกิด tab ถูกฆ่าระหว่างถ่ายรูปรอบถัดไป
+  useEffect(() => {
+    if (photos.length === 0) return;
+    saveRecoveryState(
+      form,
+      selectedGeneration,
+      photos.map((p) => p.file)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, selectedGeneration, photos]);
 
   // กันเคส ?zone_id= จาก URL (สแกน QR) ชี้ไปโซนที่ไม่ใช่ leaf (เช่น Area ที่มี Rack ข้างใน) —
   // ZoneAutocomplete จะโชว์ช่องค้นหาว่างเปล่าให้ดูเหมือนไม่ได้เลือกอะไร แต่ค่าจริงยังค้างอยู่ใน
@@ -202,6 +230,8 @@ function AddPartPageContent() {
 
       const keepZoneId = form.zone_id;
 
+      clearRecoveryState();
+      setRestoredNotice(false);
       setMsg({ type: "success", text: "บันทึกอะไหล่เรียบร้อยแล้ว ✅" });
       setForm({
         part_name: "",
@@ -231,10 +261,30 @@ function AddPartPageContent() {
     <div className="container">
       <div className="header">
         <h1>+ เพิ่มอะไหล่ใหม่</h1>
-        <Link href="/" className="nav-link secondary">
+        <Link
+          href="/"
+          className="nav-link secondary"
+          onClick={() => {
+            clearRecoveryState();
+            setRestoredNotice(false);
+          }}
+        >
           ← กลับ
         </Link>
       </div>
+
+      {restoredNotice && (
+        <div className="msg" style={{ marginBottom: 16, background: "var(--zone-bg)", color: "var(--zone-text)" }}>
+          🔄 กู้คืนข้อมูลที่ค้างไว้แล้ว (แอปน่าจะถูกปิดกลางคันตอนถ่ายรูป) — กรุณาตรวจสอบข้อมูล/รูปให้ครบก่อนกดบันทึก
+          <button
+            type="button"
+            onClick={() => setRestoredNotice(false)}
+            style={{ marginLeft: 8, background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer" }}
+          >
+            ปิด
+          </button>
+        </div>
+      )}
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
 
