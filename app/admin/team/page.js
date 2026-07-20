@@ -65,6 +65,10 @@ function TeamPageContent() {
   const [creatingStaff, setCreatingStaff] = useState(false);
   const [createdStaffCredential, setCreatedStaffCredential] = useState(null);
 
+  // credential ที่เพิ่ง reset ให้สมาชิกคนหนึ่ง (โชว์ครั้งเดียวให้คัดลอกไปบอกเจ้าตัว)
+  const [resettingMemberId, setResettingMemberId] = useState(null);
+  const [resetCredential, setResetCredential] = useState(null);
+
   useEffect(() => {
     if (currentShopId) fetchTeam();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,6 +294,49 @@ function TeamPageContent() {
     setBusy(false);
   }
 
+  // รีเซ็ตรหัสผ่าน/PIN ให้สมาชิกคนหนึ่ง — สุ่มค่าใหม่แล้วเรียก /api/team/reset-pin
+  // (route เดียวกันรองรับทั้งบัญชี username+PIN และบัญชีอีเมล)
+  async function handleResetPassword(member) {
+    const isPinAccount = !!member.login_username;
+    const label = isPinAccount ? "PIN" : "รหัสผ่าน";
+    const newValue = isPinAccount ? generateRandomPin() : generateRandomPassword();
+    const displayName = member.contact_name || member.login_username || member.email || "สมาชิกคนนี้";
+
+    const confirmed = window.confirm(
+      `รีเซ็ต${label}ของ "${displayName}" เป็นค่าใหม่นี้ใช่ไหม?\n\n${newValue}\n\n${label}เดิมจะใช้ไม่ได้ทันที`
+    );
+    if (!confirmed) return;
+
+    setResettingMemberId(member.member_id);
+    setMsg(null);
+    setResetCredential(null);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/team/reset-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ member_id: member.member_id, new_pin: newValue }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "เกิดข้อผิดพลาด");
+
+      setResetCredential({ name: displayName, value: newValue, label });
+      setMsg({ type: "success", text: `รีเซ็ต${label}ของ "${displayName}" สำเร็จ ✅` });
+    } catch (err) {
+      setMsg({ type: "error", text: `รีเซ็ต${label}ไม่สำเร็จ: ` + err.message });
+    } finally {
+      setResettingMemberId(null);
+    }
+  }
+
   const canManage = currentRole === "owner" || currentRole === "manager";
 
   return (
@@ -302,6 +349,23 @@ function TeamPageContent() {
       </div>
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
+
+      {resetCredential && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 8,
+            background: "var(--surface-dim)",
+            fontSize: 13,
+          }}
+        >
+          <div style={{ marginBottom: 4 }}>
+            📋 บอก{resetCredential.label}ใหม่นี้ให้ <strong>{resetCredential.name}</strong> (จะไม่แสดงซ้ำอีก จดไว้ก่อนปิดหน้านี้):
+          </div>
+          <div>{resetCredential.label}ใหม่: <strong>{resetCredential.value}</strong></div>
+        </div>
+      )}
 
       {!canManage && (
         <div className="msg error" style={{ marginBottom: 16 }}>
@@ -644,6 +708,27 @@ function TeamPageContent() {
                   </option>
                 ))}
               </select>
+              {m.status === "active" && (
+                <button
+                  type="button"
+                  onClick={() => handleResetPassword(m)}
+                  disabled={resettingMemberId === m.member_id}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border-strong)",
+                    background: "transparent",
+                    color: "var(--text)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {resettingMemberId === m.member_id
+                    ? "กำลังรีเซ็ต..."
+                    : `🔑 รีเซ็ต${m.login_username ? "PIN" : "รหัสผ่าน"}`}
+                </button>
+              )}
               {m.status === "active" && (
                 <button
                   type="button"

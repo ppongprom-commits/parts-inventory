@@ -26,6 +26,14 @@ function ZonesAdminPageContent() {
   const [newName, setNewName] = useState("");
   const [newOwnerType, setNewOwnerType] = useState("own");
 
+  // แก้ไขโซนที่มีอยู่แล้ว (code/name/owner_type — ไม่ย้าย parent ในรอบนี้
+  // เพราะการย้าย parent ต้อง recalculate ltree path ของตัวเองและลูกหลานทั้งหมดด้วย)
+  const [editingZoneId, setEditingZoneId] = useState(null);
+  const [editCode, setEditCode] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editOwnerType, setEditOwnerType] = useState("own");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   useEffect(() => {
     if (currentShopId) fetchZones();
   }, [currentShopId]);
@@ -74,6 +82,47 @@ function ZonesAdminPageContent() {
       fetchZones();
     }
     setSaving(false);
+  }
+
+  function startEdit(zone) {
+    setEditingZoneId(zone.id);
+    setEditCode(zone.code);
+    setEditName(zone.name || "");
+    setEditOwnerType(zone.owner_type);
+    setMsg(null);
+  }
+
+  function cancelEdit() {
+    setEditingZoneId(null);
+  }
+
+  async function handleEditSubmit(e) {
+    e.preventDefault();
+    if (!editCode.trim()) return;
+
+    setSavingEdit(true);
+    setMsg(null);
+
+    const { error } = await supabase
+      .from("zones")
+      .update({
+        code: editCode.trim(),
+        name: editName.trim() || null,
+        owner_type: editOwnerType,
+      })
+      .eq("id", editingZoneId);
+
+    if (error) {
+      const friendly = error.message.includes("zones_unique_code_per_parent")
+        ? `รหัส "${editCode.trim()}" ซ้ำกับโซนอื่นที่อยู่ในระดับเดียวกันนี้แล้ว`
+        : error.message;
+      setMsg({ type: "error", text: "แก้ไขโซนไม่สำเร็จ: " + friendly });
+    } else {
+      setEditingZoneId(null);
+      setMsg({ type: "success", text: "แก้ไขโซนแล้ว ✅" });
+      fetchZones();
+    }
+    setSavingEdit(false);
   }
 
   async function handleDelete(zone) {
@@ -202,6 +251,67 @@ function ZonesAdminPageContent() {
 
       {visibleZones.map((z) => {
         const childCount = getChildren(zones, z.id).length;
+
+        if (editingZoneId === z.id) {
+          return (
+            <form
+              onSubmit={handleEditSubmit}
+              className="card"
+              key={z.id}
+              style={{ cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 8 }}
+            >
+              <label>
+                รหัส{currentLevelLabel} *
+                <input
+                  type="text"
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </label>
+              <label>
+                ชื่อ/คำอธิบาย (ไม่บังคับ)
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </label>
+              <label>
+                เจ้าของของในโซนนี้
+                <select value={editOwnerType} onChange={(e) => setEditOwnerType(e.target.value)}>
+                  {Object.entries(OWNER_TYPE_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="submit" disabled={savingEdit}>
+                  {savingEdit ? "กำลังบันทึก..." : "บันทึก"}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border-strong)",
+                    background: "transparent",
+                    color: "var(--text-muted)",
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            </form>
+          );
+        }
+
         return (
           <div
             className="card"
@@ -221,22 +331,38 @@ function ZonesAdminPageContent() {
                 {OWNER_TYPE_LABELS[z.owner_type] || z.owner_type}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => handleDelete(z)}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--danger-border)",
-                background: "transparent",
-                color: "var(--danger-text)",
-                fontSize: 13,
-                cursor: "pointer",
-                flexShrink: 0,
-              }}
-            >
-              ลบ
-            </button>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => startEdit(z)}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-strong)",
+                  background: "transparent",
+                  color: "var(--text)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                แก้ไข
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(z)}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: "1px solid var(--danger-border)",
+                  background: "transparent",
+                  color: "var(--danger-text)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                ลบ
+              </button>
+            </div>
           </div>
         );
       })}
