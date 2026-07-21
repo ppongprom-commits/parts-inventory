@@ -586,3 +586,47 @@ selling flow ที่ยังไม่เริ่ม การ์ดต้น
 **⚠️ GitHub push ไม่สำเร็จคืนนี้:** sandbox มี read access clone `staging` ได้ปกติ แต่ push ถูก
 ปฏิเสธ (403) ทุกครั้ง — commit ทั้งหมดของคืนนี้จึงอยู่ใน local git history ของ sandbox เท่านั้น
 ยังไม่ขึ้น GitHub จริง คุณอั้มต้องดึง patch/diff ไปใส่ที่ repo จริงเอง (ดูสรุปท้ายเซสชัน)
+
+### 18. ดึกคืนเดียวกัน 21 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run #3)
+
+ทำงานบน sandbox ใหม่ (clone `staging` จาก GitHub สดๆ — พบว่า commit ของ run #2 ขึ้น GitHub จริง
+แล้วทั้งที่ log ของ run #2 บอกว่า push ไม่สำเร็จ คาดว่า push สำเร็จภายหลังจากช่องทางอื่น) หยิบการ์ด
+priority สูงสุดที่ยังไม่เสร็จมาทำต่อทีละใบ ทั้งการ์ดโค้ดและการ์ดเอกสาร ตามลำดับที่ยังไม่เสร็จจากรอบก่อน:
+
+**ฟีเจอร์ใหม่/แก้ไข:**
+- **Cart-based selling flow** (`app/checkout/page.js`) — เพิ่มโหมด "🛒 เลือกขาย" คู่กับ "เลือกพิมพ์ QR"
+  เดิมที่หน้ารายการอะไหล่ เลือกได้หลายชิ้นข้ามหน้า → `/checkout` แก้จำนวน/ราคาต่อชิ้น + ผู้ซื้อ +
+  วิธีชำระเงิน (บังคับเลือก) → ยืนยันขายทั้งหมดตัดสต็อกทีละชิ้นแบบเป็นอิสระต่อกัน (ชิ้นที่ fail ไม่
+  rollback ชิ้นที่สำเร็จแล้ว) → Picking List (มีปุ่ม "หาไม่เจอ" คืนสต็อกอัตโนมัติ) → Confirm Pick
+  แบบ walk-in ออกใบเสร็จให้อัตโนมัติ ทำพร้อมกับ 2 การ์ดที่ผูกกัน (payment_method ต่อเข้า checkout,
+  part_sale_documents แบบ receipt-only) ตามที่การ์ดต้นทางกำหนดไว้ว่าต้องทำพร้อมกัน — ไม่ทำ
+  tax_invoice/pack-ship เต็มรูป/branch transfer อัตโนมัติรอบนี้ (ดูรายละเอียด scope ที่ตั้งใจตัดใน
+  `db/cart_based_selling_flow_migration.sql`)
+- **Area/Rack/Level location hierarchy** — พบว่าโครงสร้าง ltree เกือบทั้งหมด (parent_id/path/
+  trigger รักษา path+กันวงจร/unique code ต่อ parent/`parts.zone_id`) live บน staging จริงจาก
+  เซสชันก่อนแต่ไม่เคยมีไฟล์ migration เลย export กลับเป็น `db/zone_hierarchy_ltree_migration.sql`
+  แล้ว ระหว่างตรวจพบช่องโหว่ multi-tenant จริง (parent_id ข้ามร้านไม่ถูกกัน) แก้เป็น trigger ใหม่
+  ในไฟล์เดียวกัน พร้อมเขียน data migration script zone_code (เก่า) → zone_id ที่การ์ดต้องการแต่
+  ยังไม่เคยมีใครเขียน
+- **บั๊กที่แก้:** `/admin/zones` เดิมบล็อกลบโซนถ้ามีอะไหล่ผูกอยู่ แม้ quantity=0 (ขายหมดแล้ว) แล้ว —
+  ขัดกับมติการ์ดที่ตัดสินใจว่านับเฉพาะ quantity > 0 แก้แล้ว
+
+**เอกสารที่แก้ไข (พบข้อมูลเก่าที่ไม่ตรงกับโค้ดจริงแล้วหลายจุดใน `SOP.md`):** section 2 (bulk-assign
+โซนเก่าที่บอกว่า "รอสร้าง" ทั้งที่ทำเสร็จแล้ว), section 3-5 (ขายอะไหล่/รับชำระเงิน/ใบเสร็จ อัปเดต
+ทั้งหมดให้ตรงกับ cart flow ใหม่คืนนี้), section 6 (prerequisite ของ Accounting Module เสร็จครบทั้ง
+2 ตัวแล้วแต่เอกสารเก่ายังบอกว่ายังไม่เริ่มทั้งคู่), section 7 (Salvage Vehicle Intake บอกว่า "ยังไม่มี
+เลย" ทั้งที่ทำเสร็จไปแล้วตั้งแต่คืนก่อน), toggle "บังคับสแกน QR" ในหัวข้อ 1 บอกว่ายังไม่ได้ทำทั้งที่
+ทำเสร็จไปแล้ว — `USER_MANUAL.md` ก็แก้ 1 จุด (audit trail บอกว่ายังไม่ครอบ jobs/shop_members/
+shops/options/zones ทั้งที่ตรวจ DB จริงพบว่าครอบครบ 8 ตารางแล้ว) และเพิ่มคอลัมน์ "ขายอะไหล่" ใน
+ตารางสิทธิ์บทบาทที่ขาดไปหลังเพิ่ม permission `sell_parts` ใหม่
+
+**Schema drift ที่แก้:** ดูหัวข้อฟีเจอร์ด้านบน (zone hierarchy ltree) — เพิ่มเข้า
+`db/zone_hierarchy_ltree_migration.sql`, `db/cart_based_selling_flow_migration.sql` (ตารางใหม่จริง
+ไม่ใช่ drift)
+
+**เทส:** unit test ใหม่ 1 ไฟล์ (zoneHelpers, 17 checks) + Playwright ใหม่ 2 ไฟล์ (zone delete-block
+3 scenario, cart checkout 7 scenario) ทุกไฟล์ผ่านตั้งแต่รอบแรกที่รัน (ไม่มีรอบแก้บั๊ก) — full suite
+71/71 ผ่าน ไม่มี regression กับของเดิม
+
+ดูสรุปเวลาที่ใช้ + การ์ดที่ทำ/ยังไม่ทำ ท้ายเซสชันนี้ (ส่งให้คุณอั้มโดยตรงผ่าน Notion comment ของแต่ละ
+การ์ด + สรุปในแชท)
