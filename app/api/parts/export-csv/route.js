@@ -4,20 +4,24 @@ import { verifyCaller } from "../../../../lib/teamAuth";
 import { toCsv } from "../../../../lib/csvExport";
 import { formatBreadcrumb } from "../../../../lib/zoneHelpers";
 import { getTierConfig } from "../../../../config/subscriptionTiers";
+import { canSeeField } from "../../../../config/fieldVisibility";
 
 // Export CSV (Starter+) — การ์ด "Export CSV (Starter+)"
 //
 // ขอบเขตของ route นี้ (ทำเฉพาะ Parts ก่อน — Jobs/Sales CSV เก็บไว้ทำรอบหน้า):
 // - "Jobs" CSV และ "Sales" CSV ในการ์ดต้องพึ่งฟีเจอร์ที่ยังไม่มีจริงในระบบตอนนี้ (payment_method,
-//   cart-based selling flow ที่การ์ด Sales section อ้างถึงโดยตรง, และ Field Visibility
-//   Whitelist สำหรับ customer_name/phone ที่มีเครื่องหมาย * ในการ์ด) — เดาทำเองคืนนี้เสี่ยงเกินไป
+//   cart-based selling flow ที่การ์ด Sales section อ้างถึงโดยตรง) — เดาทำเองคืนนี้เสี่ยงเกินไป
 //   ทำ Parts CSV ให้ครบตาม spec ที่ทำได้จริงกับ schema ปัจจุบันก่อน
 //
 // ✅ ตัดสินใจแล้วในการ์ด ที่ทำตามในไฟล์นี้:
 // - Format: UTF-8 with BOM (lib/csvExport.js)
 // - Tier gate: Trial ไม่ได้ (Starter ขึ้นไป) — เช็ค 403 ที่นี่ (ชั้นที่ 2 คู่กับ UI ที่ซ่อนปุ่ม)
-// - สิทธิ์: Owner/Manager/Supervisor เท่านั้น (Technician/Assistant ไม่ได้) — 403 ถ้าไม่ผ่าน
-const ALLOWED_ROLES = ["owner", "manager", "supervisor"];
+// - สิทธิ์: อ้างอิง Field Visibility Whitelist กลาง (config/fieldVisibility.js field group
+//   "export_csv_parts") แทนรายชื่อ role ที่เคย hardcode ไว้ตรงนี้เอง — ตรงกับกติกาข้อ 2 ของการ์ด
+//   Field Visibility ที่บอกว่า "ทุกช่องทางต้องอ้าง matrix เดียวกัน ห้ามกำหนดแยกรายฟีเจอร์"
+//   default ปัจจุบันของ matrix (owner/manager/supervisor=true, technician/assistant/
+//   field_scanner=false) ให้ผลเหมือนเดิมทุกประการ — ต่างกันตรงที่ตอนนี้ Owner override ต่อร้านได้
+//   ผ่าน shop_field_visibility_overrides (ยังไม่มี UI ให้ตั้งค่าคืนนี้ แต่ backend พร้อมอ่านแล้ว)
 
 const COLUMNS = [
   { key: "part_id", header: "part_id" },
@@ -58,7 +62,16 @@ export async function GET(request) {
       .eq("status", "active")
       .maybeSingle();
 
-    if (!callerMember || !ALLOWED_ROLES.includes(callerMember.role)) {
+    if (!callerMember) {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงอู่นี้" }, { status: 403 });
+    }
+
+    const { data: overrides } = await supabaseAdmin
+      .from("shop_field_visibility_overrides")
+      .select("role, field_group, allowed")
+      .eq("shop_id", shopId);
+
+    if (!canSeeField(callerMember.role, "export_csv_parts", overrides || [])) {
       return NextResponse.json(
         { error: "เฉพาะเจ้าของ/ผู้จัดการ/หัวหน้างานเท่านั้นที่ export ได้" },
         { status: 403 }
