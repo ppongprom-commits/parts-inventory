@@ -587,7 +587,11 @@ function EditPartPageContent() {
           >
             {form.car_brand || form.car_model
               ? `${form.car_brand || ""} ${form.car_model || ""}${
-                  selectedGeneration?.trim_name ? ` · ${selectedGeneration.trim_name}` : ""
+                  selectedGeneration?.year_range_display ? ` · ${selectedGeneration.year_range_display}` : ""
+                }${
+                  selectedGeneration?.generation_code ? ` (${selectedGeneration.generation_code})` : ""
+                }${
+                  selectedGeneration?.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""
                 }`.trim()
               : "— ยังไม่มีข้อมูลรถ —"}
           </div>
