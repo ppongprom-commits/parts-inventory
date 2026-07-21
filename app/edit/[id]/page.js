@@ -7,6 +7,7 @@ import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
 import ZoneAutocomplete from "../../../components/ZoneAutocomplete";
 import ZoneQRScanner from "../../../components/ZoneQRScanner";
+import PartAuditHistory from "../../../components/PartAuditHistory";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
@@ -358,6 +359,8 @@ function EditPartPageContent() {
       </div>
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
+
+      <PartAuditHistory partId={id} shopId={currentShopId} />
 
       <form onSubmit={handleSubmit}>
         <label>
