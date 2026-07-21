@@ -681,3 +681,33 @@ JWT claim จริงตรงกับที่ PostgREST ใช้ (ไม่
 
 ดูสรุปเวลาที่ใช้ + การ์ดที่ทำ/ยังไม่ทำ แบบละเอียดท้ายเซสชันนี้ (ส่งให้คุณอั้มโดยตรงผ่าน Notion comment
 ของแต่ละการ์ด + สรุปในแชท)
+
+### ส่วนเพิ่มเติม — real E2E test suite (`qa-automation/`) ตามคำขอของคุณอั้ม (session แยกต่างหาก)
+
+คุณอั้มขอ Playwright test สำหรับทดสอบ staging จริง (ไม่ mock เครือข่ายเหมือน `qa-tests/` ที่ต้องรันใน
+sandbox เพราะออกเน็ตไม่ได้) ทั้ง regression set เดิมและฟีเจอร์ใหม่ทั้งหมดของคืนวันที่ 21 ก.ค. 2026 —
+พบว่าไดเรกทอรี `qa-automation/` มีอยู่แล้วจริงบน branch `main` (จากงาน migration multi-tenant ก่อนหน้า)
+แต่ไม่เคย merge เข้า `staging` เลย จึง port เข้ามาแล้วขยายให้ครอบคลุมฟีเจอร์ใหม่ 13 การ์ดที่ทำในรอบ
+nightly QA คืนนั้นโดยเฉพาะ (TOS/JOBSTAT/AUDIT/MOVEPARTS/MOVEPART/PAYMENT/SALVAGE/FIELDSCAN/IMPORT/
+LABEL — 46 test ใหม่ รวมกับของเดิม 95 test เป็น 141 test ใน 28 ไฟล์) พร้อมแก้ compatibility ให้เข้ากับ
+ToS gate ที่เพิ่งเพิ่มเข้ามาคืนนั้น (สำคัญสุด: seed `shop_tos_acceptances` ให้ทุก test shop ล่วงหน้าใน
+`setup-test-data.mjs` กัน gate บล็อก suite เดิมทั้งหมด) — รายละเอียดเต็มอยู่ใน `qa-automation/README.md`
+หัวข้อ "คืนวันที่ 21 ก.ค. 2026"
+
+**⚠️ หมายเหตุสำคัญ:** ชุด `qa-automation/` นี้ **ยังไม่ครอบคลุมการ์ดที่ทำเพิ่มเติมหลังจากนั้น** ในเซสชัน
+ที่ต่อยอดมา (Cart-based selling flow, Field Visibility Whitelist, Stock Value Cap Engine, Onboarding
+Burst Mode, Write-off, Sales report payment_method breakdown, และ RLS bug fix ทั้ง 2 จุด) — เขียนขึ้น
+ก่อนที่งานเหล่านั้นจะเสร็จ ยังต้องเพิ่ม test สำหรับการ์ดกลุ่มนี้ต่อในรอบถัดไปถ้าต้องการให้ครอบคลุมครบ
+
+**เจอบั๊ก path ผิดในไฟล์เดิมจาก `main`:** `tests/job-creation-photos.spec.js` ชี้ path รูปทดสอบผิดที่
+(`tests/test-assets/` แทนที่จะเป็น `fixtures/test-assets/`) ทำให้ JOB-501–503 พังทันทีถ้ารันจริง —
+แก้แล้ว ไม่เกี่ยวกับฟีเจอร์คืนนี้ เป็นบั๊กเดิมที่ค้างมาจาก `main`
+
+**เจอ known gap:** RPC `get_part_audit_history()` ไม่รวม `field_scanner` ในรายชื่อ role ที่อนุญาต
+ทั้งที่ field_scanner แก้ไข part ได้จริง — แก้ไขอะไหล่ได้แต่ดูประวัติการแก้ไขของชิ้นนั้นไม่ได้ ยังไม่ได้
+แก้ (แค่ flag ไว้ใน test AUDIT-005 ให้ทีม dev ตัดสินใจ)
+
+⚠️ **ชุด test ใหม่ (`card-*.spec.js`) เขียนจากการอ่านโค้ด/schema/RLS จริงเท่านั้น ยังไม่เคยรันจริงสักครั้ง**
+เพราะ sandbox ที่เขียนไม่มี network ออก `*.supabase.co`/`*.vercel.app` — ผ่านแค่
+`npx playwright test --list` (parse/load สำเร็จหมด 141 test) คุณอั้มต้องรันจริงจากเครื่อง/CI ก่อนเชื่อ
+ผลได้เต็มที่ (ดู Quick Start ใน `qa-automation/README.md`)
