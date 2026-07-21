@@ -19,6 +19,8 @@ function AddPartPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const linkedJobId = searchParams.get("job_id");
+  // การ์ด "Salvage Vehicle Intake + Disassembly" — pattern เดียวกับ linkedJobId เป๊ะ
+  const linkedSalvageVehicleId = searchParams.get("salvage_vehicle_id");
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const { currentShopId } = useAuth();
@@ -230,6 +232,7 @@ function AddPartPageContent() {
         quantity: form.quantity ? Number(form.quantity) : 1,
         item_type: form.item_type,
         job_id: linkedJobId || null,
+        salvage_vehicle_id: linkedSalvageVehicleId || null,
         min_stock_level: form.min_stock_level ? Number(form.min_stock_level) : null,
         price: form.price ? Number(form.price) : null,
         part_number: form.part_number || null,
@@ -429,6 +432,21 @@ function AddPartPageContent() {
             }}
           >
             🔗 อะไหล่ชิ้นนี้จะผูกกับงาน #{linkedJobId} อัตโนมัติ
+          </div>
+        )}
+
+        {linkedSalvageVehicleId && (
+          <div
+            data-testid="salvage-vehicle-banner"
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              background: "var(--zone-bg)",
+              color: "var(--zone-text)",
+              fontSize: 13,
+            }}
+          >
+            🚗 อะไหล่ชิ้นนี้ถอดจากซากรถ #{linkedSalvageVehicleId} — จะผูกอัตโนมัติ
           </div>
         )}
 
