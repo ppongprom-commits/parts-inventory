@@ -104,6 +104,12 @@ create policy "eligible roles can create part sale documents" on part_sale_docum
 -- ------------------------------------------------------------
 -- 4) คืนสต็อกเมื่อ pick แล้วหาไม่เจอ/ของเสียหาย (edge case ที่การ์ดกำหนด default ไว้)
 --    atomic เหมือน deduct_part_stock — กันแข่งกันคืนพร้อมกัน
+--
+-- 🔒 บั๊กที่แก้ (พบระหว่าง cross-check integration กับ Stock Value Cap Engine คืนนี้เอง):
+-- ตอนแรกฟังก์ชันนี้ไม่มีการเช็คสิทธิ์เลย ต่างจาก deduct_part_stock พี่น้องที่เช็ค auth.uid() เป็น
+-- active shop_member ของร้านเจ้าของ part_id ก่อนเสมอ — เป็นช่องโหว่ multi-tenant จริง: user คนไหน
+-- ก็ได้ (ไม่ว่า role อะไร ไม่ว่าอยู่ร้านไหน) เรียกฟังก์ชันนี้ด้วย part_id ของร้านอื่นแล้วเพิ่ม quantity
+-- ให้ร้านนั้นได้เลยโดยไม่มีการเช็คสิทธิ์ใดๆ — เพิ่ม auth check แบบเดียวกับ deduct_part_stock แล้ว
 -- ------------------------------------------------------------
 create or replace function restore_part_stock(p_part_id uuid, p_quantity numeric)
 returns numeric
@@ -112,16 +118,25 @@ security definer
 set search_path = public
 as $$
 declare
+  v_shop_id bigint;
   v_new_quantity numeric;
 begin
+  select shop_id into v_shop_id from parts where id = p_part_id;
+  if v_shop_id is null then
+    raise exception 'ไม่พบอะไหล่ชิ้นนี้';
+  end if;
+
+  if not exists (
+    select 1 from shop_members
+    where shop_id = v_shop_id and user_id = auth.uid() and status = 'active'
+  ) then
+    raise exception 'ไม่มีสิทธิ์แก้ไขสต็อกของอู่นี้';
+  end if;
+
   update parts
   set quantity = quantity + p_quantity
   where id = p_part_id
   returning quantity into v_new_quantity;
-
-  if v_new_quantity is null then
-    raise exception 'ไม่พบอะไหล่ชิ้นนี้';
-  end if;
 
   return v_new_quantity;
 end;
