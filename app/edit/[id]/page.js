@@ -184,10 +184,19 @@ function EditPartPageContent() {
             .maybeSingle();
           trimName = trimRow?.trim_name || null;
         }
+        let generationCode = null;
+        if (data.generation_id) {
+          const { data: genRow } = await supabase
+            .from("model_generations")
+            .select("generation_code")
+            .eq("generation_id", data.generation_id)
+            .maybeSingle();
+          generationCode = genRow?.generation_code || null;
+        }
         setSelectedGeneration({
           generation_id: data.generation_id,
           year_range_display: data.car_year_display,
-          generation_code: null,
+          generation_code: generationCode,
           trim_id: data.trim_id || null,
           trim_name: trimName,
         });
@@ -574,8 +583,22 @@ function EditPartPageContent() {
           />
         </label>
 
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
+          🔍 ค้นหารถ (ยี่ห้อ/รุ่น) — พิมพ์แล้วเลือกเฉพาะเมื่อต้องการเปลี่ยนรถของอะไหล่ชิ้นนี้
+          <CarAutocomplete
+            onSelect={(item) => {
+              setForm((f) => ({
+                ...f,
+                car_brand: item?.brand_name || "",
+                car_model: item?.model_name || "",
+              }));
+              setSelectedGeneration(item);
+            }}
+          />
+        </div>
+
         <label>
-          รถปัจจุบันของอะไหล่ชิ้นนี้
+          ยี่ห้อ รุ่น ปีผลิต ของอะไหล่
           <div
             style={{
               padding: 12,
@@ -594,42 +617,6 @@ function EditPartPageContent() {
                   selectedGeneration?.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""
                 }`.trim()
               : "— ยังไม่มีข้อมูลรถ —"}
-          </div>
-        </label>
-
-        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
-          🔍 ค้นหารถ (ยี่ห้อ/รุ่น) — พิมพ์แล้วเลือกเฉพาะเมื่อต้องการเปลี่ยนรถของอะไหล่ชิ้นนี้
-          <CarAutocomplete
-            onSelect={(item) => {
-              setForm((f) => ({
-                ...f,
-                car_brand: item?.brand_name || "",
-                car_model: item?.model_name || "",
-              }));
-              setSelectedGeneration(item);
-            }}
-          />
-        </div>
-
-        <label>
-          ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              border: "1px solid var(--border-strong)",
-              background: "var(--surface-dim)",
-              color: selectedGeneration ? "var(--text)" : "var(--text-muted)",
-              fontSize: 14,
-            }}
-          >
-            {selectedGeneration
-              ? `${selectedGeneration.year_range_display}${
-                  selectedGeneration.generation_code
-                    ? ` (${selectedGeneration.generation_code})`
-                    : ""
-                }${selectedGeneration.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""}`
-              : "— ไม่มีข้อมูลปี เลือกรถจากช่องค้นหาด้านบนเพื่ออัปเดต —"}
           </div>
         </label>
 
