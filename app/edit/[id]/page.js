@@ -14,6 +14,15 @@ import { uploadPartPhotos } from "../../../lib/storageHelpers";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
 
+// การ์ด "บันทึกวิธีชำระเงินแยกทุกช่องทาง (payment_method)" — ✅ ตัดสินใจแล้ว: แยกทุกช่องทาง
+// ไม่รวมเป็น category เดียว (ผูกกับบัญชีเงินสด/ธนาคารคนละบัญชีตามผังบัญชี)
+const PAYMENT_METHOD_LABELS = {
+  cash: "เงินสด",
+  bank_transfer: "โอนเงิน",
+  card: "บัตร",
+  other: "อื่นๆ",
+};
+
 function EditPartPageContent() {
   const params = useParams();
   const router = useRouter();
@@ -42,7 +51,7 @@ function EditPartPageContent() {
   const [zonesLoading, setZonesLoading] = useState(true);
 
   const [sales, setSales] = useState([]);
-  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "" });
+  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "", payment_method: "" });
   const [selling, setSelling] = useState(false);
   const [saleMsg, setSaleMsg] = useState(null);
 
@@ -88,6 +97,13 @@ function EditPartPageContent() {
       setSaleMsg({ type: "error", text: "กรุณาระบุราคาขาย" });
       return;
     }
+    // ✅ ตัดสินใจ (การ์ด payment_method — test scenario "บังคับเลือกทุกครั้ง หรือ default = cash?"):
+    // บังคับเลือกเสมอ ไม่ default เงียบๆ ไปที่ค่าใดค่าหนึ่ง (เข้ากับหลักการเดียวกับ mapping
+    // account_code ในการ์ดเดียวกันที่ตั้งใจไม่ default ไปบัญชีเงินสดโดยไม่รู้ตัว)
+    if (!saleForm.payment_method) {
+      setSaleMsg({ type: "error", text: "กรุณาเลือกวิธีชำระเงิน" });
+      return;
+    }
 
     setSelling(true);
 
@@ -108,6 +124,7 @@ function EditPartPageContent() {
         sale_price: price,
         sold_to: saleForm.sold_to || null,
         sold_by: userData?.user?.id || null,
+        payment_method: saleForm.payment_method,
       });
       if (saleError) throw saleError;
 
@@ -120,7 +137,7 @@ function EditPartPageContent() {
       }
 
       setSaleMsg({ type: "success", text: "บันทึกการขายสำเร็จ ✅" });
-      setSaleForm({ quantity: "", price: "", sold_to: "" });
+      setSaleForm({ quantity: "", price: "", sold_to: "", payment_method: "" });
       fetchPart();
       fetchSales();
     } catch (err) {
@@ -859,6 +876,22 @@ function EditPartPageContent() {
                 placeholder="ชื่อ/เบอร์โทรลูกค้า"
               />
             </label>
+            <label>
+              วิธีชำระเงิน
+              {/* ไม่ใส่ required แบบ native — ใช้ JS validation ใน handleSell แทน (ข้อความ
+                 ภาษาไทยที่อ่านง่ายกว่า tooltip ของเบราว์เซอร์ ซึ่งบาง browser ไม่แปล/จัด UI ไม่ตรงธีม) */}
+              <select
+                value={saleForm.payment_method}
+                onChange={(e) => setSaleForm((f) => ({ ...f, payment_method: e.target.value }))}
+              >
+                <option value="">— เลือก —</option>
+                {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="submit" disabled={selling}>
               {selling ? "กำลังบันทึก..." : "✓ บันทึกการขาย"}
             </button>
@@ -880,6 +913,7 @@ function EditPartPageContent() {
                   <span>
                     {s.quantity_sold} ชิ้น × {Number(s.sale_price).toLocaleString()} บาท
                     {s.sold_to && ` — ${s.sold_to}`}
+                    {` (${s.payment_method ? PAYMENT_METHOD_LABELS[s.payment_method] || s.payment_method : "ไม่ระบุวิธีชำระ"})`}
                   </span>
                   <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
                     {new Date(s.sold_at).toLocaleDateString("th-TH")}
