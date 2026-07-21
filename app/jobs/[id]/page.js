@@ -39,6 +39,8 @@ function JobDetailPageContent() {
   const [consumableQuery, setConsumableQuery] = useState("");
   const [consumableResults, setConsumableResults] = useState([]);
   const [selectedConsumablePart, setSelectedConsumablePart] = useState(null);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyResults, setHistoryResults] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [customerShareUrl, setCustomerShareUrl] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -224,16 +226,46 @@ function JobDetailPageContent() {
       setConsumableResults([]);
       return;
     }
+    // ค้นทั้งของสิ้นเปลือง (consumable) และอะไหล่ถอด (salvage) ที่ยังมีในสต็อก —
+    // เลือกแล้วตัดสต็อกอัตโนมัติเหมือนกันทั้งคู่ผ่าน deduct_part_stock RPC ตัวเดียวกัน
     const { data } = await supabase
       .from("parts")
-      .select("id, part_name, price, quantity")
+      .select("id, part_name, price, quantity, item_type")
       .eq("shop_id", currentShopId)
-      .eq("item_type", "consumable")
+      .in("item_type", ["consumable", "salvage"])
       .eq("is_active", true)
       .gt("quantity", 0)
       .ilike("part_name", `%${query.trim()}%`)
       .limit(8);
     setConsumableResults(data || []);
+  }
+
+  // ค้นหารายการค่าใช้จ่ายเก่าที่เคยพิมพ์ไว้ในร้านนี้ (ค่าแรง/ค่าอะไหล่/อื่นๆ) มาหยิบใช้ซ้ำ
+  // คนละอันกับค้นจากสต็อก — ไม่ตัดสต็อก ไม่ auto-fill ราคา/จำนวน เว้นให้กรอกเองเสมอ
+  async function searchHistory(query) {
+    setHistoryQuery(query);
+    if (!query.trim()) {
+      setHistoryResults([]);
+      return;
+    }
+    const { data } = await supabase.rpc("search_cost_item_history", {
+      p_shop_id: currentShopId,
+      p_query: query.trim(),
+    });
+    setHistoryResults(data || []);
+  }
+
+  function handleSelectHistoryItem(item) {
+    setSelectedConsumablePart(null); // มาจากประวัติ ไม่ผูกกับสต็อก ไม่ตัดสต็อก
+    setNewCostItem((f) => ({
+      ...f,
+      category: item.category,
+      description: item.description,
+      _categoryTouched: true,
+      // ตั้งใจไม่แตะ amount/quantity — เว้นให้กรอกเองเหมือนเดิมตามที่ตกลงกันไว้
+    }));
+    setHistoryQuery("");
+    setHistoryResults([]);
   }
 
   function handleSelectConsumable(part) {
@@ -498,11 +530,15 @@ function JobDetailPageContent() {
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm(`ลบงานของ "${job.customer_name || "ลูกค้า"}" ใช่ไหม?`);
+    const confirmed = window.confirm(`ลบงานของ "${job.customer_name || "ลูกค้า"}" ใช่ไหม? (ย้ายไปถังขยะ กู้คืนได้ภายหลัง)`);
     if (!confirmed) return;
 
     setDeleting(true);
-    const { error } = await supabase.from("jobs").delete().eq("job_id", jobId);
+    // soft delete — ย้ายไปถังขยะแทนการลบถาวร (กู้คืน/เคลียร์ถาวรได้ที่หน้า /jobs/trash)
+    const { error } = await supabase
+      .from("jobs")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("job_id", jobId);
     if (error) {
       setMsg({ type: "error", text: "ลบไม่สำเร็จ: " + error.message });
       setDeleting(false);
@@ -1040,7 +1076,7 @@ function JobDetailPageContent() {
         <div style={{ position: "relative", marginTop: 12 }}>
           <input
             type="text"
-            placeholder="🔍 ค้นหาของสิ้นเปลืองจากสต็อก (ไม่บังคับ)"
+            placeholder="🔍 ค้นหาอะไหล่จากสต็อก (ของสิ้นเปลือง/อะไหล่ถอด — ไม่บังคับ)"
             value={consumableQuery}
             onChange={(e) => searchConsumables(e.target.value)}
             style={{ width: "100%" }}
@@ -1079,7 +1115,8 @@ function JobDetailPageContent() {
                     fontSize: 13,
                   }}
                 >
-                  {p.part_name} — เหลือ {p.quantity} · {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
+                  {p.item_type === "salvage" ? "🔩" : "📦"} {p.part_name} — เหลือ {p.quantity} ·{" "}
+                  {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
                 </button>
               ))}
             </div>
@@ -1100,6 +1137,58 @@ function JobDetailPageContent() {
             🔗 ผูกกับสต็อก: {selectedConsumablePart.part_name} — บันทึกแล้วจะตัดสต็อกอัตโนมัติ
           </div>
         )}
+
+        {/* ค้นหารายการที่เคยพิมพ์ไว้ก่อนหน้า (ค่าแรง/ค่าอะไหล่/อื่นๆ) มาหยิบใช้ซ้ำ —
+            ไม่ตัดสต็อก ไม่ auto-fill ราคา/จำนวน เว้นให้กรอกเองเสมอ */}
+        <div style={{ position: "relative", marginTop: 8 }}>
+          <input
+            type="text"
+            placeholder="🕘 ค้นหารายการที่เคยใช้ (ค่าแรง/ค่าอะไหล่ — ไม่ตัดสต็อก)"
+            value={historyQuery}
+            onChange={(e) => searchHistory(e.target.value)}
+            style={{ width: "100%" }}
+          />
+          {historyResults.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                background: "var(--surface)",
+                border: "1px solid var(--border-strong)",
+                borderRadius: 8,
+                marginTop: 4,
+                maxHeight: 200,
+                overflowY: "auto",
+              }}
+            >
+              {historyResults.map((item, i) => (
+                <button
+                  key={`${item.description}-${item.category}-${i}`}
+                  type="button"
+                  onClick={() => handleSelectHistoryItem(item)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: 10,
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    background: "transparent",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  {item.description}{" "}
+                  <span style={{ color: "var(--text-muted)" }}>({CATEGORY_LABELS[item.category] || item.category})</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* ฟอร์มเพิ่มรายการแบบเร็ว: พิมพ์ "ค่า..." จะเดาเป็นค่าแรงให้อัตโนมัติ */}
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>

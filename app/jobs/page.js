@@ -17,7 +17,8 @@ const OPEN_STATUSES = ["received", "in_progress", "waiting_parts"];
 const CLOSED_STATUSES = ["completed", "delivered", "canceled"];
 
 function JobsPageContent() {
-  const { currentShopId } = useAuth();
+  const { currentShopId, currentRole } = useAuth();
+  const canManage = currentRole === "owner" || currentRole === "manager";
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,7 @@ function JobsPageContent() {
       .from("jobs")
       .select("*")
       .eq("shop_id", currentShopId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (!error) setJobs(data || []);
     setLoading(false);
@@ -67,9 +69,16 @@ function JobsPageContent() {
         <h1>
           🔧 งานเข้าอู่ <span style={{ fontSize: 14, color: "var(--text-muted)" }}>({jobs.length})</span>
         </h1>
-        <Link href="/jobs/new" className="nav-link">
-          + รับงานใหม่
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          {canManage && (
+            <Link href="/jobs/trash" className="nav-link secondary">
+              🗑️ ถังขยะ
+            </Link>
+          )}
+          <Link href="/jobs/new" className="nav-link">
+            + รับงานใหม่
+          </Link>
+        </div>
       </div>
 
       <div className="view-toggle" style={{ marginBottom: 12, width: "100%" }}>
