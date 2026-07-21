@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
 import ZoneAutocomplete from "../../components/ZoneAutocomplete";
-import { isLeaf } from "../../lib/zoneHelpers";
+import ZoneQRScanner from "../../components/ZoneQRScanner";
+import { isLeaf, formatBreadcrumb } from "../../lib/zoneHelpers";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
@@ -18,6 +19,8 @@ function AddPartPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const linkedJobId = searchParams.get("job_id");
+  // การ์ด "Salvage Vehicle Intake + Disassembly" — pattern เดียวกับ linkedJobId เป๊ะ
+  const linkedSalvageVehicleId = searchParams.get("salvage_vehicle_id");
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const { currentShopId } = useAuth();
@@ -51,6 +54,9 @@ function AddPartPageContent() {
 
   const [zones, setZones] = useState([]);
   const [zonesLoading, setZonesLoading] = useState(true);
+  // การ์ด "ย้ายอะไหล่ระหว่าง Zone" — toggle ระดับร้าน "บังคับสแกน QR ยืนยันตำแหน่ง" (ตั้งค่าที่
+  // /admin) เมื่อเปิด ต้องสแกน QR โซนเท่านั้นตอนเพิ่มอะไหล่ใหม่ เลือกจากช่องค้นหาตรงๆ ไม่ได้อีกต่อไป
+  const [forceZoneScan, setForceZoneScan] = useState(false);
 
   const [conditions, setConditions] = useState([]);
   const [sourceTypes, setSourceTypes] = useState([]);
@@ -66,6 +72,7 @@ function AddPartPageContent() {
     if (currentShopId) {
       fetchZones();
       fetchOptions();
+      fetchShopZoneScanSetting();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
@@ -116,6 +123,15 @@ function AddPartPageContent() {
       .order("code", { ascending: true });
     if (!error) setZones(data || []);
     setZonesLoading(false);
+  }
+
+  async function fetchShopZoneScanSetting() {
+    const { data } = await supabase
+      .from("shops")
+      .select("force_zone_scan_confirmation")
+      .eq("shop_id", currentShopId)
+      .single();
+    setForceZoneScan(!!data?.force_zone_scan_confirmation);
   }
 
   async function fetchOptions() {
@@ -216,6 +232,7 @@ function AddPartPageContent() {
         quantity: form.quantity ? Number(form.quantity) : 1,
         item_type: form.item_type,
         job_id: linkedJobId || null,
+        salvage_vehicle_id: linkedSalvageVehicleId || null,
         min_stock_level: form.min_stock_level ? Number(form.min_stock_level) : null,
         price: form.price ? Number(form.price) : null,
         part_number: form.part_number || null,
@@ -418,6 +435,21 @@ function AddPartPageContent() {
           </div>
         )}
 
+        {linkedSalvageVehicleId && (
+          <div
+            data-testid="salvage-vehicle-banner"
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              background: "var(--zone-bg)",
+              color: "var(--zone-text)",
+              fontSize: 13,
+            }}
+          >
+            🚗 อะไหล่ชิ้นนี้ถอดจากซากรถ #{linkedSalvageVehicleId} — จะผูกอัตโนมัติ
+          </div>
+        )}
+
         <label>
           ประเภทอะไหล่ *
           <div style={{ display: "flex", gap: 8 }}>
@@ -588,8 +620,23 @@ function AddPartPageContent() {
 
         <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           โซนจัดเก็บ
-          {!zonesLoading && (
+          {forceZoneScan && form.zone_id && (
+            <div data-testid="zone-scan-confirmed" style={{ fontSize: 13, color: "var(--text)" }}>
+              ✅ ยืนยันตำแหน่งแล้ว — {formatBreadcrumb(zones, form.zone_id)}
+            </div>
+          )}
+          {/* ร้านเปิด "บังคับสแกน QR ยืนยันตำแหน่ง" (/admin) — ซ่อนช่องค้นหา เหลือแค่ปุ่มสแกน
+             เท่านั้น กันเลือกโซนมั่วๆ โดยไม่ได้อยู่ที่จุดจริง (การ์ด "ย้ายอะไหล่ระหว่าง Zone") */}
+          {!zonesLoading && !forceZoneScan && (
             <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
+          )}
+          {!zonesLoading && zones.length > 0 && (
+            <ZoneQRScanner zones={zones} onScan={handleZoneChange} />
+          )}
+          {forceZoneScan && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              ร้านนี้ตั้งค่าบังคับสแกน QR ยืนยันตำแหน่ง — พิมพ์ค้นหาเองไม่ได้ ต้องสแกนเท่านั้น
+            </div>
           )}
           {!zonesLoading && zones.length === 0 && (
             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -661,7 +708,7 @@ function AddPartPageContent() {
 
 export default function AddPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
       <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
         <AddPartPageContent />
       </Suspense>

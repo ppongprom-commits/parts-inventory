@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import RequireAuth from "../../components/RequireAuth";
 import ZoneQRCode from "../../components/ZoneQRCode";
-import { formatBreadcrumb } from "../../lib/zoneHelpers";
+import { formatBreadcrumb, formatBreadcrumbShort } from "../../lib/zoneHelpers";
 
 function PrintZoneLabelsPageContent() {
   const searchParams = useSearchParams();
@@ -81,7 +81,10 @@ function PrintZoneLabelsPageContent() {
               </div>
               <div className="label-text">
                 <div className="label-title">{zone.code}</div>
-                <div className="label-sub">{formatBreadcrumb(zones, zone.id)}</div>
+                {/* หน้าจอปกติ: breadcrumb เต็ม (ไว้ตรวจสอบก่อนพิมพ์) — ตอนพิมพ์จริงใช้ short
+                   breadcrumb (.print-only) แทน เพื่อเปิดพื้นที่ให้ zone code ตัวใหญ่ขึ้น อ่านง่ายขึ้น */}
+                <div className="label-sub no-print-inline">{formatBreadcrumb(zones, zone.id)}</div>
+                <div className="label-sub print-only">{formatBreadcrumbShort(zones, zone.id, 2)}</div>
                 {zone.name && <div className="label-sub">{zone.name}</div>}
               </div>
             </div>
@@ -115,6 +118,9 @@ function PrintZoneLabelsPageContent() {
           font-size: 10px;
           color: var(--text-muted);
         }
+        .print-only {
+          display: none;
+        }
 
         /* โหมดพิมพ์จริง — เครื่องพิมพ์ label ความร้อน (เช่น EasyPrint ES-9920UX)
            ป้ายจริงขนาด 40 x 60 มม. ม้วนต่อเนื่อง ตัดทีละดวงด้วยเซ็นเซอร์ —
@@ -122,6 +128,12 @@ function PrintZoneLabelsPageContent() {
         @media print {
           .no-print {
             display: none !important;
+          }
+          .no-print-inline {
+            display: none !important;
+          }
+          .print-only {
+            display: block !important;
           }
           body {
             background: white !important;
@@ -150,15 +162,18 @@ function PrintZoneLabelsPageContent() {
             break-after: auto;
           }
           .label-qr canvas {
-            width: 30mm !important;
-            height: 30mm !important;
+            width: 26mm !important;
+            height: 26mm !important;
           }
+          /* เดิม 10pt เล็กเกินไป อ่านยากจากระยะ ~50-70cm หน้าชั้นจริง — ขยายเป็น 20pt
+             (บั๊กเดิมจากคืน 20 ก.ค. 2026) ลด QR ลงเล็กน้อย (30mm→26mm) เปิดพื้นที่ตัวหนังสือ */
           .label-title {
-            font-size: 10pt;
+            font-size: 20pt;
+            font-weight: 800;
             color: black !important;
           }
           .label-sub {
-            font-size: 7pt;
+            font-size: 9pt;
             color: black !important;
           }
         }

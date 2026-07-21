@@ -9,6 +9,7 @@ import { useTheme } from "../lib/ThemeProvider";
 const NAV_ITEMS = [
   { href: "/jobs", label: "งานเข้าอู่", icon: "🔧" },
   { href: "/", label: "สต็อกอะไหล่", icon: "📦" },
+  { href: "/salvage-vehicles", label: "ซากรถ", icon: "🚗" },
   { href: "/admin", label: "ตั้งค่า", icon: "⚙️" },
 ];
 

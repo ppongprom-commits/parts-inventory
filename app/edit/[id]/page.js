@@ -6,11 +6,22 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
 import ZoneAutocomplete from "../../../components/ZoneAutocomplete";
+import ZoneQRScanner from "../../../components/ZoneQRScanner";
+import PartAuditHistory from "../../../components/PartAuditHistory";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
+
+// การ์ด "บันทึกวิธีชำระเงินแยกทุกช่องทาง (payment_method)" — ✅ ตัดสินใจแล้ว: แยกทุกช่องทาง
+// ไม่รวมเป็น category เดียว (ผูกกับบัญชีเงินสด/ธนาคารคนละบัญชีตามผังบัญชี)
+const PAYMENT_METHOD_LABELS = {
+  cash: "เงินสด",
+  bank_transfer: "โอนเงิน",
+  card: "บัตร",
+  other: "อื่นๆ",
+};
 
 function EditPartPageContent() {
   const params = useParams();
@@ -40,7 +51,7 @@ function EditPartPageContent() {
   const [zonesLoading, setZonesLoading] = useState(true);
 
   const [sales, setSales] = useState([]);
-  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "" });
+  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "", payment_method: "" });
   const [selling, setSelling] = useState(false);
   const [saleMsg, setSaleMsg] = useState(null);
 
@@ -86,6 +97,13 @@ function EditPartPageContent() {
       setSaleMsg({ type: "error", text: "กรุณาระบุราคาขาย" });
       return;
     }
+    // ✅ ตัดสินใจ (การ์ด payment_method — test scenario "บังคับเลือกทุกครั้ง หรือ default = cash?"):
+    // บังคับเลือกเสมอ ไม่ default เงียบๆ ไปที่ค่าใดค่าหนึ่ง (เข้ากับหลักการเดียวกับ mapping
+    // account_code ในการ์ดเดียวกันที่ตั้งใจไม่ default ไปบัญชีเงินสดโดยไม่รู้ตัว)
+    if (!saleForm.payment_method) {
+      setSaleMsg({ type: "error", text: "กรุณาเลือกวิธีชำระเงิน" });
+      return;
+    }
 
     setSelling(true);
 
@@ -106,6 +124,7 @@ function EditPartPageContent() {
         sale_price: price,
         sold_to: saleForm.sold_to || null,
         sold_by: userData?.user?.id || null,
+        payment_method: saleForm.payment_method,
       });
       if (saleError) throw saleError;
 
@@ -118,7 +137,7 @@ function EditPartPageContent() {
       }
 
       setSaleMsg({ type: "success", text: "บันทึกการขายสำเร็จ ✅" });
-      setSaleForm({ quantity: "", price: "", sold_to: "" });
+      setSaleForm({ quantity: "", price: "", sold_to: "", payment_method: "" });
       fetchPart();
       fetchSales();
     } catch (err) {
@@ -366,6 +385,8 @@ function EditPartPageContent() {
       </div>
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
+
+      <PartAuditHistory partId={id} shopId={currentShopId} />
 
       <form onSubmit={handleSubmit}>
         <label>
@@ -670,11 +691,19 @@ function EditPartPageContent() {
           {!zonesLoading && (
             <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
           )}
+          {!zonesLoading && zones.length > 0 && (
+            <ZoneQRScanner zones={zones} onScan={handleZoneChange} />
+          )}
           {form.zone_code && !form.zone_id && (
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
               ข้อมูลเก่า: &quot;{form.zone_code}&quot; (ยังไม่ได้แมตช์กับโซนใหม่ — เลือกโซนด้านบนเพื่ออัปเดต)
             </div>
           )}
+          {/* การ์ด "ย้ายอะไหล่ระหว่าง Zone" — action แยกจากการแก้ zone_id ตรงๆ ในฟอร์มนี้ เพราะมีเช็ค
+             owner_type ปลายทาง vs ปัจจุบัน + checkbox override ที่ฟอร์มแก้ไขทั่วไปนี้ไม่มี */}
+          <Link href={`/move-part/${id}`} className="nav-link secondary" style={{ fontSize: 12, alignSelf: "flex-start" }}>
+            📍 ย้าย Zone (เช็ค owner_type ให้)
+          </Link>
         </div>
 
         <label>
@@ -789,7 +818,9 @@ function EditPartPageContent() {
         </button>
       </form>
 
-      {form.item_type === "salvage" && Number(form.quantity) > 0 && (
+      {/* Field Scanner ทำรายการขายไม่ได้เด็ดขาด (ตัดสินใจแล้วในการ์ด) — ซ่อนส่วนขายทั้งหมด
+         RLS ของ part_sales กันไว้ที่ DB layer อยู่แล้วเป็นด่านหลัก นี่คือด่าน UI */}
+      {form.item_type === "salvage" && Number(form.quantity) > 0 && currentRole !== "field_scanner" && (
         <div
           style={{
             marginTop: 16,
@@ -838,6 +869,22 @@ function EditPartPageContent() {
                 placeholder="ชื่อ/เบอร์โทรลูกค้า"
               />
             </label>
+            <label>
+              วิธีชำระเงิน
+              {/* ไม่ใส่ required แบบ native — ใช้ JS validation ใน handleSell แทน (ข้อความ
+                 ภาษาไทยที่อ่านง่ายกว่า tooltip ของเบราว์เซอร์ ซึ่งบาง browser ไม่แปล/จัด UI ไม่ตรงธีม) */}
+              <select
+                value={saleForm.payment_method}
+                onChange={(e) => setSaleForm((f) => ({ ...f, payment_method: e.target.value }))}
+              >
+                <option value="">— เลือก —</option>
+                {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="submit" disabled={selling}>
               {selling ? "กำลังบันทึก..." : "✓ บันทึกการขาย"}
             </button>
@@ -859,6 +906,7 @@ function EditPartPageContent() {
                   <span>
                     {s.quantity_sold} ชิ้น × {Number(s.sale_price).toLocaleString()} บาท
                     {s.sold_to && ` — ${s.sold_to}`}
+                    {` (${s.payment_method ? PAYMENT_METHOD_LABELS[s.payment_method] || s.payment_method : "ไม่ระบุวิธีชำระ"})`}
                   </span>
                   <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
                     {new Date(s.sold_at).toLocaleDateString("th-TH")}
@@ -917,7 +965,7 @@ function EditPartPageContent() {
 
 export default function EditPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
       <EditPartPageContent />
     </RequireAuth>
   );

@@ -254,6 +254,66 @@ function ExportCsvCard() {
   );
 }
 
+// การ์ด "ย้ายอะไหล่ระหว่าง Zone" — checklist ตอน setup: "บังคับสแกน QR ยืนยันตำแหน่งอะไหล่ไหม?"
+// ✅ ตัดสินใจแล้วในการ์ด (19 ก.ค. 2026): default ปิด — เปิดได้ที่นี่ ตั้งค่าระดับร้าน (owner/manager)
+// เมื่อเปิด: หน้า /add และ action "ย้าย Zone" (/move-part/[id]) จะบังคับให้สแกน QR โซนเท่านั้น
+// เลือกจาก dropdown ตรงๆ ไม่ได้อีกต่อไป
+function ZoneMoveSettingsCard() {
+  const { currentShopId } = useAuth();
+  const [enabled, setEnabled] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    if (!currentShopId) return;
+    supabase
+      .from("shops")
+      .select("force_zone_scan_confirmation")
+      .eq("shop_id", currentShopId)
+      .single()
+      .then(({ data }) => {
+        setEnabled(!!data?.force_zone_scan_confirmation);
+        setLoaded(true);
+      });
+  }, [currentShopId]);
+
+  async function handleToggle() {
+    const next = !enabled;
+    setSaving(true);
+    setMsg(null);
+    const { error } = await supabase
+      .from("shops")
+      .update({ force_zone_scan_confirmation: next })
+      .eq("shop_id", currentShopId);
+    if (error) {
+      setMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + error.message });
+    } else {
+      setEnabled(next);
+      setMsg({ type: "success", text: "บันทึกแล้ว ✅" });
+    }
+    setSaving(false);
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <div className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch" }}>
+      <div className="card-body" style={{ marginBottom: 10 }}>
+        <div className="card-title">📍 บังคับสแกน QR ยืนยันตำแหน่ง</div>
+        <div className="card-sub">
+          เปิดแล้วตอนย้าย Zone (และเพิ่มอะไหล่ใหม่ที่ /add) จะต้องสแกน QR โซนปลายทางเท่านั้น
+          เลือกจากช่องค้นหาตรงๆ ไม่ได้ — กันเลือกโซนมั่วโดยไม่ได้อยู่ที่จุดจริง
+        </div>
+      </div>
+      {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
+      <button type="button" data-testid="toggle-force-scan" onClick={handleToggle} disabled={saving}>
+        {enabled ? "✅ เปิดอยู่ — กดเพื่อปิด" : "⬜ ปิดอยู่ — กดเพื่อเปิด"}
+      </button>
+    </div>
+  );
+}
+
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
   const { currentRole } = useAuth();
@@ -298,6 +358,8 @@ function AdminHubPageContent() {
 
       {canManage && <ShopInfoCard />}
 
+      {canManage && <ZoneMoveSettingsCard />}
+
       {canExport && <ExportCsvCard />}
 
       <Link
@@ -331,6 +393,19 @@ function AdminHubPageContent() {
           <div className="card-body">
             <div className="card-title">🚗 ข้อมูลรถ (ยี่ห้อ/รุ่น/ปี)</div>
             <div className="card-sub">แก้ไข/เพิ่มยี่ห้อ รุ่น และช่วงปีผลิต พร้อมดูประวัติการแก้ไข</div>
+          </div>
+        </Link>
+      )}
+
+      {canManage && (
+        <Link
+          href="/admin/import-customers"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">📥 นำเข้าข้อมูลลูกค้าเดิม</div>
+            <div className="card-sub">อัปโหลด CSV รายชื่อลูกค้าจากระบบ/ไฟล์เก่า</div>
           </div>
         </Link>
       )}

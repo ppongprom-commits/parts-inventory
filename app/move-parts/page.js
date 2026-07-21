@@ -9,6 +9,12 @@ import RequireAuth from "../../components/RequireAuth";
 import ZoneAutocomplete from "../../components/ZoneAutocomplete";
 import { getDescendantIds, formatBreadcrumb, getSortedZoneList } from "../../lib/zoneHelpers";
 
+// การ์ด "🌙 งานที่ต้องทำคืนนี้" ข้อ 2 — bulk เข้า shelf ให้อะไหล่เก่าที่ยังไม่มี zone_id เลย
+// (ทั้งที่ไม่เคยมีข้อมูลโซนมาก่อน และที่มี zone_code แบบเดิม/flat แต่ไม่มี zone_id) — เพิ่ม mode
+// ต้นทางพิเศษนี้เข้าไปในหน้า /move-parts เดิมแทนที่จะแยกหน้าใหม่ (ใช้ infra เดิมทั้งหมด: นับจำนวน,
+// ยืนยัน, ย้าย) ตามที่การ์ดเสนอเป็นหนึ่งในสองทางเลือก
+const UNASSIGNED_SENTINEL = "__unassigned__";
+
 function MovePartsPageContent() {
   const searchParams = useSearchParams();
   const { currentShopId } = useAuth();
@@ -49,13 +55,22 @@ function MovePartsPageContent() {
 
   async function countAffected() {
     setCountLoading(true);
-    const descendantIds = getDescendantIds(zones, sourceZoneId);
-    const { count } = await supabase
+    let query = supabase
       .from("parts")
       .select("id", { count: "exact", head: true })
       .eq("shop_id", currentShopId)
-      .eq("is_active", true)
-      .in("zone_id", descendantIds);
+      .eq("is_active", true);
+
+    if (sourceZoneId === UNASSIGNED_SENTINEL) {
+      // ครอบทั้งอะไหล่ที่ไม่มีข้อมูลโซนเลย และที่มี zone_code เดิม (legacy text) แต่ไม่มี zone_id —
+      // กรองด้วย zone_id IS NULL อย่างเดียวครอบทั้ง 2 เคสอยู่แล้วตามที่การ์ดต้องการ
+      query = query.is("zone_id", null);
+    } else {
+      const descendantIds = getDescendantIds(zones, sourceZoneId);
+      query = query.in("zone_id", descendantIds);
+    }
+
+    const { count } = await query;
     setAffectedCount(count ?? 0);
     setCountLoading(false);
   }
@@ -63,24 +78,29 @@ function MovePartsPageContent() {
   async function handleMove() {
     if (!sourceZoneId || !destZoneId) return;
 
+    const sourceLabel =
+      sourceZoneId === UNASSIGNED_SENTINEL ? "อะไหล่ที่ยังไม่มีโซนเลย" : formatBreadcrumb(zones, sourceZoneId);
     const confirmed = window.confirm(
-      `ย้ายอะไหล่ ${affectedCount} ชิ้น จาก "${formatBreadcrumb(zones, sourceZoneId)}" ไปที่ "${formatBreadcrumb(
-        zones,
-        destZoneId
-      )}" ใช่ไหม?`
+      `ย้ายอะไหล่ ${affectedCount} ชิ้น จาก "${sourceLabel}" ไปที่ "${formatBreadcrumb(zones, destZoneId)}" ใช่ไหม?`
     );
     if (!confirmed) return;
 
     setMoving(true);
     setMsg(null);
 
-    const descendantIds = getDescendantIds(zones, sourceZoneId);
-    const { error, count } = await supabase
+    let query = supabase
       .from("parts")
       .update({ zone_id: destZoneId })
-      .eq("shop_id", currentShopId)
-      .in("zone_id", descendantIds)
-      .select("id", { count: "exact" });
+      .eq("shop_id", currentShopId);
+
+    if (sourceZoneId === UNASSIGNED_SENTINEL) {
+      query = query.is("zone_id", null);
+    } else {
+      const descendantIds = getDescendantIds(zones, sourceZoneId);
+      query = query.in("zone_id", descendantIds);
+    }
+
+    const { error, count } = await query.select("id", { count: "exact" });
 
     if (error) {
       setMsg({ type: "error", text: "ย้ายไม่สำเร็จ: " + error.message });
@@ -119,6 +139,7 @@ function MovePartsPageContent() {
         โซนต้นทาง (ย้ายทุกอย่างข้างในออกทั้งหมด — เลือกทั้ง Area หรือเจาะจงถึง Rack/Level ก็ได้)
         <select value={sourceZoneId} onChange={(e) => setSourceZoneId(e.target.value)}>
           <option value="">— เลือกโซนต้นทาง —</option>
+          <option value={UNASSIGNED_SENTINEL}>📦 อะไหล่ที่ยังไม่มีโซนเลย (ของเก่าก่อนมีระบบโซน)</option>
           {getSortedZoneList(zones).map((z) => (
             <option key={z.id} value={z.id}>
               {formatBreadcrumb(zones, z.id)}
@@ -129,8 +150,12 @@ function MovePartsPageContent() {
       </label>
 
       {sourceZoneId && (
-        <div style={{ fontSize: 13, marginBottom: 16 }}>
-          {countLoading ? "กำลังนับ..." : `พบอะไหล่ ${affectedCount} ชิ้นในโซนนี้ (รวมโซนย่อย)`}
+        <div style={{ fontSize: 13, marginBottom: 16 }} data-testid="affected-count">
+          {countLoading
+            ? "กำลังนับ..."
+            : sourceZoneId === UNASSIGNED_SENTINEL
+            ? `พบอะไหล่ ${affectedCount} ชิ้นที่ยังไม่มีโซน`
+            : `พบอะไหล่ ${affectedCount} ชิ้นในโซนนี้ (รวมโซนย่อย)`}
         </div>
       )}
 
