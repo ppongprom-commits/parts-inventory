@@ -14,7 +14,7 @@ import { JOB_SOURCE_TYPES } from "../../../lib/jobStatusLabels";
 
 function NewJobPageContent() {
   const router = useRouter();
-  const { currentShopId, user } = useAuth();
+  const { currentShopId, currentShop, user } = useAuth();
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
@@ -105,8 +105,20 @@ function NewJobPageContent() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setSaving(true);
     setMsg(null);
+
+    // การ์ด "Stock Value Cap Engine" — acceptance criteria ตั้งใจยกตัวอย่าง "สร้าง job ใหม่" เป็น
+    // ฟีเจอร์ที่ถูกระงับเมื่อเกิน cap เกิน grace period 7 วัน (การขาย/ลดสต็อกต้องยังทำได้เสมอ —
+    // หน้านี้ไม่แตะ part_sales/checkout เลย จึงไม่กระทบ)
+    if (currentShop?.stock_cap_status === "blocked") {
+      setMsg({
+        type: "error",
+        text: "สร้างงานใหม่ถูกระงับชั่วคราว เพราะมูลค่าสต็อกเกินขีดจำกัดของแพ็กเกจเกิน 7 วันแล้ว — กรุณาลดสต็อกลงหรืออัปเกรดแพ็กเกจ",
+      });
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const photoUrls = photos.length ? await uploadJobPhotos(photos.map((p) => p.file)) : [];
