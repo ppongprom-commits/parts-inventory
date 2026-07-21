@@ -1,5 +1,14 @@
 -- การ์ด "ขยาย audit_log ให้ครอบทั้งระบบ + ใส่ changed_by_user_id จริง"
 --
+-- ⚠️⚠️ อัปเดต (ยังคืนนี้เอง): ส่วน "audit_parts_changes() / trg_audit_parts" ท้ายไฟล์นี้ถูกแทนที่
+-- แล้วโดย db/audit_log_full_coverage_migration.sql — ตอนเขียนไฟล์นี้รอบแรกยังไม่รู้ว่ามี generic
+-- trigger function fn_audit_row_change() ที่ครอบ parts/jobs/shop_members/shops/options/zones
+-- อยู่แล้วจริงบน staging (อีกจุด drift ที่ใหญ่กว่าที่คิด) เข้าใจผิดว่า trg_audit_parts เดิมเป็น
+-- ของเฉพาะ parts เลยสร้างฟังก์ชันแยกของตัวเอง กลายเป็น regression (parts หลุดจาก pattern กลาง) —
+-- ไฟล์ audit_log_full_coverage_migration.sql แก้คืนให้ parts กลับไปใช้ fn_audit_row_change()
+-- เหมือนตารางอื่นแล้ว ส่วนที่ยังใช้ได้จากไฟล์นี้คือคอลัมน์/RLS policy/RPC get_part_audit_history
+-- ด้านล่าง (ยังถูกต้องอยู่ ไม่ต้องแก้)
+--
 -- ⚠️ Schema drift ที่พบคืนนี้ (แก้ตามกระบวนการกัน drift ใน SOP.md) — ทั้งหมดนี้มีอยู่แล้วจริงบน
 -- staging จากเซสชันก่อนหน้าที่การ์ดนี้ถูก mark "In progress" แต่ไม่เคย commit กลับ repo เลย:
 --  - audit_log.record_id เปลี่ยนจาก NOT NULL เป็น nullable
@@ -38,46 +47,11 @@ create policy "shop owner/manager can view own shop audit_log" on audit_log
 -- ของใหม่จริงในรอบนี้: ขยาย coverage ไปที่ parts (เพิ่ม/แก้/ลบ — รวมการขายที่แก้ quantity ผ่าน
 -- deduct_part_stock RPC ด้วย เพราะ trigger จับที่ระดับตาราง ไม่สนช่องทางที่เขียนเข้ามา)
 -- ------------------------------------------------------------
--- ตัดสินใจ (แก้ปัญหาที่การ์ดเปิดค้างไว้ "trigger-based vs RPC-based"): ใช้ trigger-based สำหรับ
--- parts เพราะ parts ถูกแก้ตรงผ่าน supabase.from("parts").insert/update/delete() จากหลายหน้า
--- (/add, /edit, cart selling flow ในอนาคต ฯลฯ) ไม่ได้ผ่าน RPC กลางจุดเดียวแบบ model_generations —
--- RPC-based จะจับไม่ครบทุกช่องทางตามที่การ์ดกังวลไว้ตรงๆ ("ใครแก้ table ตรง...จะหลุด log เงียบๆ")
---
--- ⚠️ พบอีก 1 จุด drift ตอนจะสร้าง trigger นี้: staging มี trigger ชื่อ trg_audit_parts อยู่แล้วจริง
--- (พบแถว audit_log เก่าจากเมื่อวาน 20 ก.ค. ที่มี changed_by_user_id จริงอยู่ก่อนไฟล์นี้จะถูกรันด้วยซ้ำ)
--- จากเซสชันก่อนหน้าเช่นกัน แต่ logic เดิมไม่เคย commit ไม่มีทางรู้ว่าต่างจากด้านล่างนี้ตรงไหน —
--- ใช้ `create or replace` + `drop/create trigger` แทนที่ด้วยเวอร์ชันที่ผ่านการ verify แล้วรอบนี้
--- (ยืนยันด้วยการรัน update จริงบน staging แล้วเช็คว่า log ขึ้นถูก — ไม่กระทบแถว audit_log เก่าที่มีอยู่)
-create or replace function audit_parts_changes()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if tg_op = 'INSERT' then
-    insert into audit_log (table_name, record_uuid, action, old_data, new_data, changed_by_user_id, shop_id)
-    values ('parts', new.id, 'INSERT', null, to_jsonb(new), auth.uid(), new.shop_id);
-    return new;
-  elsif tg_op = 'UPDATE' then
-    if to_jsonb(old) is distinct from to_jsonb(new) then
-      insert into audit_log (table_name, record_uuid, action, old_data, new_data, changed_by_user_id, shop_id)
-      values ('parts', new.id, 'UPDATE', to_jsonb(old), to_jsonb(new), auth.uid(), new.shop_id);
-    end if;
-    return new;
-  elsif tg_op = 'DELETE' then
-    insert into audit_log (table_name, record_uuid, action, old_data, new_data, changed_by_user_id, shop_id)
-    values ('parts', old.id, 'DELETE', to_jsonb(old), null, auth.uid(), old.shop_id);
-    return old;
-  end if;
-  return null;
-end;
-$$;
-
-drop trigger if exists trg_audit_parts on parts;
-create trigger trg_audit_parts
-  after insert or update or delete on parts
-  for each row execute function audit_parts_changes();
+-- ⚠️ ส่วนสร้าง trigger เฉพาะ parts ที่เคยอยู่ตรงนี้ถูกย้าย/แทนที่แล้วโดย
+-- db/audit_log_full_coverage_migration.sql — parts ใช้ fn_audit_row_change() ตัวเดียวกับตารางอื่น
+-- ทั้งหมด (jobs/shop_members/shops/options/zones) ไม่มีฟังก์ชันแยกเฉพาะ parts อีกต่อไป
+-- อย่าเพิ่ม trigger เฉพาะ parts กลับมาที่นี่ — รันไฟล์ audit_log_full_coverage_migration.sql
+-- หลังไฟล์นี้เสมอเวลาติดตั้งใหม่ (fresh install)
 
 -- RPC เดียว ใช้ทั้งหน้า edit part (ประวัติของชิ้นนี้) — SECURITY DEFINER เพื่อให้ role ที่ไม่ใช่
 -- owner/manager (technician/assistant/field_scanner ในอนาคต ที่แก้ไขข้อมูล part ได้) เห็นประวัติ
