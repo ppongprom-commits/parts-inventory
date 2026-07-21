@@ -24,6 +24,9 @@ export async function POST(request) {
     const pin = (body.pin || "").trim();
     const contactName = (body.contact_name || "").trim();
     const contactPhone = (body.contact_phone || "").trim();
+    // การ์ด "Field Scanner Role + temp account auto-expiry" — เฉพาะ role นี้เท่านั้นที่ตั้ง
+    // วันหมดอายุได้ตอนสร้าง (บัญชีปกติอื่นๆ ไม่มีวันหมดอายุ)
+    const expiresAt = role === "field_scanner" && body.expires_at ? body.expires_at : null;
 
     if (!shopId || !role || !username || !pin || !contactName || !contactPhone) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
@@ -95,6 +98,7 @@ export async function POST(request) {
         contact_name: contactName,
         contact_phone: contactPhone,
         login_username: username,
+        expires_at: expiresAt,
       })
       .select()
       .single();

@@ -66,4 +66,17 @@ export const ROLE_PERMISSIONS = {
     invite_members: false,
     change_roles: false,
   },
+  // การ์ด "Field Scanner Role" (19 ก.ค. 2026 — ตัดสินใจแล้ว): กรอก/แก้ไขข้อมูลอะไหล่ได้เต็มที่
+  // แต่ทำรายการขายไม่ได้เด็ดขาด ห้ามลบ/ดูข้อมูลลูกค้า/รีเซ็ต PIN คนอื่น — view_price ไม่ได้ระบุไว้
+  // ตรงๆ ในการ์ด ใช้ false ตามมาตรฐานเดียวกับ technician/assistant (role ความไว้ใจต่ำ ไม่ควรเห็น
+  // ราคาต้นทุน/ขายโดยไม่มีเหตุจำเป็น) — ปรับได้ทีหลังถ้าการ์ดตัดสินใจต่างจากนี้
+  field_scanner: {
+    view_parts: true,
+    view_price: false,
+    add_edit_parts: true,
+    delete_parts: false,
+    manage_zones_options: false,
+    invite_members: false,
+    change_roles: false,
+  },
 };

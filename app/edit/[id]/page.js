@@ -827,7 +827,9 @@ function EditPartPageContent() {
         </button>
       </form>
 
-      {form.item_type === "salvage" && Number(form.quantity) > 0 && (
+      {/* Field Scanner ทำรายการขายไม่ได้เด็ดขาด (ตัดสินใจแล้วในการ์ด) — ซ่อนส่วนขายทั้งหมด
+         RLS ของ part_sales กันไว้ที่ DB layer อยู่แล้วเป็นด่านหลัก นี่คือด่าน UI */}
+      {form.item_type === "salvage" && Number(form.quantity) > 0 && currentRole !== "field_scanner" && (
         <div
           style={{
             marginTop: 16,
@@ -972,7 +974,7 @@ function EditPartPageContent() {
 
 export default function EditPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
       <EditPartPageContent />
     </RequireAuth>
   );

@@ -12,10 +12,13 @@ const ROLE_LABELS = {
   supervisor: "หัวหน้างาน",
   technician: "ช่าง",
   assistant: "ผู้ช่วยช่าง",
+  field_scanner: "พนักงานสแกนภาคสนาม (ชั่วคราว)",
 };
 
 const INVITABLE_ROLES = ["manager", "supervisor", "technician", "assistant"];
-const STAFF_ROLES = ["supervisor", "technician", "assistant"];
+// การ์ด "Field Scanner Role" — สร้างผ่าน username+PIN ได้เหมือน staff ทั่วไป (ไม่ผ่านอีเมล
+// เพราะเป็นบัญชีชั่วคราวที่ต้องสร้างเร็ว) แต่ไม่อยู่ใน INVITABLE_ROLES (เชิญผ่านอีเมล) ด้านบน
+const STAFF_ROLES = ["supervisor", "technician", "assistant", "field_scanner"];
 
 function generateRandomPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -60,6 +63,7 @@ function TeamPageContent() {
   const [staffUsername, setStaffUsername] = useState("");
   const [staffPin, setStaffPin] = useState(generateRandomPin());
   const [staffRole, setStaffRole] = useState("technician");
+  const [staffExpiresAt, setStaffExpiresAt] = useState("");
   const [staffContactName, setStaffContactName] = useState("");
   const [staffContactPhone, setStaffContactPhone] = useState("");
   const [creatingStaff, setCreatingStaff] = useState(false);
@@ -194,6 +198,7 @@ function TeamPageContent() {
           pin: staffPin,
           contact_name: staffContactName.trim(),
           contact_phone: staffContactPhone.trim(),
+          expires_at: staffRole === "field_scanner" && staffExpiresAt ? new Date(staffExpiresAt).toISOString() : null,
         }),
       });
 
@@ -206,6 +211,7 @@ function TeamPageContent() {
       setStaffPin(generateRandomPin());
       setStaffContactName("");
       setStaffContactPhone("");
+      setStaffExpiresAt("");
       fetchTeam();
     } catch (err) {
       setMsg({ type: "error", text: "สร้างบัญชีไม่สำเร็จ: " + err.message });
@@ -459,6 +465,20 @@ function TeamPageContent() {
                   ))}
                 </select>
               </label>
+              {staffRole === "field_scanner" && (
+                <label data-testid="field-scanner-expiry-field">
+                  วันหมดอายุบัญชี (ไม่บังคับ — เว้นว่าง = ไม่มีวันหมดอายุ)
+                  <input
+                    type="date"
+                    value={staffExpiresAt}
+                    onChange={(e) => setStaffExpiresAt(e.target.value)}
+                  />
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    บัญชีนี้กรอก/แก้ไขข้อมูลอะไหล่ได้เต็มที่ แต่ขายไม่ได้ และไม่เห็นข้อมูลลูกค้าเลย —
+                    เหมาะสำหรับรุมเก็บข้อมูลช่วงสั้นๆ (burst mode)
+                  </div>
+                </label>
+              )}
               <button type="submit" disabled={creatingStaff}>
                 {creatingStaff ? "กำลังสร้าง..." : "+ สร้างบัญชีพนักงาน"}
               </button>
@@ -693,6 +713,11 @@ function TeamPageContent() {
               {!m.login_username && m.email && ` · ${m.email}`}
             </div>
             <div className="card-sub">{m.status === "disabled" ? "🚫 ปิดใช้งานแล้ว" : "✅ ใช้งานอยู่"}</div>
+            {m.expires_at && (
+              <div className="card-sub" data-testid={`expires-at-${m.member_id}`}>
+                ⏳ หมดอายุ {new Date(m.expires_at).toLocaleDateString("th-TH")}
+              </div>
+            )}
           </div>
           {canManage && m.role !== "owner" && (
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
