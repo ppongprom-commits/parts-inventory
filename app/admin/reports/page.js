@@ -47,10 +47,18 @@ function ReportsPageContent() {
     setLoading(true);
     const rangeStart = getRangeStart(range);
 
+    // ✅ ตัดสินใจแล้วในการ์ด Accounting Module — scope "Informal Report": แยกตามวิธีชำระเงินด้วย
+    // (payment_method มีอยู่แล้วจาก card เดิม + ตอนนี้ผูกกับ Cart-based selling flow เต็มรูปแล้ว)
+    //
+    // บั๊กที่แก้คืนนี้: query เดิมไม่กรอง item_status เลย — พอ Cart-based selling flow เริ่มใช้จริง
+    // แล้ว part_sales บางแถวจะมี item_status = 'not_found' (พนักงานหาของไม่เจอตอน pick แล้วคืน
+    // สต็อกอัตโนมัติ — ดูการ์ด Cart-based selling flow) ซึ่ง**ไม่ควรนับเป็นยอดขายจริง** เพราะสต็อก
+    // ถูกคืนแล้วไม่มีการส่งมอบเกิดขึ้นจริง แต่รายงานเดิมนับรวมไปด้วยเพราะไม่เคยกรอง — แก้แล้ว
     let salesQuery = supabase
       .from("part_sales")
-      .select("sale_id, quantity_sold, sale_price, sold_to, sold_at, part_id, parts(part_name)")
+      .select("sale_id, quantity_sold, sale_price, sold_to, sold_at, payment_method, item_status, part_id, parts(part_name)")
       .eq("shop_id", currentShopId)
+      .neq("item_status", "not_found")
       .order("sold_at", { ascending: false });
     if (rangeStart) salesQuery = salesQuery.gte("sold_at", rangeStart.toISOString());
 
@@ -71,6 +79,14 @@ function ReportsPageContent() {
 
   const partSalesTotal = partSales.reduce((sum, s) => sum + Number(s.quantity_sold) * Number(s.sale_price), 0);
   const partSalesQty = partSales.reduce((sum, s) => sum + Number(s.quantity_sold), 0);
+
+  // แยกตามวิธีชำระเงิน (ตัดสินใจแล้วในการ์ด Accounting Module scope "Informal Report")
+  const PAYMENT_METHOD_LABELS = { cash: "เงินสด", bank_transfer: "โอนเงิน", card: "บัตร", other: "อื่นๆ" };
+  const byPaymentMethod = {};
+  partSales.forEach((s) => {
+    const key = s.payment_method || "unspecified";
+    byPaymentMethod[key] = (byPaymentMethod[key] || 0) + Number(s.quantity_sold) * Number(s.sale_price);
+  });
 
   const billingTotal = billingDocs.reduce((sum, d) => sum + Number(d.snapshot?.grand_total || 0), 0);
 
@@ -171,6 +187,29 @@ function ReportsPageContent() {
                       }}
                     />
                     <div style={{ fontSize: 9, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{day}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* แยกตามวิธีชำระเงิน (Informal Report scope — Accounting Module) */}
+          {partSales.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
+                ยอดขายอะไหล่ แยกตามวิธีชำระเงิน
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {Object.entries(byPaymentMethod).map(([method, total]) => (
+                  <div
+                    className="card"
+                    key={method}
+                    style={{ cursor: "default", flexDirection: "column", alignItems: "flex-start", minWidth: 120 }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      {PAYMENT_METHOD_LABELS[method] || "ไม่ระบุ"}
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>{total.toLocaleString()} บาท</div>
                   </div>
                 ))}
               </div>
