@@ -502,3 +502,68 @@ parts-inventory/
 **⚠️ กระบวนการกัน drift รอบใหม่:** ดูหัวข้อ "กระบวนการกัน Schema Drift" ใน `SOP.md` — สรุปสั้นๆ
 คือ แก้ DB ตรงเมื่อไหร่ต้อง export กลับ repo วันเดียวกัน, seed ข้อมูลอ้างอิงกันด้วยชื่อไม่ใช่ raw id,
 รัน fresh-install test ก่อนปิดงานที่แตะ schema, migration ใหม่ต้อง idempotent เสมอ
+
+### 17. คืนวันที่ 21 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run #2)
+
+ทำงานบน sandbox เดียวกับรอบก่อนหน้า (ไม่มี network ออก `*.supabase.co` — qa-tests ทั้งหมด mock
+network ตามที่ `qa-tests/_fixtures/mockAuth.js` อธิบายไว้ แต่มี Supabase MCP ต่อ staging project
+จริงได้ ใช้ตรวจ/แก้ schema สด + verify ด้วย SQL จริงก่อน export กลับเป็นไฟล์ migration) หยิบการ์ด
+priority สูงสุดที่ยังไม่เสร็จมาทำทีละใบ ทั้งการ์ดโค้ดและการ์ดเอกสาร:
+
+**ฟีเจอร์ใหม่/แก้ไข:**
+- **Zone QR redesign + สแกนตำแหน่งตรงจากฟอร์ม** (`components/ZoneQRScanner.js`) — ตัวหนังสือบนป้าย
+  QR โซนใหญ่ขึ้น (10pt→20pt) อ่านง่ายจากระยะยืนหน้าชั้นจริง + ปุ่ม "📷 สแกนตำแหน่งแทน" ในหน้า
+  `/add` และ `/edit/[id]` เปิดกล้อง (native `BarcodeDetector` API) สแกน QR โซนแล้ว auto-fill
+  ให้เลย ปฏิเสธ auto-fill ถ้าสแกนโซนที่ไม่ใช่ leaf
+- **Job Assignment Status Tracking** (`app/jobs/[id]/page.js`) — ขั้นตอนงานย่อยแต่ละอันมีปุ่ม
+  เริ่มงาน/หยุดชั่วคราว (บังคับกรอกเหตุผล)/ทำต่อ/เสร็จงาน แทน `<select>` เดิมที่ตั้งสถานะอะไรก็ได้
+  ไม่มีลำดับ ไม่บันทึกเวลา — ตอนนี้บันทึก `started_at`/`completed_at` อัตโนมัติ + จำกัดสิทธิ์กดปุ่ม
+  เฉพาะคนที่ถูก assign หรือ supervisor ขึ้นไป บังคับทั้ง UI และ DB trigger
+- **ขยาย audit trail ไปที่ `parts`** (`components/PartAuditHistory.js`) — ปุ่ม "🕘 ประวัติการแก้ไข"
+  ที่หน้า `/edit/[id]` เห็นได้ทุก role ที่แก้ไขอะไหล่ได้ ไม่ใช่แค่ owner/manager (ผ่าน RPC
+  `get_part_audit_history` ที่เปิดให้ดูเฉพาะประวัติของชิ้นที่กำลังดูอยู่ ไม่ใช่ log เต็มร้าน)
+- **Bulk เข้า shelf ให้อะไหล่เก่าที่ไม่มี `zone_id`** — เพิ่ม source mode ใหม่ที่ `/move-parts`
+- **Part QR label spec** — เปลี่ยนจาก A4 grid (ใช้งานหน้างานจริงไม่ได้) เป็น 40x60mm เหมือน
+  Zone QR + โซนที่โชว์อ่านจาก `zone_id` breadcrumb จริงแทน `zone_code` เดิมที่ไม่อัปเดตแล้ว
+- **Zone move action + owner_type override** (`/move-part/[id]`) — action ย้าย Zone ทีละชิ้น
+  แยกจากการแก้ `zone_id` ตรงๆ ในฟอร์มแก้ไข เช็ค `owner_type` ปลายทางกับปัจจุบัน ถ้าไม่ตรงมี
+  checkbox ให้ยืนยันว่ายังเป็นประเภทเดิม + toggle ระดับร้าน "บังคับสแกน QR ยืนยันตำแหน่ง" ที่
+  `/admin` (default ปิด)
+- **กลไก ToS consent** (`components/TosConsentGate.js`) — ครอบทุกหน้าที่ผ่าน `RequireAuth`
+  บล็อกการใช้งานจนกว่า owner จะกดยอมรับเงื่อนไขเวอร์ชันล่าสุด (role อื่นเห็น gate เหมือนกันแต่กด
+  ยอมรับแทนไม่ได้) — เนื้อหาสัญญาใน `config/tosContent.js` เป็น **ร่างที่ยังไม่ผ่าน legal review**
+  ตามที่การ์ดต้นทางระบุไว้ตรงๆ ว่าต้องมีคนตรวจสอบก่อนใช้งานจริง
+- **`payment_method` บนฟอร์มขายทีละชิ้นที่มีอยู่แล้ว** (`/edit/[id]`) — บังคับเลือกทุกครั้ง
+  (เงินสด/โอนเงิน/บัตร/อื่นๆ) ไม่ default เงียบๆ — ยังไม่แตะ cart-based selling flow ที่ยังไม่เริ่ม
+
+**Schema drift ที่แก้ (พบอีกหลายจุดคืนนี้ — pattern เดิมซ้ำ: DB จริงบน staging นำหน้าไฟล์ใน git):**
+- `db/job_assignment_status_tracking_migration.sql` — `job_workflow_steps.hold_reason`/`held_at`,
+  `on_hold` status, และ trigger บังคับลำดับ state machine + สิทธิ์ (`enforce_workflow_step_status_transition`,
+  `update_job_workflow_step_timestamps`) มีอยู่แล้วบน staging จากเซสชันก่อนหน้าที่การ์ดถูก mark
+  "In progress" แต่ไม่เคย commit
+- `db/audit_log_full_coverage_migration.sql` — **ที่ใหญ่สุดคืนนี้:** พบว่ามี generic trigger
+  function `fn_audit_row_change()` ครอบ `parts`/`jobs`/`shop_members`/`shops`/`options`/`zones`
+  อยู่แล้วจริงบน staging จากเซสชันก่อนหน้า (การ์ด "ขยาย audit_log ให้ครอบทั้งระบบ" เกือบเสร็จไปแล้ว
+  ก่อนเราเริ่มทำด้วยซ้ำ) — ไฟล์นี้ยังแก้ **regression ที่เราทำเองในเซสชันนี้เอง** ด้วย: ตอนแรกไม่รู้
+  เรื่อง generic trigger เลยสร้างฟังก์ชันเฉพาะ `parts` แยกของตัวเอง ทำให้ `parts` หลุดออกจาก
+  pattern กลาง แก้คืนแล้วในไฟล์นี้ (verify ด้วยการรัน UPDATE จริงบน staging เช็คว่า log ขึ้นถูก)
+- `db/zone_move_action_migration.sql` — `shops.force_zone_scan_confirmation`,
+  `parts.owner_type_override` (คอลัมน์ใหม่จริง ไม่ใช่ drift — เพิ่มจากการ์ด "ย้ายอะไหล่ระหว่าง Zone")
+- ยืนยันอีกครั้งว่า `zones.path` เป็น PostgreSQL `ltree` จริง (ไม่ใช่ text) พร้อม trigger
+  auto-maintain path (`trg_zones_set_path`/`trg_zones_update_path`) อยู่แล้วบน staging — การ์ด
+  "Area/Rack/Level location hierarchy (ltree)" เกือบเสร็จไปแล้วเช่นกัน (ไม่ได้แตะเพิ่มคืนนี้
+  เพราะเวลาไม่พอตรวจ data migration ของ `zone_code` เก่าที่การ์ดต้องการให้ครบ)
+
+**เอกสารที่แก้ไข (พบข้อมูลเก่าที่ไม่ตรงกับโค้ดจริงแล้ว 3 จุด):** `SOP.md` เคยบอกว่าสแกน QR ยังไม่มี
+และ Platform Admin Activity Log ยังไม่มี UI (ทั้งคู่มีแล้วจริง) และทั้ง `SOP.md`+`USER_MANUAL.md`
+เคยบอกว่า `USER_MANUAL.md` ยังเป็น draft ไม่มีไฟล์ (มีไฟล์อยู่แล้วจริงตั้งแต่คืนก่อน) — แก้ครบแล้ว
+พร้อมเพิ่มเนื้อหาฟีเจอร์ใหม่คืนนี้ (Job Assignment Status Tracking, parts audit history)
+
+**การ์ดที่ตัดสินใจไม่ทำคืนนี้ (ตัวการ์ดเองเตือนว่าเสี่ยงถ้าทำแยก):** "ระบบเอกสาร/ใบเสร็จแยกสำหรับ
+ขายอะไหล่" และส่วนที่เหลือของ "บันทึกวิธีชำระเงิน" (checkout เต็มรูป) — ทั้งคู่ผูกกับ Cart-based
+selling flow ที่ยังไม่เริ่ม การ์ดต้นทางเตือนตรงๆ ว่าทำแยกกันเสี่ยงได้ checkout ที่ขาดช่องสำคัญ
+ไม่ได้ implement ในช่วงเวลานี้เพื่อไม่ให้ต้องรื้อทำใหม่ตอน cart flow เริ่มจริง
+
+**⚠️ GitHub push ไม่สำเร็จคืนนี้:** sandbox มี read access clone `staging` ได้ปกติ แต่ push ถูก
+ปฏิเสธ (403) ทุกครั้ง — commit ทั้งหมดของคืนนี้จึงอยู่ใน local git history ของ sandbox เท่านั้น
+ยังไม่ขึ้น GitHub จริง คุณอั้มต้องดึง patch/diff ไปใส่ที่ repo จริงเอง (ดูสรุปท้ายเซสชัน)
