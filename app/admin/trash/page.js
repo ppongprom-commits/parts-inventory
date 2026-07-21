@@ -109,6 +109,14 @@ function TrashAdminPageContent() {
             <div className="card-sub">
               {p.car_brand} {p.car_model} {p.car_year ? `(${p.car_year})` : ""}
             </div>
+            {/* การ์ด "Salvage vehicle cost allocation" edge case 1 — แยกให้เห็นชัดว่าอันไหนถูก
+                "ตัดเป็นค่าเสียหาย" (write-off, มีเหตุผล+หลักฐานทางบัญชี) ต่างจากแค่ซ่อนไว้เฉยๆ */}
+            {p.write_off_reason && (
+              <div className="card-sub" data-testid={`write-off-badge-${p.id}`} style={{ color: "var(--danger-text)" }}>
+                📉 ตัดเป็นค่าเสียหาย: {p.write_off_reason}
+                {p.written_off_at && ` (${new Date(p.written_off_at).toLocaleDateString("th-TH")})`}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
               <button
                 type="button"

@@ -6,10 +6,11 @@ import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import IdleSessionGuard from "./IdleSessionGuard";
 import AppShell from "./AppShell";
+import TosConsentGate from "./TosConsentGate";
 
 export default function RequireAuth({ children, allowedRoles }) {
   const router = useRouter();
-  const { loading, session, memberships, currentRole, signOut, isDisabledAccount } = useAuth();
+  const { loading, session, memberships, currentRole, signOut, isDisabledAccount, isExpiredAccount } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -17,12 +18,12 @@ export default function RequireAuth({ children, allowedRoles }) {
       router.replace("/login");
       return;
     }
-    // ⚠️ ต้องเช็ค isDisabledAccount ก่อนเสมอ — คนที่เคยมีอู่แต่ถูกปิดใช้งาน
-    // ไม่ควรถูกพาไปหน้า /signup (จะสร้างอู่ใหม่หลบเลี่ยงการถูกปิดใช้งานได้)
-    if (memberships.length === 0 && !isDisabledAccount) {
+    // ⚠️ ต้องเช็ค isDisabledAccount/isExpiredAccount ก่อนเสมอ — คนที่เคยมีอู่แต่ถูกปิดใช้งาน
+    // หรือบัญชีชั่วคราวหมดอายุแล้ว ไม่ควรถูกพาไปหน้า /signup (จะสร้างอู่ใหม่หลบเลี่ยงได้)
+    if (memberships.length === 0 && !isDisabledAccount && !isExpiredAccount) {
       router.replace("/signup"); // login แล้วแต่ไม่เคยมีอู่มาก่อนเลยจริงๆ ให้ไปสร้างอู่แรก
     }
-  }, [loading, session, memberships, isDisabledAccount, router]);
+  }, [loading, session, memberships, isDisabledAccount, isExpiredAccount, router]);
 
   // ⚠️ กันเคส sign out แล้วกด back ของ browser กลับมาหน้านี้ — browser อาจคืนหน้าจาก
   // back/forward cache (bfcache) ทั้งอันโดยไม่รัน effect ข้างบนใหม่ ทำให้เห็นเนื้อหาเดิมค้างไว้
@@ -49,6 +50,35 @@ export default function RequireAuth({ children, allowedRoles }) {
 
   if (!session) {
     return null; // กำลัง redirect ไป /login
+  }
+
+  if (isExpiredAccount) {
+    return (
+      <div className="container" style={{ paddingTop: 60, textAlign: "center" }} data-testid="expired-account-screen">
+        <div style={{ fontSize: 40, marginBottom: 8 }}>⏳</div>
+        <h1 style={{ fontSize: 18, marginBottom: 8 }}>บัญชีชั่วคราวนี้หมดอายุแล้ว</h1>
+        <p style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
+          ติดต่อเจ้าของ/ผู้จัดการของอู่ถ้ายังต้องใช้งานต่อ
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            router.replace("/login");
+          }}
+          style={{
+            padding: "10px 20px",
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            cursor: "pointer",
+          }}
+        >
+          ออกจากระบบ
+        </button>
+      </div>
+    );
   }
 
   if (isDisabledAccount) {
@@ -101,7 +131,9 @@ export default function RequireAuth({ children, allowedRoles }) {
         router.replace("/login?reason=idle");
       }}
     >
-      <AppShell>{children}</AppShell>
+      <AppShell>
+        <TosConsentGate>{children}</TosConsentGate>
+      </AppShell>
     </IdleSessionGuard>
   );
 }

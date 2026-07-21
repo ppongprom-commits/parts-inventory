@@ -12,10 +12,13 @@ const ROLE_LABELS = {
   supervisor: "หัวหน้างาน",
   technician: "ช่าง",
   assistant: "ผู้ช่วยช่าง",
+  field_scanner: "พนักงานสแกนภาคสนาม (ชั่วคราว)",
 };
 
 const INVITABLE_ROLES = ["manager", "supervisor", "technician", "assistant"];
-const STAFF_ROLES = ["supervisor", "technician", "assistant"];
+// การ์ด "Field Scanner Role" — สร้างผ่าน username+PIN ได้เหมือน staff ทั่วไป (ไม่ผ่านอีเมล
+// เพราะเป็นบัญชีชั่วคราวที่ต้องสร้างเร็ว) แต่ไม่อยู่ใน INVITABLE_ROLES (เชิญผ่านอีเมล) ด้านบน
+const STAFF_ROLES = ["supervisor", "technician", "assistant", "field_scanner"];
 
 function generateRandomPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -60,10 +63,15 @@ function TeamPageContent() {
   const [staffUsername, setStaffUsername] = useState("");
   const [staffPin, setStaffPin] = useState(generateRandomPin());
   const [staffRole, setStaffRole] = useState("technician");
+  const [staffExpiresAt, setStaffExpiresAt] = useState("");
   const [staffContactName, setStaffContactName] = useState("");
   const [staffContactPhone, setStaffContactPhone] = useState("");
   const [creatingStaff, setCreatingStaff] = useState(false);
   const [createdStaffCredential, setCreatedStaffCredential] = useState(null);
+
+  // credential ที่เพิ่ง reset ให้สมาชิกคนหนึ่ง (โชว์ครั้งเดียวให้คัดลอกไปบอกเจ้าตัว)
+  const [resettingMemberId, setResettingMemberId] = useState(null);
+  const [resetCredential, setResetCredential] = useState(null);
 
   useEffect(() => {
     if (currentShopId) fetchTeam();
@@ -190,6 +198,7 @@ function TeamPageContent() {
           pin: staffPin,
           contact_name: staffContactName.trim(),
           contact_phone: staffContactPhone.trim(),
+          expires_at: staffRole === "field_scanner" && staffExpiresAt ? new Date(staffExpiresAt).toISOString() : null,
         }),
       });
 
@@ -202,6 +211,7 @@ function TeamPageContent() {
       setStaffPin(generateRandomPin());
       setStaffContactName("");
       setStaffContactPhone("");
+      setStaffExpiresAt("");
       fetchTeam();
     } catch (err) {
       setMsg({ type: "error", text: "สร้างบัญชีไม่สำเร็จ: " + err.message });
@@ -290,6 +300,78 @@ function TeamPageContent() {
     setBusy(false);
   }
 
+  // รีเซ็ตรหัสผ่าน/PIN ให้สมาชิกคนหนึ่ง — สุ่มค่าใหม่แล้วเรียก /api/team/reset-pin
+  // (route เดียวกันรองรับทั้งบัญชี username+PIN และบัญชีอีเมล)
+  async function handleResetPassword(member) {
+    const isPinAccount = !!member.login_username;
+    const label = isPinAccount ? "PIN" : "รหัสผ่าน";
+    const newValue = isPinAccount ? generateRandomPin() : generateRandomPassword();
+    const displayName = member.contact_name || member.login_username || member.email || "สมาชิกคนนี้";
+
+    const confirmed = window.confirm(
+      `รีเซ็ต${label}ของ "${displayName}" เป็นค่าใหม่นี้ใช่ไหม?\n\n${newValue}\n\n${label}เดิมจะใช้ไม่ได้ทันที`
+    );
+    if (!confirmed) return;
+
+    setResettingMemberId(member.member_id);
+    setMsg(null);
+    setResetCredential(null);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/team/reset-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ member_id: member.member_id, new_pin: newValue }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "เกิดข้อผิดพลาด");
+
+      setResetCredential({ name: displayName, value: newValue, label });
+      setMsg({ type: "success", text: `รีเซ็ต${label}ของ "${displayName}" สำเร็จ ✅` });
+    } catch (err) {
+      setMsg({ type: "error", text: `รีเซ็ต${label}ไม่สำเร็จ: ` + err.message });
+    } finally {
+      setResettingMemberId(null);
+    }
+  }
+
+  // การ์ด "Onboarding Burst Mode" — Manager กด "ขอต่ออายุ" (Requester), Owner กด "อนุมัติ/ปฏิเสธ"
+  // (Approver) ต้องคนละคนกันเสมอ (บังคับจริงที่ API ไม่ใช่แค่ซ่อนปุ่ม — ดูหมายเหตุ assumption ที่
+  // ยังไม่ตัดสินใจ (Trial->Paid ระหว่างรอบ, หน้าต่างเวลาที่ขอได้, 20 บัญชี fix ทุก tier ไหม, Owner
+  // ไม่ตอบจนหมดเขต) ใน db/onboarding_burst_mode_migration.sql)
+  const [burstBusyMemberId, setBurstBusyMemberId] = useState(null);
+
+  async function handleBurstExtensionAction(action, payload) {
+    setBurstBusyMemberId(payload.member_id || payload.request_id);
+    setMsg(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/team/burst-mode-extension", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action, shop_id: currentShopId, ...payload }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "เกิดข้อผิดพลาด");
+      setMsg({ type: "success", text: action === "request" ? "ส่งคำขอต่ออายุแล้ว ✅ รอเจ้าของอู่อนุมัติ" : "บันทึกผลแล้ว ✅" });
+      fetchTeam();
+    } catch (err) {
+      setMsg({ type: "error", text: "ดำเนินการไม่สำเร็จ: " + err.message });
+    } finally {
+      setBurstBusyMemberId(null);
+    }
+  }
+
   const canManage = currentRole === "owner" || currentRole === "manager";
 
   return (
@@ -302,6 +384,23 @@ function TeamPageContent() {
       </div>
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
+
+      {resetCredential && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 8,
+            background: "var(--surface-dim)",
+            fontSize: 13,
+          }}
+        >
+          <div style={{ marginBottom: 4 }}>
+            📋 บอก{resetCredential.label}ใหม่นี้ให้ <strong>{resetCredential.name}</strong> (จะไม่แสดงซ้ำอีก จดไว้ก่อนปิดหน้านี้):
+          </div>
+          <div>{resetCredential.label}ใหม่: <strong>{resetCredential.value}</strong></div>
+        </div>
+      )}
 
       {!canManage && (
         <div className="msg error" style={{ marginBottom: 16 }}>
@@ -395,6 +494,20 @@ function TeamPageContent() {
                   ))}
                 </select>
               </label>
+              {staffRole === "field_scanner" && (
+                <label data-testid="field-scanner-expiry-field">
+                  วันหมดอายุบัญชี (ไม่บังคับ — เว้นว่าง = ไม่มีวันหมดอายุ)
+                  <input
+                    type="date"
+                    value={staffExpiresAt}
+                    onChange={(e) => setStaffExpiresAt(e.target.value)}
+                  />
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    บัญชีนี้กรอก/แก้ไขข้อมูลอะไหล่ได้เต็มที่ แต่ขายไม่ได้ และไม่เห็นข้อมูลลูกค้าเลย —
+                    เหมาะสำหรับรุมเก็บข้อมูลช่วงสั้นๆ (burst mode)
+                  </div>
+                </label>
+              )}
               <button type="submit" disabled={creatingStaff}>
                 {creatingStaff ? "กำลังสร้าง..." : "+ สร้างบัญชีพนักงาน"}
               </button>
@@ -629,6 +742,64 @@ function TeamPageContent() {
               {!m.login_username && m.email && ` · ${m.email}`}
             </div>
             <div className="card-sub">{m.status === "disabled" ? "🚫 ปิดใช้งานแล้ว" : "✅ ใช้งานอยู่"}</div>
+            {m.expires_at && (
+              <div className="card-sub" data-testid={`expires-at-${m.member_id}`}>
+                ⏳ หมดอายุ {new Date(m.expires_at).toLocaleDateString("th-TH")}
+                {m.burst_extended && " (ต่ออายุไปแล้ว 1 ครั้ง — ต่อเพิ่มไม่ได้อีก)"}
+              </div>
+            )}
+            {/* การ์ด "Onboarding Burst Mode" — Requester (Manager) / Approver (Owner) */}
+            {m.role === "field_scanner" && m.expires_at && !m.burst_extended && (
+              <>
+                {m.pending_extension_request ? (
+                  currentRole === "owner" ? (
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <button
+                        type="button"
+                        disabled={burstBusyMemberId === m.pending_extension_request.request_id}
+                        onClick={() =>
+                          handleBurstExtensionAction("respond", {
+                            request_id: m.pending_extension_request.request_id,
+                            decision: "approved",
+                          })
+                        }
+                        style={{ fontSize: 12, padding: "4px 10px" }}
+                      >
+                        ✓ อนุมัติต่ออายุ
+                      </button>
+                      <button
+                        type="button"
+                        disabled={burstBusyMemberId === m.pending_extension_request.request_id}
+                        onClick={() =>
+                          handleBurstExtensionAction("respond", {
+                            request_id: m.pending_extension_request.request_id,
+                            decision: "rejected",
+                          })
+                        }
+                        style={{ fontSize: 12, padding: "4px 10px" }}
+                      >
+                        ✕ ปฏิเสธ
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="card-sub" style={{ color: "var(--warn-text, #b45309)" }}>
+                      ⏳ รอเจ้าของอู่อนุมัติการต่ออายุ
+                    </div>
+                  )
+                ) : (
+                  currentRole === "manager" && (
+                    <button
+                      type="button"
+                      disabled={burstBusyMemberId === m.member_id}
+                      onClick={() => handleBurstExtensionAction("request", { member_id: m.member_id })}
+                      style={{ fontSize: 12, padding: "4px 10px", marginTop: 4 }}
+                    >
+                      ขอต่ออายุ
+                    </button>
+                  )
+                )}
+              </>
+            )}
           </div>
           {canManage && m.role !== "owner" && (
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -644,6 +815,27 @@ function TeamPageContent() {
                   </option>
                 ))}
               </select>
+              {m.status === "active" && (
+                <button
+                  type="button"
+                  onClick={() => handleResetPassword(m)}
+                  disabled={resettingMemberId === m.member_id}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border-strong)",
+                    background: "transparent",
+                    color: "var(--text)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {resettingMemberId === m.member_id
+                    ? "กำลังรีเซ็ต..."
+                    : `🔑 รีเซ็ต${m.login_username ? "PIN" : "รหัสผ่าน"}`}
+                </button>
+              )}
               {m.status === "active" && (
                 <button
                   type="button"

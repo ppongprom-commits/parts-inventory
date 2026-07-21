@@ -22,25 +22,28 @@ export async function POST(request) {
       return NextResponse.json({ error: "PIN/รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข ยาว 4-20 ตัว" }, { status: 400 });
     }
 
-    // หาสมาชิกเป้าหมาย + ตรวจว่าเป็นบัญชี username+PIN จริง (มี login_username)
+    // หาสมาชิกเป้าหมาย (ใช้ได้ทั้งบัญชี username+PIN และบัญชีอีเมล — updateUserById
+    // ตั้งรหัสผ่านได้เหมือนกันไม่ว่าจะ login ด้วยวิธีไหน)
     const { data: targetMember, error: targetError } = await supabaseAdmin
       .from("shop_members")
-      .select("shop_id, user_id, login_username")
+      .select("shop_id, user_id, login_username, role")
       .eq("member_id", memberId)
       .single();
     if (targetError) throw targetError;
 
-    if (!targetMember.login_username) {
-      return NextResponse.json(
-        { error: "สมาชิกคนนี้ใช้บัญชีอีเมล ไม่ใช่ระบบ username+PIN — รีเซ็ตรหัสผ่านผ่านอีเมลแทน" },
-        { status: 400 }
-      );
-    }
-
-    // อนุญาต 2 กรณี: (1) เจ้าของบัญชีเปลี่ยน PIN ตัวเอง หรือ (2) owner/manager เปลี่ยนให้คนอื่น
+    // อนุญาต 2 กรณี: (1) เจ้าของบัญชีเปลี่ยนรหัส/PIN ตัวเอง หรือ (2) owner/manager เปลี่ยนให้คนอื่น
     const isSelfService = targetMember.user_id === userId;
 
     if (!isSelfService) {
+      // กันไว้ก่อน: manager ต้องรีเซ็ตรหัสผ่านของ owner แทนไม่ได้ (ป้องกัน manager ล็อก owner ออกจากอู่ตัวเอง)
+      // เจ้าของต้องรีเซ็ตรหัสผ่านตัวเอง (self-service) เท่านั้น
+      if (targetMember.role === "owner") {
+        return NextResponse.json(
+          { error: "ไม่สามารถรีเซ็ตรหัสผ่านของเจ้าของอู่แทนได้ — เจ้าของต้องรีเซ็ตด้วยตัวเองเท่านั้น" },
+          { status: 403 }
+        );
+      }
+
       const managerCheck = await verifyShopManager(targetMember.shop_id, userId);
       if (managerCheck.error) {
         return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });

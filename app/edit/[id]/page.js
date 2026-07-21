@@ -5,11 +5,23 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
+import ZoneAutocomplete from "../../../components/ZoneAutocomplete";
+import ZoneQRScanner from "../../../components/ZoneQRScanner";
+import PartAuditHistory from "../../../components/PartAuditHistory";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
+
+// การ์ด "บันทึกวิธีชำระเงินแยกทุกช่องทาง (payment_method)" — ✅ ตัดสินใจแล้ว: แยกทุกช่องทาง
+// ไม่รวมเป็น category เดียว (ผูกกับบัญชีเงินสด/ธนาคารคนละบัญชีตามผังบัญชี)
+const PAYMENT_METHOD_LABELS = {
+  cash: "เงินสด",
+  bank_transfer: "โอนเงิน",
+  card: "บัตร",
+  other: "อื่นๆ",
+};
 
 function EditPartPageContent() {
   const params = useParams();
@@ -17,7 +29,7 @@ function EditPartPageContent() {
   const { id } = params;
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
-  const { currentShopId, currentRole } = useAuth();
+  const { currentShopId, currentRole, user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
@@ -33,13 +45,14 @@ function EditPartPageContent() {
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [writingOff, setWritingOff] = useState(false);
   const [msg, setMsg] = useState(null);
 
   const [zones, setZones] = useState([]);
   const [zonesLoading, setZonesLoading] = useState(true);
 
   const [sales, setSales] = useState([]);
-  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "" });
+  const [saleForm, setSaleForm] = useState({ quantity: "", price: "", sold_to: "", payment_method: "" });
   const [selling, setSelling] = useState(false);
   const [saleMsg, setSaleMsg] = useState(null);
 
@@ -85,6 +98,13 @@ function EditPartPageContent() {
       setSaleMsg({ type: "error", text: "กรุณาระบุราคาขาย" });
       return;
     }
+    // ✅ ตัดสินใจ (การ์ด payment_method — test scenario "บังคับเลือกทุกครั้ง หรือ default = cash?"):
+    // บังคับเลือกเสมอ ไม่ default เงียบๆ ไปที่ค่าใดค่าหนึ่ง (เข้ากับหลักการเดียวกับ mapping
+    // account_code ในการ์ดเดียวกันที่ตั้งใจไม่ default ไปบัญชีเงินสดโดยไม่รู้ตัว)
+    if (!saleForm.payment_method) {
+      setSaleMsg({ type: "error", text: "กรุณาเลือกวิธีชำระเงิน" });
+      return;
+    }
 
     setSelling(true);
 
@@ -105,6 +125,7 @@ function EditPartPageContent() {
         sale_price: price,
         sold_to: saleForm.sold_to || null,
         sold_by: userData?.user?.id || null,
+        payment_method: saleForm.payment_method,
       });
       if (saleError) throw saleError;
 
@@ -117,7 +138,7 @@ function EditPartPageContent() {
       }
 
       setSaleMsg({ type: "success", text: "บันทึกการขายสำเร็จ ✅" });
-      setSaleForm({ quantity: "", price: "", sold_to: "" });
+      setSaleForm({ quantity: "", price: "", sold_to: "", payment_method: "" });
       fetchPart();
       fetchSales();
     } catch (err) {
@@ -183,10 +204,19 @@ function EditPartPageContent() {
             .maybeSingle();
           trimName = trimRow?.trim_name || null;
         }
+        let generationCode = null;
+        if (data.generation_id) {
+          const { data: genRow } = await supabase
+            .from("model_generations")
+            .select("generation_code")
+            .eq("generation_id", data.generation_id)
+            .maybeSingle();
+          generationCode = genRow?.generation_code || null;
+        }
         setSelectedGeneration({
           generation_id: data.generation_id,
           year_range_display: data.car_year_display,
-          generation_code: null,
+          generation_code: generationCode,
           trim_id: data.trim_id || null,
           trim_name: trimName,
         });
@@ -200,10 +230,9 @@ function EditPartPageContent() {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
-  function handleZoneChange(e) {
-    const value = e.target.value;
-    setForm((f) => ({ ...f, zone_code: value }));
-    setDefaultZone(value);
+  function handleZoneChange(zoneId) {
+    setForm((f) => ({ ...f, zone_id: zoneId || "" }));
+    setDefaultZone(zoneId || "");
   }
 
   async function handlePhotoChange(e) {
@@ -258,6 +287,7 @@ function EditPartPageContent() {
 
     if (totalPhotoCount === 0) {
       setPhotoError("ต้องมีรูปอย่างน้อย 1 รูปก่อนบันทึก");
+      alert("⚠️ กรุณาถ่าย/แนบรูปอย่างน้อย 1 รูปก่อนบันทึก");
       return;
     }
 
@@ -278,7 +308,7 @@ function EditPartPageContent() {
           car_year_display: selectedGeneration?.year_range_display || null,
           trim_id: selectedGeneration?.trim_id || null,
           condition: form.condition || null,
-          zone_code: form.zone_code || null,
+          zone_id: form.zone_id || null,
           source_type: form.source_type || null,
           status: form.status || null,
           quantity: form.quantity ? Number(form.quantity) : 1,
@@ -327,6 +357,42 @@ function EditPartPageContent() {
     }
   }
 
+  // การ์ด "Salvage vehicle cost allocation" edge case 1 — write-off เป็น generic action บนตัว
+  // part (ไม่ผูกกับ salvage อย่างเดียว) ต่างจาก "ซ่อนอะไหล่" ด้านบนตรงที่บันทึกเหตุผล+ผู้ทำ+เวลา
+  // ไว้เป็นหลักฐานทางบัญชีว่า "ตัดเป็นค่าเสียหาย" ไม่ใช่แค่ซ่อนเฉยๆ (ทั้งคู่ตั้ง is_active=false
+  // เหมือนกัน จึงหลุดออกจาก Stock Value Cap ทันทีทั้งคู่ผ่าน trigger ที่มีอยู่แล้ว)
+  async function handleWriteOff() {
+    const reason = window.prompt(
+      `ตัด "${form.part_name}" เป็นค่าเสียหาย (write-off)?\n\nกรุณาระบุเหตุผล (เช่น ใช้ไม่ได้/พังเพิ่มระหว่างเก็บ):`
+    );
+    if (reason === null) return; // กดยกเลิก
+    if (!reason.trim()) {
+      setMsg({ type: "error", text: "กรุณาระบุเหตุผลก่อนตัดเป็นค่าเสียหาย" });
+      return;
+    }
+
+    setWritingOff(true);
+    setMsg(null);
+
+    try {
+      const { error } = await supabase
+        .from("parts")
+        .update({
+          is_active: false,
+          write_off_reason: reason.trim(),
+          written_off_at: new Date().toISOString(),
+          written_off_by: user?.id || null,
+        })
+        .eq("id", id);
+      if (error) throw error;
+
+      router.push("/");
+    } catch (err) {
+      setMsg({ type: "error", text: "ตัดเป็นค่าเสียหายไม่สำเร็จ: " + err.message });
+      setWritingOff(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="container">
@@ -356,6 +422,8 @@ function EditPartPageContent() {
       </div>
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
+
+      <PartAuditHistory partId={id} shopId={currentShopId} />
 
       <form onSubmit={handleSubmit}>
         <label>
@@ -573,26 +641,7 @@ function EditPartPageContent() {
           />
         </label>
 
-        <label>
-          รถปัจจุบันของอะไหล่ชิ้นนี้
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              border: "1px solid var(--border-strong)",
-              background: "var(--surface-dim)",
-              fontSize: 14,
-            }}
-          >
-            {form.car_brand || form.car_model
-              ? `${form.car_brand || ""} ${form.car_model || ""}${
-                  selectedGeneration?.trim_name ? ` · ${selectedGeneration.trim_name}` : ""
-                }`.trim()
-              : "— ยังไม่มีข้อมูลรถ —"}
-          </div>
-        </label>
-
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น) — พิมพ์แล้วเลือกเฉพาะเมื่อต้องการเปลี่ยนรถของอะไหล่ชิ้นนี้
           <CarAutocomplete
             onSelect={(item) => {
@@ -604,27 +653,28 @@ function EditPartPageContent() {
               setSelectedGeneration(item);
             }}
           />
-        </label>
+        </div>
 
         <label>
-          ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
+          ยี่ห้อ รุ่น ปีผลิต ของอะไหล่
           <div
             style={{
               padding: 12,
               borderRadius: 8,
               border: "1px solid var(--border-strong)",
               background: "var(--surface-dim)",
-              color: selectedGeneration ? "var(--text)" : "var(--text-muted)",
               fontSize: 14,
             }}
           >
-            {selectedGeneration
-              ? `${selectedGeneration.year_range_display}${
-                  selectedGeneration.generation_code
-                    ? ` (${selectedGeneration.generation_code})`
-                    : ""
-                }${selectedGeneration.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""}`
-              : "— ไม่มีข้อมูลปี เลือกรถจากช่องค้นหาด้านบนเพื่ออัปเดต —"}
+            {form.car_brand || form.car_model
+              ? `${form.car_brand || ""} ${form.car_model || ""}${
+                  selectedGeneration?.year_range_display ? ` · ${selectedGeneration.year_range_display}` : ""
+                }${
+                  selectedGeneration?.generation_code ? ` (${selectedGeneration.generation_code})` : ""
+                }${
+                  selectedGeneration?.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""
+                }`.trim()
+              : "— ยังไม่มีข้อมูลรถ —"}
           </div>
         </label>
 
@@ -673,21 +723,25 @@ function EditPartPageContent() {
           </select>
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           โซนจัดเก็บ
-          <select name="zone_code" value={form.zone_code || ""} onChange={handleZoneChange}>
-            <option value="">ไม่ระบุโซน</option>
-            {zones.map((z) => (
-              <option key={z.id} value={z.code}>
-                {z.code}
-                {z.name ? ` — ${z.name}` : ""}
-              </option>
-            ))}
-            {form.zone_code && !zones.some((z) => z.code === form.zone_code) && (
-              <option value={form.zone_code}>{form.zone_code} (ไม่อยู่ในลิสต์แล้ว)</option>
-            )}
-          </select>
-        </label>
+          {!zonesLoading && (
+            <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
+          )}
+          {!zonesLoading && zones.length > 0 && (
+            <ZoneQRScanner zones={zones} onScan={handleZoneChange} />
+          )}
+          {form.zone_code && !form.zone_id && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              ข้อมูลเก่า: &quot;{form.zone_code}&quot; (ยังไม่ได้แมตช์กับโซนใหม่ — เลือกโซนด้านบนเพื่ออัปเดต)
+            </div>
+          )}
+          {/* การ์ด "ย้ายอะไหล่ระหว่าง Zone" — action แยกจากการแก้ zone_id ตรงๆ ในฟอร์มนี้ เพราะมีเช็ค
+             owner_type ปลายทาง vs ปัจจุบัน + checkbox override ที่ฟอร์มแก้ไขทั่วไปนี้ไม่มี */}
+          <Link href={`/move-part/${id}`} className="nav-link secondary" style={{ fontSize: 12, alignSelf: "flex-start" }}>
+            📍 ย้าย Zone (เช็ค owner_type ให้)
+          </Link>
+        </div>
 
         <label>
           ประเภทอะไหล่
@@ -801,7 +855,9 @@ function EditPartPageContent() {
         </button>
       </form>
 
-      {form.item_type === "salvage" && Number(form.quantity) > 0 && (
+      {/* Field Scanner ทำรายการขายไม่ได้เด็ดขาด (ตัดสินใจแล้วในการ์ด) — ซ่อนส่วนขายทั้งหมด
+         RLS ของ part_sales กันไว้ที่ DB layer อยู่แล้วเป็นด่านหลัก นี่คือด่าน UI */}
+      {form.item_type === "salvage" && Number(form.quantity) > 0 && currentRole !== "field_scanner" && (
         <div
           style={{
             marginTop: 16,
@@ -850,6 +906,22 @@ function EditPartPageContent() {
                 placeholder="ชื่อ/เบอร์โทรลูกค้า"
               />
             </label>
+            <label>
+              วิธีชำระเงิน
+              {/* ไม่ใส่ required แบบ native — ใช้ JS validation ใน handleSell แทน (ข้อความ
+                 ภาษาไทยที่อ่านง่ายกว่า tooltip ของเบราว์เซอร์ ซึ่งบาง browser ไม่แปล/จัด UI ไม่ตรงธีม) */}
+              <select
+                value={saleForm.payment_method}
+                onChange={(e) => setSaleForm((f) => ({ ...f, payment_method: e.target.value }))}
+              >
+                <option value="">— เลือก —</option>
+                {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="submit" disabled={selling}>
               {selling ? "กำลังบันทึก..." : "✓ บันทึกการขาย"}
             </button>
@@ -871,6 +943,7 @@ function EditPartPageContent() {
                   <span>
                     {s.quantity_sold} ชิ้น × {Number(s.sale_price).toLocaleString()} บาท
                     {s.sold_to && ` — ${s.sold_to}`}
+                    {` (${s.payment_method ? PAYMENT_METHOD_LABELS[s.payment_method] || s.payment_method : "ไม่ระบุวิธีชำระ"})`}
                   </span>
                   <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
                     {new Date(s.sold_at).toLocaleDateString("th-TH")}
@@ -923,13 +996,35 @@ function EditPartPageContent() {
           {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
         </button>
       )}
+
+      {currentRole !== "assistant" && form.is_active && (
+        <button
+          type="button"
+          onClick={handleWriteOff}
+          disabled={saving || deleting || writingOff}
+          style={{
+            marginTop: 8,
+            width: "100%",
+            padding: 14,
+            borderRadius: 8,
+            border: "1px solid var(--danger-border)",
+            background: "transparent",
+            color: "var(--danger-text)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {writingOff ? "กำลังดำเนินการ..." : "📉 ตัดเป็นค่าเสียหาย (Write-off)"}
+        </button>
+      )}
     </div>
   );
 }
 
 export default function EditPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
       <EditPartPageContent />
     </RequireAuth>
   );

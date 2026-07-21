@@ -9,6 +9,7 @@ import { useTheme } from "../lib/ThemeProvider";
 const NAV_ITEMS = [
   { href: "/jobs", label: "งานเข้าอู่", icon: "🔧" },
   { href: "/", label: "สต็อกอะไหล่", icon: "📦" },
+  { href: "/salvage-vehicles", label: "ซากรถ", icon: "🚗" },
   { href: "/admin", label: "ตั้งค่า", icon: "⚙️" },
 ];
 
@@ -39,7 +40,7 @@ function isActive(pathname, href) {
 export default function AppShell({ children, title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { currentShop, currentShopId, memberships, switchShop, currentRole, signOut } = useAuth();
+  const { currentShop, currentShopId, memberships, switchShop, currentRole, signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const canSeeReports = currentRole === "owner" || currentRole === "manager";
@@ -121,24 +122,51 @@ export default function AppShell({ children, title }) {
         </nav>
 
         <div className="app-sidebar-footer">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={theme === "dark"}
-            className={`app-theme-switch ${theme === "dark" ? "app-theme-switch--on" : ""}`}
-            onClick={toggleTheme}
-          >
-            <ThemeSwitchArrow theme={theme} />
-            <span className="app-theme-switch-text">{theme === "light" ? "Dark" : "Light"}</span>
-          </button>
-          <div className="app-sidebar-role">บทบาท: {currentRole}</div>
-          <button type="button" className="app-sidebar-signout" onClick={signOut}>
-            ออกจากระบบ
-          </button>
+          <Link href="/legal/tos" className="app-sidebar-legal-link" onClick={() => setMobileOpen(false)}>
+            ToS
+          </Link>
+          <div className="app-sidebar-footer-divider">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={theme === "dark"}
+              className={`app-theme-switch ${theme === "dark" ? "app-theme-switch--on" : ""}`}
+              onClick={toggleTheme}
+            >
+              <ThemeSwitchArrow theme={theme} />
+              <span className="app-theme-switch-text">{theme === "light" ? "Dark" : "Light"}</span>
+            </button>
+            <div className="app-sidebar-role">
+              บทบาท: {currentRole}
+              <br />
+              {currentShop?.contact_name || currentShop?.login_username || user?.email || "-"}
+            </div>
+            <button type="button" className="app-sidebar-signout" onClick={signOut}>
+              ออกจากระบบ
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main className="app-main">{children}</main>
+      <main className="app-main">
+        {/* การ์ด "Stock Value Cap Engine" — banner เตือนเมื่อมูลค่าสต็อกเกิน cap ของ tier
+            (ไม่มี email แจ้งเตือนรอบนี้ — ดูหมายเหตุใน db/stock_value_cap_engine_migration.sql
+            ว่าโปรเจกต์นี้ยังไม่มี infra ส่งอีเมล — banner ที่ค้างอยู่ตลอดถือเป็นการแจ้งเตือน
+            "ครั้งเดียวไม่สแปมซ้ำ" อยู่ในตัวแล้ว ไม่ต้องมี notification log แยก) */}
+        {currentShop?.stock_cap_status === "grace" && (
+          <div className="msg error no-print" data-testid="stock-cap-banner-grace">
+            ⚠️ มูลค่าสต็อกของอู่นี้เกินขีดจำกัดของแพ็กเกจแล้ว — มีเวลา 7 วันก่อนบางฟีเจอร์จะถูกระงับ
+            (เช่น สร้างงานใหม่) กรุณาลดสต็อกลงหรืออัปเกรดแพ็กเกจ
+          </div>
+        )}
+        {currentShop?.stock_cap_status === "blocked" && (
+          <div className="msg error no-print" data-testid="stock-cap-banner-blocked">
+            🚫 มูลค่าสต็อกเกินขีดจำกัดของแพ็กเกจเกิน 7 วันแล้ว — สร้างงานใหม่ถูกระงับชั่วคราว (การขาย/
+            ลดสต็อกยังทำได้ตามปกติ) กรุณาลดสต็อกลงหรืออัปเกรดแพ็กเกจเพื่อปลดล็อก
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

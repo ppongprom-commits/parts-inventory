@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../../lib/supabaseAdminClient";
-import { verifyPlatformAdmin } from "../../../../../../lib/platformAdmin";
+import { requirePlatformRole } from "../../../../../../lib/platformAdmin";
 
 // Platform admin เพิ่มตัวเองเป็นสมาชิก "สนับสนุน" ของอู่นี้แบบเปิดเผย
 // (โผล่ในหน้า /admin/team ของอู่นั้นด้วย ไม่ใช่การแอบดูข้อมูลแบบซ่อนเร้น)
 // ใช้ตอนต้องเข้าไปดู/จำลองปัญหาที่ลูกค้าแจ้งมา
+//
+// Permission matrix (การ์ด Platform admin role tiers): Super Admin + Support เท่านั้น
+// Analyst ห้าม join-as-support (read-only เต็มรูปแบบ)
 export async function POST(request, { params }) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, ["super_admin", "support"]);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
@@ -17,21 +20,13 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: "shopId ไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
-      .from("shop_members")
-      .upsert(
-        {
-          shop_id: shopId,
-          user_id: authResult.userId,
-          role: "manager",
-          status: "active",
-          invited_by: authResult.userId,
-          contact_name: "Platform Support",
-        },
-        { onConflict: "shop_id,user_id" }
-      )
-      .select()
-      .single();
+    // เขียนผ่าน RPC เดียว (mutation + audit log ในทรานแซคชันเดียวกัน — ถ้าเขียน log ไม่สำเร็จ
+    // การ join-as-support จะ rollback ไปด้วยทั้งหมด)
+    const { data, error } = await supabaseAdmin.rpc("platform_join_as_support", {
+      p_admin_user_id: authResult.userId,
+      p_admin_role: authResult.role,
+      p_shop_id: shopId,
+    });
 
     if (error) throw error;
 

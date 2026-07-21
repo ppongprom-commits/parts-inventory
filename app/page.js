@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { getViewMode, setViewMode } from "../lib/viewModeStorage";
 import { useAuth } from "../lib/AuthProvider";
 import RequireAuth from "../components/RequireAuth";
 import { ROLE_PERMISSIONS } from "../config/rolePermissions";
+import { getDescendantIds, formatBreadcrumb, getSortedZoneList } from "../lib/zoneHelpers";
 
 const PAGE_SIZE = 50;
 
 function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentShopId, currentShop, currentRole, signOut } = useAuth();
 
   // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
@@ -29,12 +31,15 @@ function HomePageContent() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [viewMode, setViewModeState] = useState("list");
-  const [selectMode, setSelectMode] = useState(false);
+  // null = ปิดโหมดเลือกทั้งคู่, "qr" = เลือกพิมพ์ QR (เดิม), "sell" = เลือกขาย (ตะกร้า, ใหม่)
+  // เคลียร์ selection ทันทีที่สลับโหมด (ตัดสินใจแล้วในการ์ด Cart-based selling flow — กันสับสนเจตนา)
+  const [selectMode, setSelectMode] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const canSell = ROLE_PERMISSIONS[currentRole]?.sell_parts ?? false;
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
-  const [zoneFilter, setZoneFilter] = useState("");
+  const [zoneFilter, setZoneFilter] = useState(searchParams.get("zone") || "");
   const [zones, setZones] = useState([]);
   const [brands, setBrands] = useState([]);
   const [lowStockCount, setLowStockCount] = useState(0);
@@ -71,7 +76,7 @@ function HomePageContent() {
     }, 300);
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, brandFilter, zoneFilter, lowStockOnly]);
+  }, [search, brandFilter, zoneFilter, lowStockOnly, zones]);
 
   function handleViewModeChange(mode) {
     setViewModeState(mode);
@@ -117,7 +122,7 @@ function HomePageContent() {
       query = query.or(`part_name.ilike.%${s}%,car_model.ilike.%${s}%`);
     }
     if (brandFilter) query = query.eq("car_brand", brandFilter);
-    if (zoneFilter) query = query.eq("zone_code", zoneFilter);
+    if (zoneFilter) query = query.in("zone_id", getDescendantIds(zones, zoneFilter));
 
     const from = pageNum * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -225,9 +230,9 @@ function HomePageContent() {
         </select>
         <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)}>
           <option value="">ทุกโซน</option>
-          {zones.map((z) => (
-            <option key={z.id} value={z.code}>
-              {z.code}
+          {getSortedZoneList(zones).map((z) => (
+            <option key={z.id} value={z.id}>
+              {formatBreadcrumb(zones, z.id)}
               {z.name ? ` — ${z.name}` : ""}
             </option>
           ))}
@@ -251,7 +256,7 @@ function HomePageContent() {
         <button
           type="button"
           onClick={() => {
-            setSelectMode((m) => !m);
+            setSelectMode((m) => (m === "qr" ? null : "qr"));
             setSelectedIds([]);
           }}
           className="no-print"
@@ -259,15 +264,37 @@ function HomePageContent() {
             padding: "8px 14px",
             borderRadius: 8,
             border: "1px solid var(--border-strong)",
-            background: selectMode ? "#2563eb" : "var(--surface)",
-            color: selectMode ? "white" : "var(--text-muted)",
+            background: selectMode === "qr" ? "#2563eb" : "var(--surface)",
+            color: selectMode === "qr" ? "white" : "var(--text-muted)",
             fontSize: 13,
             cursor: "pointer",
             marginLeft: 8,
           }}
         >
-          🏷️ {selectMode ? "ยกเลิกเลือก" : "เลือกพิมพ์ QR"}
+          🏷️ {selectMode === "qr" ? "ยกเลิกเลือก" : "เลือกพิมพ์ QR"}
         </button>
+        {canSell && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectMode((m) => (m === "sell" ? null : "sell"));
+              setSelectedIds([]);
+            }}
+            className="no-print"
+            style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--border-strong)",
+              background: selectMode === "sell" ? "#16a34a" : "var(--surface)",
+              color: selectMode === "sell" ? "white" : "var(--text-muted)",
+              fontSize: 13,
+              cursor: "pointer",
+              marginLeft: 8,
+            }}
+          >
+            🛒 {selectMode === "sell" ? "ยกเลิกเลือก" : "เลือกขาย"}
+          </button>
+        )}
       </div>
 
       {errorMsg && <div className="msg error">{errorMsg}</div>}
@@ -336,7 +363,8 @@ function HomePageContent() {
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {p.item_type === "consumable" && <span className="tag">🧴 สิ้นเปลือง</span>}
-                  {p.zone_code && <span className="tag zone">📍 {p.zone_code}</span>}
+                  {p.zone_id && <span className="tag zone">📍 {formatBreadcrumb(zones, p.zone_id)}</span>}
+                  {!p.zone_id && p.zone_code && <span className="tag zone">📍 {p.zone_code}</span>}
                   {p.condition && <span className="tag">{p.condition}</span>}
                   {p.source_type && <span className="tag">{p.source_type}</span>}
                   {p.status && <span className="tag">{p.status}</span>}
@@ -354,7 +382,7 @@ function HomePageContent() {
           );
         })}
 
-      {selectMode && selectedIds.length > 0 && (
+      {selectMode === "qr" && selectedIds.length > 0 && (
         <div
           className="no-print"
           style={{
@@ -371,6 +399,27 @@ function HomePageContent() {
             style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
           >
             🏷️ พิมพ์ QR ที่เลือก ({selectedIds.length})
+          </Link>
+        </div>
+      )}
+
+      {selectMode === "sell" && selectedIds.length > 0 && (
+        <div
+          className="no-print"
+          style={{
+            position: "sticky",
+            bottom: 16,
+            display: "flex",
+            justifyContent: "center",
+            marginTop: 16,
+          }}
+        >
+          <Link
+            href={`/checkout?ids=${selectedIds.join(",")}`}
+            className="nav-link"
+            style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.3)", background: "#16a34a" }}
+          >
+            🛒 ไปหน้าขาย ({selectedIds.length} ชิ้น)
           </Link>
         </div>
       )}
@@ -422,7 +471,9 @@ function HomePageContent() {
 export default function HomePage() {
   return (
     <RequireAuth>
-      <HomePageContent />
+      <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
+        <HomePageContent />
+      </Suspense>
     </RequireAuth>
   );
 }

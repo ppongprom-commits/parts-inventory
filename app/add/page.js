@@ -5,16 +5,22 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CarAutocomplete from "../../components/CarAutocomplete";
+import ZoneAutocomplete from "../../components/ZoneAutocomplete";
+import ZoneQRScanner from "../../components/ZoneQRScanner";
+import { isLeaf, formatBreadcrumb } from "../../lib/zoneHelpers";
 import { getDefaultZone, setDefaultZone } from "../../lib/zoneStorage";
 import { resizeImageFile } from "../../lib/imageResize";
 import { uploadPartPhotos } from "../../lib/storageHelpers";
 import { useAuth } from "../../lib/AuthProvider";
 import RequireAuth from "../../components/RequireAuth";
+import { saveRecoveryState, loadRecoveryState, clearRecoveryState } from "../../lib/addFormRecovery";
 
 function AddPartPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const linkedJobId = searchParams.get("job_id");
+  // การ์ด "Salvage Vehicle Intake + Disassembly" — pattern เดียวกับ linkedJobId เป๊ะ
+  const linkedSalvageVehicleId = searchParams.get("salvage_vehicle_id");
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const { currentShopId } = useAuth();
@@ -25,7 +31,7 @@ function AddPartPageContent() {
     car_brand: "",
     car_model: "",
     condition: "",
-    zone_code: "",
+    zone_id: "",
     source_type: "",
     quantity: "1",
     min_stock_level: "",
@@ -41,28 +47,72 @@ function AddPartPageContent() {
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [restoredNotice, setRestoredNotice] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
   const [zones, setZones] = useState([]);
   const [zonesLoading, setZonesLoading] = useState(true);
+  // การ์ด "ย้ายอะไหล่ระหว่าง Zone" — toggle ระดับร้าน "บังคับสแกน QR ยืนยันตำแหน่ง" (ตั้งค่าที่
+  // /admin) เมื่อเปิด ต้องสแกน QR โซนเท่านั้นตอนเพิ่มอะไหล่ใหม่ เลือกจากช่องค้นหาตรงๆ ไม่ได้อีกต่อไป
+  const [forceZoneScan, setForceZoneScan] = useState(false);
 
   const [conditions, setConditions] = useState([]);
   const [sourceTypes, setSourceTypes] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
 
   useEffect(() => {
-    const lastZone = getDefaultZone();
-    if (lastZone) {
-      setForm((f) => ({ ...f, zone_code: lastZone }));
+    const scannedZoneId = searchParams.get("zone_id");
+    const lastZoneId = getDefaultZone();
+    const initialZoneId = scannedZoneId || lastZoneId;
+    if (initialZoneId) {
+      setForm((f) => ({ ...f, zone_id: initialZoneId }));
     }
     if (currentShopId) {
       fetchZones();
       fetchOptions();
+      fetchShopZoneScanSetting();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
+
+  // กู้คืนฟอร์ม+รูปที่ค้างจาก sessionStorage (เช่น Android ฆ่า tab ตอนเปิดกล้องแล้วต้อง reload)
+  // รันครั้งเดียวตอน mount — ต้องมาหลัง effect ด้านบนในลำดับ declare เพื่อให้ zone_id ที่กู้คืนมา
+  // (ถ้ามี) มีผลทับค่า default/scan-from-URL ได้ ตรงกับสถานะก่อนหน้าที่ผู้ใช้เลือกไว้จริง
+  useEffect(() => {
+    const recovered = loadRecoveryState();
+    if (recovered) {
+      setForm((f) => ({ ...f, ...recovered.form }));
+      if (recovered.selectedGeneration) setSelectedGeneration(recovered.selectedGeneration);
+      if (recovered.photos?.length) setPhotos(recovered.photos);
+      setRestoredNotice(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // เขียนฟอร์ม+รูปลง sessionStorage ทุกครั้งที่รูป/ฟอร์มเปลี่ยน (หลังมีรูปอย่างน้อย 1 รูปแล้ว)
+  // กันหายถ้าเกิด tab ถูกฆ่าระหว่างถ่ายรูปรอบถัดไป
+  useEffect(() => {
+    if (photos.length === 0) return;
+    saveRecoveryState(
+      form,
+      selectedGeneration,
+      photos.map((p) => p.file)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, selectedGeneration, photos]);
+
+  // กันเคส ?zone_id= จาก URL (สแกน QR) ชี้ไปโซนที่ไม่ใช่ leaf (เช่น Area ที่มี Rack ข้างใน) —
+  // ZoneAutocomplete จะโชว์ช่องค้นหาว่างเปล่าให้ดูเหมือนไม่ได้เลือกอะไร แต่ค่าจริงยังค้างอยู่ใน
+  // form.zone_id ถ้าไม่เคลียร์ตรงนี้ อะไหล่จะถูกบันทึกด้วย zone_id ที่ไม่ใช่ leaf ได้
+  useEffect(() => {
+    if (zonesLoading || !form.zone_id) return;
+    if (!isLeaf(zones, form.zone_id)) {
+      setForm((f) => ({ ...f, zone_id: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zonesLoading, zones]);
 
   async function fetchZones() {
     setZonesLoading(true);
@@ -73,6 +123,15 @@ function AddPartPageContent() {
       .order("code", { ascending: true });
     if (!error) setZones(data || []);
     setZonesLoading(false);
+  }
+
+  async function fetchShopZoneScanSetting() {
+    const { data } = await supabase
+      .from("shops")
+      .select("force_zone_scan_confirmation")
+      .eq("shop_id", currentShopId)
+      .single();
+    setForceZoneScan(!!data?.force_zone_scan_confirmation);
   }
 
   async function fetchOptions() {
@@ -117,10 +176,9 @@ function AddPartPageContent() {
     return `https://www.amayama.com/en/genuine-catalogs/${encodeURIComponent(brand)}`;
   }
 
-  function handleZoneChange(e) {
-    const value = e.target.value;
-    setForm((f) => ({ ...f, zone_code: value }));
-    setDefaultZone(value);
+  function handleZoneChange(zoneId) {
+    setForm((f) => ({ ...f, zone_id: zoneId || "" }));
+    setDefaultZone(zoneId || "");
   }
 
   async function handlePhotoChange(e) {
@@ -150,6 +208,7 @@ function AddPartPageContent() {
 
     if (photos.length === 0) {
       setPhotoError("ต้องมีรูปอย่างน้อย 1 รูปก่อนบันทึก");
+      alert("⚠️ กรุณาถ่าย/แนบรูปอย่างน้อย 1 รูปก่อนบันทึก");
       return;
     }
 
@@ -168,11 +227,12 @@ function AddPartPageContent() {
         car_year_display: selectedGeneration?.year_range_display || null,
         trim_id: selectedGeneration?.trim_id || null,
         condition: form.condition || null,
-        zone_code: form.zone_code || null,
+        zone_id: form.zone_id || null,
         source_type: form.source_type || null,
         quantity: form.quantity ? Number(form.quantity) : 1,
         item_type: form.item_type,
         job_id: linkedJobId || null,
+        salvage_vehicle_id: linkedSalvageVehicleId || null,
         min_stock_level: form.min_stock_level ? Number(form.min_stock_level) : null,
         price: form.price ? Number(form.price) : null,
         part_number: form.part_number || null,
@@ -185,15 +245,17 @@ function AddPartPageContent() {
 
       if (insertError) throw insertError;
 
-      const keepZone = form.zone_code;
+      const keepZoneId = form.zone_id;
 
+      clearRecoveryState();
+      setRestoredNotice(false);
       setMsg({ type: "success", text: "บันทึกอะไหล่เรียบร้อยแล้ว ✅" });
       setForm({
         part_name: "",
         car_brand: "",
         car_model: "",
         condition: conditions[0] || "",
-        zone_code: keepZone,
+        zone_id: keepZoneId,
         source_type: sourceTypes[0] || "",
         price: "",
         part_number: "",
@@ -216,10 +278,30 @@ function AddPartPageContent() {
     <div className="container">
       <div className="header">
         <h1>+ เพิ่มอะไหล่ใหม่</h1>
-        <Link href="/" className="nav-link secondary">
+        <Link
+          href="/"
+          className="nav-link secondary"
+          onClick={() => {
+            clearRecoveryState();
+            setRestoredNotice(false);
+          }}
+        >
           ← กลับ
         </Link>
       </div>
+
+      {restoredNotice && (
+        <div className="msg" style={{ marginBottom: 16, background: "var(--zone-bg)", color: "var(--zone-text)" }}>
+          🔄 กู้คืนข้อมูลที่ค้างไว้แล้ว (แอปน่าจะถูกปิดกลางคันตอนถ่ายรูป) — กรุณาตรวจสอบข้อมูล/รูปให้ครบก่อนกดบันทึก
+          <button
+            type="button"
+            onClick={() => setRestoredNotice(false)}
+            style={{ marginLeft: 8, background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer" }}
+          >
+            ปิด
+          </button>
+        </div>
+      )}
 
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
 
@@ -353,6 +435,21 @@ function AddPartPageContent() {
           </div>
         )}
 
+        {linkedSalvageVehicleId && (
+          <div
+            data-testid="salvage-vehicle-banner"
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              background: "var(--zone-bg)",
+              color: "var(--zone-text)",
+              fontSize: 13,
+            }}
+          >
+            🚗 อะไหล่ชิ้นนี้ถอดจากซากรถ #{linkedSalvageVehicleId} — จะผูกอัตโนมัติ
+          </div>
+        )}
+
         <label>
           ประเภทอะไหล่ *
           <div style={{ display: "flex", gap: 8 }}>
@@ -408,7 +505,7 @@ function AddPartPageContent() {
           />
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           🔍 ค้นหารถ (ยี่ห้อ/รุ่น)
           <CarAutocomplete
             onSelect={(item) => {
@@ -424,27 +521,28 @@ function AddPartPageContent() {
             เลือกจากรายการที่ค้นเจอเท่านั้น — ถ้าไม่เจอรุ่นที่ต้องการ แจ้งแอดมินให้เพิ่มในฐานข้อมูลก่อน
             เพื่อกันข้อมูลปี/รุ่นเพี้ยน
           </div>
-        </label>
+        </div>
 
         <label>
-          ปีที่ผลิต (ดึงจากฐานข้อมูลอัตโนมัติ — แก้เองไม่ได้)
+          ยี่ห้อ รุ่น ปีผลิต ของอะไหล่
           <div
             style={{
               padding: 12,
               borderRadius: 8,
               border: "1px solid var(--border-strong)",
               background: "var(--surface-dim)",
-              color: selectedGeneration ? "var(--text)" : "var(--text-muted)",
               fontSize: 14,
             }}
           >
-            {selectedGeneration
-              ? `${selectedGeneration.year_range_display}${
-                  selectedGeneration.generation_code
-                    ? ` (${selectedGeneration.generation_code})`
-                    : ""
-                }${selectedGeneration.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""}`
-              : "— เลือกรถจากช่องค้นหาด้านบนก่อน จะขึ้นปีให้อัตโนมัติ —"}
+            {form.car_brand || form.car_model
+              ? `${form.car_brand || ""} ${form.car_model || ""}${
+                  selectedGeneration?.year_range_display ? ` · ${selectedGeneration.year_range_display}` : ""
+                }${
+                  selectedGeneration?.generation_code ? ` (${selectedGeneration.generation_code})` : ""
+                }${
+                  selectedGeneration?.trim_name ? ` · รุ่นย่อย: ${selectedGeneration.trim_name}` : ""
+                }`.trim()
+              : "— ยังไม่ได้เลือกรถ — ค้นหาด้านบนเพื่อเลือก —"}
           </div>
         </label>
 
@@ -520,17 +618,26 @@ function AddPartPageContent() {
           )}
         </label>
 
-        <label>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: 6 }}>
           โซนจัดเก็บ
-          <select name="zone_code" value={form.zone_code} onChange={handleZoneChange}>
-            <option value="">ไม่ระบุโซน</option>
-            {zones.map((z) => (
-              <option key={z.id} value={z.code}>
-                {z.code}
-                {z.name ? ` — ${z.name}` : ""}
-              </option>
-            ))}
-          </select>
+          {forceZoneScan && form.zone_id && (
+            <div data-testid="zone-scan-confirmed" style={{ fontSize: 13, color: "var(--text)" }}>
+              ✅ ยืนยันตำแหน่งแล้ว — {formatBreadcrumb(zones, form.zone_id)}
+            </div>
+          )}
+          {/* ร้านเปิด "บังคับสแกน QR ยืนยันตำแหน่ง" (/admin) — ซ่อนช่องค้นหา เหลือแค่ปุ่มสแกน
+             เท่านั้น กันเลือกโซนมั่วๆ โดยไม่ได้อยู่ที่จุดจริง (การ์ด "ย้ายอะไหล่ระหว่าง Zone") */}
+          {!zonesLoading && !forceZoneScan && (
+            <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
+          )}
+          {!zonesLoading && zones.length > 0 && (
+            <ZoneQRScanner zones={zones} onScan={handleZoneChange} />
+          )}
+          {forceZoneScan && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              ร้านนี้ตั้งค่าบังคับสแกน QR ยืนยันตำแหน่ง — พิมพ์ค้นหาเองไม่ได้ ต้องสแกนเท่านั้น
+            </div>
+          )}
           {!zonesLoading && zones.length === 0 && (
             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
               ยังไม่มีโซนในระบบ —{" "}
@@ -539,7 +646,7 @@ function AddPartPageContent() {
               </Link>
             </span>
           )}
-        </label>
+        </div>
 
         <label>
           จำนวน
@@ -601,7 +708,7 @@ function AddPartPageContent() {
 
 export default function AddPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
       <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
         <AddPartPageContent />
       </Suspense>

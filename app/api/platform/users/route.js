@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdminClient";
-import { verifyPlatformAdmin } from "../../../../lib/platformAdmin";
+import { requirePlatformRole } from "../../../../lib/platformAdmin";
+
+// GET (ดูรายชื่อ user) — ทั้ง 3 role เห็นเหมือนกันหมด (Analyst = read-only เต็มรูปแบบ)
+const VIEW_ROLES = ["super_admin", "support", "analyst"];
 
 // ดึงผู้ใช้ทั้งหมดจาก auth.users แบบวนหน้า (listUsers จำกัดหน้าละ perPage)
 async function listAllAuthUsers() {
@@ -20,7 +23,7 @@ async function listAllAuthUsers() {
 
 export async function GET(request) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, VIEW_ROLES);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }

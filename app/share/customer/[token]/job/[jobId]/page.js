@@ -26,6 +26,7 @@ export default function CustomerJobDetailPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -184,10 +185,36 @@ export default function CustomerJobDetailPage() {
               {job.photo_urls.map((url, i) => (
                 <div className="photo-thumb" key={i}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`รูป ${i + 1}`} />
+                  <img src={url} alt={`รูป ${i + 1}`} onClick={() => setLightboxIndex(i)} style={{ cursor: "zoom-in" }} />
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {lightboxIndex !== null && (
+          <div
+            className="no-print"
+            onClick={() => setLightboxIndex(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 100,
+              cursor: "zoom-out",
+              padding: 20,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={job.photo_urls[lightboxIndex]}
+              alt="ขยายรูป"
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8, objectFit: "contain" }}
+            />
           </div>
         )}
       </div>

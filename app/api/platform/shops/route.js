@@ -1,35 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdminClient";
+import { requirePlatformRole } from "../../../../lib/platformAdmin";
 
-async function verifyPlatformAdmin(request) {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.replace("Bearer ", "").trim();
-
-  if (!token) {
-    return { error: "ไม่พบ token กรุณาเข้าสู่ระบบใหม่", status: 401 };
-  }
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !userData?.user) {
-    return { error: "session ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่", status: 401 };
-  }
-
-  const { data: adminRow } = await supabaseAdmin
-    .from("platform_admins")
-    .select("user_id")
-    .eq("user_id", userData.user.id)
-    .maybeSingle();
-
-  if (!adminRow) {
-    return { error: "บัญชีนี้ไม่มีสิทธิ์เข้าหน้า Platform Admin", status: 403 };
-  }
-
-  return { userId: userData.user.id };
-}
+// Permission matrix (การ์ด Platform admin role tiers):
+// GET (ดูรายชื่ออู่/สถิติ) — ทั้ง 3 role เห็นเหมือนกันหมด (Analyst อ่านได้เท่า Super Admin/Support)
+// PATCH (แก้ subscription/billing) — Super Admin เท่านั้น
+const VIEW_ROLES = ["super_admin", "support", "analyst"];
+const BILLING_ROLES = ["super_admin"];
 
 export async function GET(request) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, VIEW_ROLES);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
@@ -82,7 +63,7 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, BILLING_ROLES);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
@@ -95,23 +76,17 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "ไม่พบ shop_id" }, { status: 400 });
     }
 
-    const updatePayload = {};
-    if (subscription_status !== undefined) updatePayload.subscription_status = subscription_status;
-    if (subscription_plan !== undefined) updatePayload.subscription_plan = subscription_plan;
-    if (trial_ends_at !== undefined) updatePayload.trial_ends_at = trial_ends_at || null;
-    if (current_period_end !== undefined)
-      updatePayload.current_period_end = current_period_end || null;
-
-    if (subscription_status === "suspended") updatePayload.suspended_at = new Date().toISOString();
-    if (subscription_status === "canceled") updatePayload.canceled_at = new Date().toISOString();
-    if (subscription_status === "past_due") updatePayload.past_due_since = new Date().toISOString();
-
-    const { data, error } = await supabaseAdmin
-      .from("shops")
-      .update(updatePayload)
-      .eq("shop_id", shop_id)
-      .select()
-      .single();
+    // เขียนผ่าน RPC เดียว (mutation + audit log ในทรานแซคชันเดียวกัน) — ถ้าเขียน log ไม่สำเร็จ
+    // การแก้ subscription จะ rollback ไปด้วยทั้งหมด (ตัดสินใจไว้แล้วในการ์ด Platform admin audit log)
+    const { data, error } = await supabaseAdmin.rpc("platform_update_shop_subscription", {
+      p_admin_user_id: authResult.userId,
+      p_admin_role: authResult.role,
+      p_shop_id: shop_id,
+      p_subscription_status: subscription_status ?? null,
+      p_subscription_plan: subscription_plan ?? null,
+      p_trial_ends_at: trial_ends_at || null,
+      p_current_period_end: current_period_end || null,
+    });
 
     if (error) throw error;
 

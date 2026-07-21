@@ -39,6 +39,8 @@ function JobDetailPageContent() {
   const [consumableQuery, setConsumableQuery] = useState("");
   const [consumableResults, setConsumableResults] = useState([]);
   const [selectedConsumablePart, setSelectedConsumablePart] = useState(null);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyResults, setHistoryResults] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [customerShareUrl, setCustomerShareUrl] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -53,6 +55,8 @@ function JobDetailPageContent() {
   const [linkedParts, setLinkedParts] = useState([]);
   const [newStepName, setNewStepName] = useState("");
   const [newStepAssignee, setNewStepAssignee] = useState("");
+  const [holdDraftStepId, setHoldDraftStepId] = useState(null);
+  const [holdDraftText, setHoldDraftText] = useState("");
 
   useEffect(() => {
     if (currentShopId) {
@@ -141,6 +145,10 @@ function JobDetailPageContent() {
     }
   }
 
+  // การ์ด "Job Assignment Status Tracking" — state machine: pending(=มอบหมายแล้ว รอเริ่ม) ->
+  // in_progress -> on_hold -> in_progress -> done. ลำดับ+สิทธิ์บังคับที่ DB layer จริง (trigger
+  // enforce_workflow_step_status_transition — ดู db/job_assignment_status_tracking_migration.sql)
+  // ฝั่ง UI นี้เช็คซ้ำเพื่อซ่อนปุ่มที่กดไม่ได้ + ให้ error message อ่านง่าย ไม่ใช่ raw Postgres error
   async function handleStepStatusChange(stepId, newStatus) {
     const { error } = await supabase
       .from("job_workflow_steps")
@@ -149,6 +157,48 @@ function JobDetailPageContent() {
     if (error) {
       setMsg({ type: "error", text: "อัปเดตสถานะไม่สำเร็จ: " + error.message });
     } else {
+      fetchWorkflowSteps();
+    }
+  }
+
+  function canActOnStep(step) {
+    if (!user) return false;
+    if (["owner", "manager", "supervisor"].includes(currentRole)) return true;
+    return !!step.assigned_to && step.assigned_to === user.id;
+  }
+
+  async function handleStartStep(stepId) {
+    await handleStepStatusChange(stepId, "in_progress");
+  }
+
+  async function handleResumeStep(stepId) {
+    await handleStepStatusChange(stepId, "in_progress");
+  }
+
+  async function handleCompleteStep(stepId) {
+    await handleStepStatusChange(stepId, "done");
+  }
+
+  async function handleSkipStep(stepId) {
+    await handleStepStatusChange(stepId, "skipped");
+  }
+
+  async function handleHoldStep(stepId, reason) {
+    // บังคับ hold_reason เสมอ (ทั้ง UI และ API — DB constraint job_workflow_steps_hold_reason_required
+    // เป็นตัวกันชั้นสุดท้ายอยู่แล้ว แต่เช็คที่นี่ก่อนกันไม่ให้ผู้ใช้เห็น raw constraint error)
+    if (!reason || !reason.trim()) {
+      setMsg({ type: "error", text: "กรุณาระบุเหตุผลที่หยุดงานก่อนกดยืนยัน" });
+      return;
+    }
+    const { error } = await supabase
+      .from("job_workflow_steps")
+      .update({ status: "on_hold", hold_reason: reason.trim() })
+      .eq("step_id", stepId);
+    if (error) {
+      setMsg({ type: "error", text: "หยุดงานไม่สำเร็จ: " + error.message });
+    } else {
+      setHoldDraftStepId(null);
+      setHoldDraftText("");
       fetchWorkflowSteps();
     }
   }
@@ -224,16 +274,46 @@ function JobDetailPageContent() {
       setConsumableResults([]);
       return;
     }
+    // ค้นทั้งของสิ้นเปลือง (consumable) และอะไหล่ถอด (salvage) ที่ยังมีในสต็อก —
+    // เลือกแล้วตัดสต็อกอัตโนมัติเหมือนกันทั้งคู่ผ่าน deduct_part_stock RPC ตัวเดียวกัน
     const { data } = await supabase
       .from("parts")
-      .select("id, part_name, price, quantity")
+      .select("id, part_name, price, quantity, item_type")
       .eq("shop_id", currentShopId)
-      .eq("item_type", "consumable")
+      .in("item_type", ["consumable", "salvage"])
       .eq("is_active", true)
       .gt("quantity", 0)
       .ilike("part_name", `%${query.trim()}%`)
       .limit(8);
     setConsumableResults(data || []);
+  }
+
+  // ค้นหารายการค่าใช้จ่ายเก่าที่เคยพิมพ์ไว้ในร้านนี้ (ค่าแรง/ค่าอะไหล่/อื่นๆ) มาหยิบใช้ซ้ำ
+  // คนละอันกับค้นจากสต็อก — ไม่ตัดสต็อก ไม่ auto-fill ราคา/จำนวน เว้นให้กรอกเองเสมอ
+  async function searchHistory(query) {
+    setHistoryQuery(query);
+    if (!query.trim()) {
+      setHistoryResults([]);
+      return;
+    }
+    const { data } = await supabase.rpc("search_cost_item_history", {
+      p_shop_id: currentShopId,
+      p_query: query.trim(),
+    });
+    setHistoryResults(data || []);
+  }
+
+  function handleSelectHistoryItem(item) {
+    setSelectedConsumablePart(null); // มาจากประวัติ ไม่ผูกกับสต็อก ไม่ตัดสต็อก
+    setNewCostItem((f) => ({
+      ...f,
+      category: item.category,
+      description: item.description,
+      _categoryTouched: true,
+      // ตั้งใจไม่แตะ amount/quantity — เว้นให้กรอกเองเหมือนเดิมตามที่ตกลงกันไว้
+    }));
+    setHistoryQuery("");
+    setHistoryResults([]);
   }
 
   function handleSelectConsumable(part) {
@@ -498,11 +578,15 @@ function JobDetailPageContent() {
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm(`ลบงานของ "${job.customer_name || "ลูกค้า"}" ใช่ไหม?`);
+    const confirmed = window.confirm(`ลบงานของ "${job.customer_name || "ลูกค้า"}" ใช่ไหม? (ย้ายไปถังขยะ กู้คืนได้ภายหลัง)`);
     if (!confirmed) return;
 
     setDeleting(true);
-    const { error } = await supabase.from("jobs").delete().eq("job_id", jobId);
+    // soft delete — ย้ายไปถังขยะแทนการลบถาวร (กู้คืน/เคลียร์ถาวรได้ที่หน้า /jobs/trash)
+    const { error } = await supabase
+      .from("jobs")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("job_id", jobId);
     if (error) {
       setMsg({ type: "error", text: "ลบไม่สำเร็จ: " + error.message });
       setDeleting(false);
@@ -844,11 +928,19 @@ function JobDetailPageContent() {
                 {step.status === "done" && step.completed_at
                   ? `✅ เสร็จเมื่อ ${new Date(step.completed_at).toLocaleString("th-TH")}`
                   : step.status === "in_progress"
-                  ? "🔧 กำลังทำ"
+                  ? `🔧 กำลังทำ${step.started_at ? ` (เริ่ม ${new Date(step.started_at).toLocaleString("th-TH")})` : ""}`
+                  : step.status === "on_hold"
+                  ? `⏸️ หยุดชั่วคราว — ${step.hold_reason || "ไม่ระบุเหตุผล"}`
                   : step.status === "skipped"
                   ? "⏭️ ข้าม"
-                  : "⏳ ยังไม่เริ่ม"}
+                  : "⏳ มอบหมายแล้ว รอเริ่ม"}
               </div>
+              {!canActOnStep(step) && step.status !== "done" && step.status !== "skipped" && (
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  รอ{step.assigned_to ? memberLabel(members.find((m) => m.user_id === step.assigned_to) || {}) : "การมอบหมาย"}
+                  ดำเนินการ (หรือ Supervisor ขึ้นไป)
+                </div>
+              )}
             </div>
 
             <select
@@ -864,16 +956,71 @@ function JobDetailPageContent() {
               ))}
             </select>
 
-            <select
-              value={step.status}
-              onChange={(e) => handleStepStatusChange(step.step_id, e.target.value)}
-              style={{ fontSize: 12, padding: 8, width: 110 }}
-            >
-              <option value="pending">ยังไม่เริ่ม</option>
-              <option value="in_progress">กำลังทำ</option>
-              <option value="done">เสร็จแล้ว</option>
-              <option value="skipped">ข้าม</option>
-            </select>
+            {/* ปุ่ม state machine แทน raw <select> เดิม — โชว์เฉพาะ action ที่ถูกลำดับและมีสิทธิ์
+               (DB trigger เป็นตัวบังคับจริงชั้นสุดท้าย — ดูคอมเมนต์ handleStepStatusChange ด้านบน) */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} data-testid={`step-actions-${step.step_id}`}>
+              {!canActOnStep(step) ? null : step.status === "pending" ? (
+                <>
+                  <button type="button" onClick={() => handleStartStep(step.step_id)} data-testid={`start-step-${step.step_id}`}>
+                    ▶️ เริ่มงาน
+                  </button>
+                  <button type="button" className="secondary" onClick={() => handleSkipStep(step.step_id)}>
+                    ⏭️ ข้าม
+                  </button>
+                </>
+              ) : step.status === "in_progress" ? (
+                <>
+                  {holdDraftStepId === step.step_id ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input
+                        type="text"
+                        placeholder="เหตุผลที่หยุดงาน (จำเป็น)"
+                        value={holdDraftText}
+                        onChange={(e) => setHoldDraftText(e.target.value)}
+                        data-testid={`hold-reason-input-${step.step_id}`}
+                        style={{ fontSize: 12, padding: 6, width: 160 }}
+                      />
+                      <button
+                        type="button"
+                        data-testid={`confirm-hold-${step.step_id}`}
+                        onClick={() => handleHoldStep(step.step_id, holdDraftText)}
+                      >
+                        ยืนยัน
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          setHoldDraftStepId(null);
+                          setHoldDraftText("");
+                        }}
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="secondary"
+                      data-testid={`hold-step-${step.step_id}`}
+                      onClick={() => {
+                        setHoldDraftStepId(step.step_id);
+                        setHoldDraftText("");
+                      }}
+                    >
+                      ⏸️ หยุดชั่วคราว
+                    </button>
+                  )}
+                  <button type="button" onClick={() => handleCompleteStep(step.step_id)} data-testid={`complete-step-${step.step_id}`}>
+                    ✅ เสร็จงาน
+                  </button>
+                </>
+              ) : step.status === "on_hold" ? (
+                <button type="button" onClick={() => handleResumeStep(step.step_id)} data-testid={`resume-step-${step.step_id}`}>
+                  ▶️ ทำต่อ
+                </button>
+              ) : null}
+            </div>
 
             <button
               type="button"
@@ -1040,7 +1187,7 @@ function JobDetailPageContent() {
         <div style={{ position: "relative", marginTop: 12 }}>
           <input
             type="text"
-            placeholder="🔍 ค้นหาของสิ้นเปลืองจากสต็อก (ไม่บังคับ)"
+            placeholder="🔍 ค้นหาอะไหล่จากสต็อก (ของสิ้นเปลือง/อะไหล่ถอด — ไม่บังคับ)"
             value={consumableQuery}
             onChange={(e) => searchConsumables(e.target.value)}
             style={{ width: "100%" }}
@@ -1079,7 +1226,8 @@ function JobDetailPageContent() {
                     fontSize: 13,
                   }}
                 >
-                  {p.part_name} — เหลือ {p.quantity} · {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
+                  {p.item_type === "salvage" ? "🔩" : "📦"} {p.part_name} — เหลือ {p.quantity} ·{" "}
+                  {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
                 </button>
               ))}
             </div>
@@ -1100,6 +1248,58 @@ function JobDetailPageContent() {
             🔗 ผูกกับสต็อก: {selectedConsumablePart.part_name} — บันทึกแล้วจะตัดสต็อกอัตโนมัติ
           </div>
         )}
+
+        {/* ค้นหารายการที่เคยพิมพ์ไว้ก่อนหน้า (ค่าแรง/ค่าอะไหล่/อื่นๆ) มาหยิบใช้ซ้ำ —
+            ไม่ตัดสต็อก ไม่ auto-fill ราคา/จำนวน เว้นให้กรอกเองเสมอ */}
+        <div style={{ position: "relative", marginTop: 8 }}>
+          <input
+            type="text"
+            placeholder="🕘 ค้นหารายการที่เคยใช้ (ค่าแรง/ค่าอะไหล่ — ไม่ตัดสต็อก)"
+            value={historyQuery}
+            onChange={(e) => searchHistory(e.target.value)}
+            style={{ width: "100%" }}
+          />
+          {historyResults.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                background: "var(--surface)",
+                border: "1px solid var(--border-strong)",
+                borderRadius: 8,
+                marginTop: 4,
+                maxHeight: 200,
+                overflowY: "auto",
+              }}
+            >
+              {historyResults.map((item, i) => (
+                <button
+                  key={`${item.description}-${item.category}-${i}`}
+                  type="button"
+                  onClick={() => handleSelectHistoryItem(item)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: 10,
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    background: "transparent",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  {item.description}{" "}
+                  <span style={{ color: "var(--text-muted)" }}>({CATEGORY_LABELS[item.category] || item.category})</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* ฟอร์มเพิ่มรายการแบบเร็ว: พิมพ์ "ค่า..." จะเดาเป็นค่าแรงให้อัตโนมัติ */}
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>

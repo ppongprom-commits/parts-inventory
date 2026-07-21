@@ -457,3 +457,257 @@ parts-inventory/
 - หน้า `/edit/[id]` โชว์ "อยู่ในสต็อกมาแล้ว N วัน" + ลิงก์ย้อนกลับไปงานต้นทาง (ใช้หลัก FSN Analysis หาของค้างสต็อก)
 
 **⚠️ ข้อจำกัด:** กำไรที่คำนวณเป็นตัวเลขประมาณการเทียบยอดขายสะสมกับราคาซื้อรถอย่างเดียว **ยังไม่รวมค่าแรงถอดแยก/ค่าใช้จ่ายอื่น** — เหมาะเป็นตัวเลขอ้างอิงคร่าวๆ ไม่ใช่ต้นทุนที่แม่นยำ 100%
+
+### 16. คืนวันที่ 20 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run)
+
+**ฟีเจอร์ใหม่/แก้ไข:**
+- **แก้บั๊ก Android Chrome ถ่ายรูปแล้วหน้า `/add` รีเซ็ต** (`lib/addFormRecovery.js`) — Android
+  อาจฆ่า background tab process ตอนเปิดแอปกล้อง native ทำให้ Chrome ต้อง reload หน้าใหม่ทั้งหมด
+  ตอนนี้กู้คืนฟอร์ม+รูปจาก sessionStorage อัตโนมัติพร้อมแจ้งเตือน
+- **เพิ่ม "ลืมรหัสผ่าน?" ที่ `/login`** + หน้า `/reset-password` รับลิงก์ — เจ้าของอู่รีเซ็ตรหัสผ่าน
+  ตัวเองได้เอง ไม่ต้องพึ่ง `scripts/reset-owner-password.mjs` รันมือถาวรอีกต่อไป (ปุ่มรีเซ็ต
+  PIN/รหัสผ่านให้สมาชิกคนอื่นใน `/admin/team` มีอยู่ก่อนแล้ว ใช้ได้ทั้งบัญชี username+PIN และอีเมล)
+- **Platform admin role tiers** (Super Admin / Support / Analyst) — บังคับ permission matrix
+  ที่ระดับ API ทุก endpoint ใต้ `/api/platform/*` ไม่ใช่แค่ซ่อนปุ่มใน UI ใหม่: route จัดการ
+  platform_admins เอง (`/api/platform/admins`) พร้อมกันคนสุดท้ายที่เป็น Super Admin ถูก demote/ลบ
+- **Platform admin Activity Log** — บันทึกทุกการกระทำที่กระทบลูกค้า (แก้ subscription, join-as-
+  support, จัดการ platform admin) ผ่าน Postgres RPC ที่ทำ mutation + เขียน log ในทรานแซคชัน
+  เดียวกัน (log เขียนไม่สำเร็จ = การกระทำหลัก rollback ด้วย) มีแท็บ "Activity Log" ในหน้า
+  `/platform-admin` ให้ดู timeline + filter
+- **Export CSV อะไหล่** (`/admin` → "Export CSV") — จำกัดสิทธิ์ Owner/Manager/Supervisor,
+  จำกัด tier Starter ขึ้นไป (Trial export ไม่ได้) ยังไม่รองรับ Jobs/Sales CSV (รอ payment_method
+  และ cart-based selling flow ที่ยังไม่มีจริงในระบบก่อน)
+- **แก้บั๊ก "silent session kick"** — user ที่ registerSession ล้มเหลว (เช่น ชนกับ concurrent
+  session limit ของ tier) ตอนนี้เห็นข้อความอธิบายที่ `/login`/`/staff-login` แทนที่จะโดนเด้ง
+  กลับเฉยๆ ไม่รู้สาเหตุ
+
+**Schema drift ที่แก้ (พบ 5 จุดคืนนี้ — DB จริงบน staging นำหน้าไฟล์ใน git ไปมาก):**
+- `db/car_data_full_resync_2026-07-20.sql` — export `model_trims` (1508 แถว) + `model_generations`
+  (397 แถว) ที่ขาดหายจากไฟล์ seed เดิม ใช้ name-based lookup (ไม่ใช่ raw id) กันปัญหา id ไม่ตรงกัน
+  ข้าม environment — พบด้วยว่า `db/vehicle_trims_toyota_honda_nissan_mazda_isuzu_mitsubishi.sql`
+  เดิมใช้ raw `generation_id` ทำให้ fresh install ที่ id ไม่ตรงจะเสียข้อมูลทั้งไฟล์แบบ atomic
+- `db/platform_admin_role_tiers_and_audit_log_migration.sql` + `db/platform_audit_log_transactional_rpc_migration.sql`
+  — `platform_admins.role` และ `platform_audit_log` มีอยู่แล้วบน DB จริงแต่ไม่เคย commit
+- `db/zones_owner_type_migration.sql` — `zones.owner_type` + `owner_entity_id` (prerequisite ของ
+  Accounting Module) มีอยู่แล้วบน DB จริง + มี UI ใน `/admin/zones` แล้ว แต่ไม่เคย commit
+- `db/audit_log_changed_by_user_id_fix_migration.sql` — 4 RPC เดิม (insert/update_model_generation,
+  insert/update_model_trim) ไม่เคยใส่ `changed_by_user_id` เลย รู้แค่ IP/user agent ไม่รู้ว่าใครแก้
+- `db/visibility_groups_and_workflow_schema.sql` — ไฟล์นี้ถูกอ้างอิงจาก README + migration อื่น
+  มาตลอดแต่ไม่เคยมีอยู่ใน repo จริงเลย ถูก reconstruct จาก schema จริงบน staging (verify แล้วว่า
+  fresh install ให้ผลตรงกับ staging ทุก column/constraint/policy)
+
+**เอกสารที่สร้างใหม่ (การ์ด Notion อ้างว่ามีอยู่แล้วแต่ไม่เคย commit จริง):** `SOP.md`,
+`USER_MANUAL.md`
+
+**⚠️ กระบวนการกัน drift รอบใหม่:** ดูหัวข้อ "กระบวนการกัน Schema Drift" ใน `SOP.md` — สรุปสั้นๆ
+คือ แก้ DB ตรงเมื่อไหร่ต้อง export กลับ repo วันเดียวกัน, seed ข้อมูลอ้างอิงกันด้วยชื่อไม่ใช่ raw id,
+รัน fresh-install test ก่อนปิดงานที่แตะ schema, migration ใหม่ต้อง idempotent เสมอ
+
+### 17. คืนวันที่ 21 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run #2)
+
+ทำงานบน sandbox เดียวกับรอบก่อนหน้า (ไม่มี network ออก `*.supabase.co` — qa-tests ทั้งหมด mock
+network ตามที่ `qa-tests/_fixtures/mockAuth.js` อธิบายไว้ แต่มี Supabase MCP ต่อ staging project
+จริงได้ ใช้ตรวจ/แก้ schema สด + verify ด้วย SQL จริงก่อน export กลับเป็นไฟล์ migration) หยิบการ์ด
+priority สูงสุดที่ยังไม่เสร็จมาทำทีละใบ ทั้งการ์ดโค้ดและการ์ดเอกสาร:
+
+**ฟีเจอร์ใหม่/แก้ไข:**
+- **Zone QR redesign + สแกนตำแหน่งตรงจากฟอร์ม** (`components/ZoneQRScanner.js`) — ตัวหนังสือบนป้าย
+  QR โซนใหญ่ขึ้น (10pt→20pt) อ่านง่ายจากระยะยืนหน้าชั้นจริง + ปุ่ม "📷 สแกนตำแหน่งแทน" ในหน้า
+  `/add` และ `/edit/[id]` เปิดกล้อง (native `BarcodeDetector` API) สแกน QR โซนแล้ว auto-fill
+  ให้เลย ปฏิเสธ auto-fill ถ้าสแกนโซนที่ไม่ใช่ leaf
+- **Job Assignment Status Tracking** (`app/jobs/[id]/page.js`) — ขั้นตอนงานย่อยแต่ละอันมีปุ่ม
+  เริ่มงาน/หยุดชั่วคราว (บังคับกรอกเหตุผล)/ทำต่อ/เสร็จงาน แทน `<select>` เดิมที่ตั้งสถานะอะไรก็ได้
+  ไม่มีลำดับ ไม่บันทึกเวลา — ตอนนี้บันทึก `started_at`/`completed_at` อัตโนมัติ + จำกัดสิทธิ์กดปุ่ม
+  เฉพาะคนที่ถูก assign หรือ supervisor ขึ้นไป บังคับทั้ง UI และ DB trigger
+- **ขยาย audit trail ไปที่ `parts`** (`components/PartAuditHistory.js`) — ปุ่ม "🕘 ประวัติการแก้ไข"
+  ที่หน้า `/edit/[id]` เห็นได้ทุก role ที่แก้ไขอะไหล่ได้ ไม่ใช่แค่ owner/manager (ผ่าน RPC
+  `get_part_audit_history` ที่เปิดให้ดูเฉพาะประวัติของชิ้นที่กำลังดูอยู่ ไม่ใช่ log เต็มร้าน)
+- **Bulk เข้า shelf ให้อะไหล่เก่าที่ไม่มี `zone_id`** — เพิ่ม source mode ใหม่ที่ `/move-parts`
+- **Part QR label spec** — เปลี่ยนจาก A4 grid (ใช้งานหน้างานจริงไม่ได้) เป็น 40x60mm เหมือน
+  Zone QR + โซนที่โชว์อ่านจาก `zone_id` breadcrumb จริงแทน `zone_code` เดิมที่ไม่อัปเดตแล้ว
+- **Zone move action + owner_type override** (`/move-part/[id]`) — action ย้าย Zone ทีละชิ้น
+  แยกจากการแก้ `zone_id` ตรงๆ ในฟอร์มแก้ไข เช็ค `owner_type` ปลายทางกับปัจจุบัน ถ้าไม่ตรงมี
+  checkbox ให้ยืนยันว่ายังเป็นประเภทเดิม + toggle ระดับร้าน "บังคับสแกน QR ยืนยันตำแหน่ง" ที่
+  `/admin` (default ปิด)
+- **กลไก ToS consent** (`components/TosConsentGate.js`) — ครอบทุกหน้าที่ผ่าน `RequireAuth`
+  บล็อกการใช้งานจนกว่า owner จะกดยอมรับเงื่อนไขเวอร์ชันล่าสุด (role อื่นเห็น gate เหมือนกันแต่กด
+  ยอมรับแทนไม่ได้) — เนื้อหาสัญญาใน `config/tosContent.js` เป็น **ร่างที่ยังไม่ผ่าน legal review**
+  ตามที่การ์ดต้นทางระบุไว้ตรงๆ ว่าต้องมีคนตรวจสอบก่อนใช้งานจริง
+- **`payment_method` บนฟอร์มขายทีละชิ้นที่มีอยู่แล้ว** (`/edit/[id]`) — บังคับเลือกทุกครั้ง
+  (เงินสด/โอนเงิน/บัตร/อื่นๆ) ไม่ default เงียบๆ — ยังไม่แตะ cart-based selling flow ที่ยังไม่เริ่ม
+- **Salvage Vehicle Intake** (`/salvage-vehicles`, `/salvage-vehicles/new`, `/salvage-vehicles/[id]`)
+  — เฉพาะครึ่ง "รับซากรถเข้าระบบ" ของการ์ด ไม่รวม cost allocation (rounding rule ยังไม่ตัดสินใจใน
+  การ์ด) ถ่ายรูป/เลือกรถ/ราคาซื้อ/โซนจอด/แตกมูลค่าประเมิน 4-6 กลุ่มบังคับ — `/add?salvage_vehicle_id=X`
+  ทำงานเหมือน `?job_id=X` เดิม สถานะเปลี่ยนเป็น "กำลังถอด" อัตโนมัติเมื่อถอดชิ้นแรก (DB trigger)
+- **Field Scanner role ใช้งานได้จริงแล้ว** — สร้างบัญชีผ่าน `/admin/team` ได้ (username+PIN + ตั้ง
+  วันหมดอายุได้), เข้า `/add`/`/edit/[id]` ได้เต็มที่แต่ขายไม่ได้ (ซ่อน UI + RLS กันไว้ที่ DB),
+  บัญชีหมดอายุ (`shop_members.expires_at`) ถูกปฏิเสธตอน login พร้อมข้อความชัดเจน — ยังไม่รวม
+  Onboarding Burst Mode เต็มรูป (20 บัญชี/requester-approver/notification) หรือ scheduled job
+  ตัด session ที่ active อยู่ตอนหมดอายุจริง (กลไก cron ยังไม่ตัดสินใจ)
+- **นำเข้าข้อมูลลูกค้าเดิมจาก CSV** (`/admin/import-customers`, owner/manager เท่านั้น) — เพิ่ม
+  CSV parser ใหม่ (`lib/csvImport.js` — โปรเจกต์เดิมมีแต่ฝั่ง export) upload → เดา column mapping
+  อัตโนมัติ → พรีวิว validate ทีละแถว → ยืนยัน เบอร์โทรที่ซ้ำกับลูกค้าเดิมในระบบจะถูกข้าม (ไม่ทับ)
+
+**Schema drift ที่แก้ (พบอีกหลายจุดคืนนี้ — pattern เดิมซ้ำ: DB จริงบน staging นำหน้าไฟล์ใน git):**
+- `db/job_assignment_status_tracking_migration.sql` — `job_workflow_steps.hold_reason`/`held_at`,
+  `on_hold` status, และ trigger บังคับลำดับ state machine + สิทธิ์ (`enforce_workflow_step_status_transition`,
+  `update_job_workflow_step_timestamps`) มีอยู่แล้วบน staging จากเซสชันก่อนหน้าที่การ์ดถูก mark
+  "In progress" แต่ไม่เคย commit
+- `db/audit_log_full_coverage_migration.sql` — **ที่ใหญ่สุดคืนนี้:** พบว่ามี generic trigger
+  function `fn_audit_row_change()` ครอบ `parts`/`jobs`/`shop_members`/`shops`/`options`/`zones`
+  อยู่แล้วจริงบน staging จากเซสชันก่อนหน้า (การ์ด "ขยาย audit_log ให้ครอบทั้งระบบ" เกือบเสร็จไปแล้ว
+  ก่อนเราเริ่มทำด้วยซ้ำ) — ไฟล์นี้ยังแก้ **regression ที่เราทำเองในเซสชันนี้เอง** ด้วย: ตอนแรกไม่รู้
+  เรื่อง generic trigger เลยสร้างฟังก์ชันเฉพาะ `parts` แยกของตัวเอง ทำให้ `parts` หลุดออกจาก
+  pattern กลาง แก้คืนแล้วในไฟล์นี้ (verify ด้วยการรัน UPDATE จริงบน staging เช็คว่า log ขึ้นถูก)
+- `db/zone_move_action_migration.sql` — `shops.force_zone_scan_confirmation`,
+  `parts.owner_type_override` (คอลัมน์ใหม่จริง ไม่ใช่ drift — เพิ่มจากการ์ด "ย้ายอะไหล่ระหว่าง Zone")
+- ยืนยันอีกครั้งว่า `zones.path` เป็น PostgreSQL `ltree` จริง (ไม่ใช่ text) พร้อม trigger
+  auto-maintain path (`trg_zones_set_path`/`trg_zones_update_path`) อยู่แล้วบน staging — การ์ด
+  "Area/Rack/Level location hierarchy (ltree)" เกือบเสร็จไปแล้วเช่นกัน (ไม่ได้แตะเพิ่มคืนนี้
+  เพราะเวลาไม่พอตรวจ data migration ของ `zone_code` เก่าที่การ์ดต้องการให้ครบ)
+- `db/salvage_vehicle_intake_migration.sql` — ตารางใหม่จริง (ไม่ใช่ drift)
+- `db/field_scanner_role_migration.sql` — บทบาท `field_scanner` มีอยู่แล้วจริงใน
+  `shop_members_role_check` และ RLS ของ `parts`/`zones` (ครอบไว้แล้ว) และ `customers`/`part_sales`
+  (ตั้งใจไม่รวมไว้ถูกต้องแล้วตามการ์ด) จากเซสชันก่อนหน้า แต่**แอปไม่รู้จัก role นี้เลยสักที่เดียว** —
+  `shop_members.expires_at` เป็นคอลัมน์ใหม่จริง (ไม่ใช่ drift)
+- `db/import_customers_migration.sql` — ต่อ `customers` เข้า `fn_audit_row_change()` (คอลัมน์/ตาราง
+  ใหม่จริง ไม่ใช่ drift)
+
+**เอกสารที่แก้ไข (พบข้อมูลเก่าที่ไม่ตรงกับโค้ดจริงแล้ว 3 จุด):** `SOP.md` เคยบอกว่าสแกน QR ยังไม่มี
+และ Platform Admin Activity Log ยังไม่มี UI (ทั้งคู่มีแล้วจริง) และทั้ง `SOP.md`+`USER_MANUAL.md`
+เคยบอกว่า `USER_MANUAL.md` ยังเป็น draft ไม่มีไฟล์ (มีไฟล์อยู่แล้วจริงตั้งแต่คืนก่อน) — แก้ครบแล้ว
+พร้อมเพิ่มเนื้อหาฟีเจอร์ใหม่คืนนี้ (Job Assignment Status Tracking, parts audit history)
+
+**การ์ดที่ตัดสินใจไม่ทำคืนนี้ (ตัวการ์ดเองเตือนว่าเสี่ยงถ้าทำแยก):** "ระบบเอกสาร/ใบเสร็จแยกสำหรับ
+ขายอะไหล่" และส่วนที่เหลือของ "บันทึกวิธีชำระเงิน" (checkout เต็มรูป) — ทั้งคู่ผูกกับ Cart-based
+selling flow ที่ยังไม่เริ่ม การ์ดต้นทางเตือนตรงๆ ว่าทำแยกกันเสี่ยงได้ checkout ที่ขาดช่องสำคัญ
+ไม่ได้ implement ในช่วงเวลานี้เพื่อไม่ให้ต้องรื้อทำใหม่ตอน cart flow เริ่มจริง
+
+**⚠️ GitHub push ไม่สำเร็จคืนนี้:** sandbox มี read access clone `staging` ได้ปกติ แต่ push ถูก
+ปฏิเสธ (403) ทุกครั้ง — commit ทั้งหมดของคืนนี้จึงอยู่ใน local git history ของ sandbox เท่านั้น
+ยังไม่ขึ้น GitHub จริง คุณอั้มต้องดึง patch/diff ไปใส่ที่ repo จริงเอง (ดูสรุปท้ายเซสชัน)
+
+### 18. ดึกคืนเดียวกัน 21 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run #3)
+
+ทำงานบน sandbox ใหม่ (clone `staging` จาก GitHub สดๆ — พบว่า commit ของ run #2 ขึ้น GitHub จริง
+แล้วทั้งที่ log ของ run #2 บอกว่า push ไม่สำเร็จ คาดว่า push สำเร็จภายหลังจากช่องทางอื่น) หยิบการ์ด
+priority สูงสุดที่ยังไม่เสร็จมาทำต่อทีละใบ ทั้งการ์ดโค้ดและการ์ดเอกสาร ตามลำดับที่ยังไม่เสร็จจากรอบก่อน:
+
+**ฟีเจอร์ใหม่/แก้ไข:**
+- **Cart-based selling flow** (`app/checkout/page.js`) — เพิ่มโหมด "🛒 เลือกขาย" คู่กับ "เลือกพิมพ์ QR"
+  เดิมที่หน้ารายการอะไหล่ เลือกได้หลายชิ้นข้ามหน้า → `/checkout` แก้จำนวน/ราคาต่อชิ้น + ผู้ซื้อ +
+  วิธีชำระเงิน (บังคับเลือก) → ยืนยันขายทั้งหมดตัดสต็อกทีละชิ้นแบบเป็นอิสระต่อกัน (ชิ้นที่ fail ไม่
+  rollback ชิ้นที่สำเร็จแล้ว) → Picking List (มีปุ่ม "หาไม่เจอ" คืนสต็อกอัตโนมัติ) → Confirm Pick
+  แบบ walk-in ออกใบเสร็จให้อัตโนมัติ ทำพร้อมกับ 2 การ์ดที่ผูกกัน (payment_method ต่อเข้า checkout,
+  part_sale_documents แบบ receipt-only) ตามที่การ์ดต้นทางกำหนดไว้ว่าต้องทำพร้อมกัน — ไม่ทำ
+  tax_invoice/pack-ship เต็มรูป/branch transfer อัตโนมัติรอบนี้ (ดูรายละเอียด scope ที่ตั้งใจตัดใน
+  `db/cart_based_selling_flow_migration.sql`)
+- **Area/Rack/Level location hierarchy** — พบว่าโครงสร้าง ltree เกือบทั้งหมด (parent_id/path/
+  trigger รักษา path+กันวงจร/unique code ต่อ parent/`parts.zone_id`) live บน staging จริงจาก
+  เซสชันก่อนแต่ไม่เคยมีไฟล์ migration เลย export กลับเป็น `db/zone_hierarchy_ltree_migration.sql`
+  แล้ว ระหว่างตรวจพบช่องโหว่ multi-tenant จริง (parent_id ข้ามร้านไม่ถูกกัน) แก้เป็น trigger ใหม่
+  ในไฟล์เดียวกัน พร้อมเขียน data migration script zone_code (เก่า) → zone_id ที่การ์ดต้องการแต่
+  ยังไม่เคยมีใครเขียน
+- **บั๊กที่แก้:** `/admin/zones` เดิมบล็อกลบโซนถ้ามีอะไหล่ผูกอยู่ แม้ quantity=0 (ขายหมดแล้ว) แล้ว —
+  ขัดกับมติการ์ดที่ตัดสินใจว่านับเฉพาะ quantity > 0 แก้แล้ว
+
+**เอกสารที่แก้ไข (พบข้อมูลเก่าที่ไม่ตรงกับโค้ดจริงแล้วหลายจุดใน `SOP.md`):** section 2 (bulk-assign
+โซนเก่าที่บอกว่า "รอสร้าง" ทั้งที่ทำเสร็จแล้ว), section 3-5 (ขายอะไหล่/รับชำระเงิน/ใบเสร็จ อัปเดต
+ทั้งหมดให้ตรงกับ cart flow ใหม่คืนนี้), section 6 (prerequisite ของ Accounting Module เสร็จครบทั้ง
+2 ตัวแล้วแต่เอกสารเก่ายังบอกว่ายังไม่เริ่มทั้งคู่), section 7 (Salvage Vehicle Intake บอกว่า "ยังไม่มี
+เลย" ทั้งที่ทำเสร็จไปแล้วตั้งแต่คืนก่อน), toggle "บังคับสแกน QR" ในหัวข้อ 1 บอกว่ายังไม่ได้ทำทั้งที่
+ทำเสร็จไปแล้ว — `USER_MANUAL.md` ก็แก้ 1 จุด (audit trail บอกว่ายังไม่ครอบ jobs/shop_members/
+shops/options/zones ทั้งที่ตรวจ DB จริงพบว่าครอบครบ 8 ตารางแล้ว) และเพิ่มคอลัมน์ "ขายอะไหล่" ใน
+ตารางสิทธิ์บทบาทที่ขาดไปหลังเพิ่ม permission `sell_parts` ใหม่
+
+**Schema drift ที่แก้:** ดูหัวข้อฟีเจอร์ด้านบน (zone hierarchy ltree) — เพิ่มเข้า
+`db/zone_hierarchy_ltree_migration.sql`, `db/cart_based_selling_flow_migration.sql` (ตารางใหม่จริง
+ไม่ใช่ drift)
+
+**เทส:** unit test ใหม่ 1 ไฟล์ (zoneHelpers, 17 checks) + Playwright ใหม่ 2 ไฟล์ (zone delete-block
+3 scenario, cart checkout 7 scenario) ทุกไฟล์ผ่านตั้งแต่รอบแรกที่รัน (ไม่มีรอบแก้บั๊ก) — full suite
+71/71 ผ่าน ไม่มี regression กับของเดิม
+
+**ทำต่อในเซสชันเดียวกัน (ยังคืนวันที่ 21 ก.ค.):**
+- **Onboarding Burst Mode** — จำกัด field_scanner ชั่วคราวสูงสุด 20 บัญชี/ร้าน แยกจาก seat limit
+  ปกติ, แก้บั๊กจริงที่เจอ (`lib/sessionTracking.js` เดิมนับ field_scanner รวมกับ concurrent cap
+  ปกติทุก role เหมือนกัน ทั้งที่ตัดสินใจไว้ว่าไม่ควรนับ), extension workflow Manager
+  ขอ/Owner อนุมัติ บังคับที่ API จริงไม่ใช่แค่ UI — มี ❓ ที่การ์ดเองยังไม่ตัดสินใจ 4 จุด ใช้ assumption
+  ที่ระบุชัดแทนการเดาเงียบๆ (ดู `db/onboarding_burst_mode_migration.sql`)
+- **Concurrent session limit** — แก้บั๊กจริงที่การ์ดชี้ไว้ตรงๆ (JWT ของเครื่องที่ถูก evict ยังใช้ได้
+  ต่อจนหมดอายุเอง ไม่ได้ตัดสิทธิ์ทันที) ด้วยวิธี heartbeat-based detection แทน middleware ตามที่
+  การ์ดตัดสินใจไว้ เพราะแอปนี้เป็น client-side SPA ล้วน Next.js middleware ดักการยิง REST ตรงจาก
+  เบราว์เซอร์ไปที่ Supabase ไม่ได้เลย
+- **Stock Value Cap Engine** — running counter + state machine (under→grace→blocked) ครบใน DB,
+  banner แจ้งเตือน + บล็อกสร้างงานใหม่ตอน blocked — สูตรต้นทุนยังนับแค่ price×quantity ตรงๆ
+  (รอ Salvage cost allocation ก่อนถึงจะรวม allocated_cost ได้)
+- **Field Visibility Whitelist กลาง** — `config/fieldVisibility.js` + override table พร้อม floor
+  rules บังคับซ้ำที่ DB layer, wire เข้า Export CSV แล้ว (1 ใน 4 การ์ดที่ควรใช้ — อีก 3 ยัง Not
+  started/ใช้ config เดิม)
+- **Informal Report (ส่วนย่อยของ Accounting Module)** — เพิ่มแยกตามวิธีชำระเงินที่
+  `/admin/reports`, แก้บั๊กที่เจอ (query เดิมนับรวมรายการที่ถูก mark "หาไม่เจอ" ตอน pick เป็นยอดขาย
+  ทั้งที่คืนสต็อกไปแล้ว)
+- **Write-off** (edge case 1 ของ Salvage cost allocation) — ปุ่ม "ตัดเป็นค่าเสียหาย" เป็น generic
+  action บนอะไหล่ตัวไหนก็ได้ที่ `/edit/[id]` แยกจาก "ซ่อนอะไหล่" เดิม
+
+**🔒 บั๊กความปลอดภัย/ความถูกต้องที่เจอจากการตรวจ RLS แบบจำลอง role จริงท้ายเซสชัน (สำคัญ):**
+ปกติแล้ว qa-tests ทั้งชุด mock network ทั้งหมด ไม่เคยชน RLS จริงเลย และการรัน SQL ผ่าน Supabase MCP
+ก็ใช้สิทธิ์ที่ bypass RLS ด้วย — ท้ายเซสชันนี้เปลี่ยนมาจำลอง `set local role authenticated` +
+JWT claim จริงตรงกับที่ PostgREST ใช้ (ไม่ใช่แค่รันผ่าน MCP เฉยๆ) พบบั๊กจริง 3 จุดที่ไม่มีทางเจอได้
+จาก Playwright เลย:
+1. `restore_part_stock` (RPC ใหม่คืนนี้) ไม่มีการเช็คสิทธิ์เลย — user คนไหนก็ได้เพิ่ม quantity ให้
+   part_id ของร้านอื่นได้โดยตรง — แก้แล้ว
+2. `part_sales` ไม่เคยมี UPDATE policy เลยตั้งแต่ก่อนคืนนี้ — Confirm Pick/ปุ่ม "หาไม่เจอ" ของ
+   Cart-based selling flow ที่ต้อง UPDATE item_status จะโดน RLS บล็อกเงียบๆ จริงใน production
+   (0 แถวถูกแก้ ไม่มี error) — แก้แล้ว
+3. Stock Value Cap Engine trigger ไม่ได้เป็น SECURITY DEFINER — `shops` UPDATE RLS อนุญาตแค่
+   owner/manager แต่ trigger นี้ทำงานทุกครั้งที่ใครก็ตามแก้ `parts` (รวม supervisor/technician/
+   assistant ที่แก้อะไหล่ตลอดเวลา) — ถ้าไม่แก้ counter จะไม่อัปเดตเลยเมื่อคนที่ไม่ใช่ owner/manager
+   เป็นคนแก้ ซึ่งเป็นเคสส่วนใหญ่ของการใช้งานจริง — แก้แล้ว
+
+ทั้ง 3 จุด verify ด้วยการจำลอง role จริงตรงกับ staging แล้วว่าแก้ถูกต้อง (ไม่ใช่แค่ "compile ผ่าน")
+
+**การ์ดที่ประเมินแล้วไม่ทำ (บล็อกจริง ไม่ใช่แค่เวลาไม่พอ):**
+- Multi-branch support / API พื้นฐาน — การ์ดเองตัดสินใจ "เลื่อนได้จนกว่าจะมีลูกค้าจริงร้องขอ"
+- Platform Revenue Module — commission ครึ่งหนึ่งรอ marketplace feature ที่ยังไม่มี, subscription
+  revenue อีกครึ่งพบว่าโปรเจกต์นี้ไม่มีระบบรับชำระเงินจริงเลยแม้แต่จุดเดียวให้ผูก revenue event ด้วย
+- Custom Report Builder — ราคา add-on ยังไม่ตกลง (การ์ดเองบอกว่า "เดี๋ยวคุยแยกต่างหาก") + ไม่มีระบบ
+  license/entitlement ให้ผูกจริง
+- โอนอะไหล่ข้ามสาขา / ขายอะไหล่ที่ยังไม่ตีราคา — บล็อกด้วย ❓ ที่ยังไม่ตัดสินใจหลายจุด หรือรอการ์ด
+  ต้นทาง (Multi-branch, Salvage cost allocation) ที่ยังไม่พร้อม
+
+**⚠️ GitHub push ไม่สำเร็จคืนนี้เช่นกัน** (403 เหมือนทุกรอบก่อนหน้า) — commit ทั้งหมด (12 commits)
+อยู่ใน local git history ของ sandbox เท่านั้น
+
+ดูสรุปเวลาที่ใช้ + การ์ดที่ทำ/ยังไม่ทำ แบบละเอียดท้ายเซสชันนี้ (ส่งให้คุณอั้มโดยตรงผ่าน Notion comment
+ของแต่ละการ์ด + สรุปในแชท)
+
+### ส่วนเพิ่มเติม — real E2E test suite (`qa-automation/`) ตามคำขอของคุณอั้ม (session แยกต่างหาก)
+
+คุณอั้มขอ Playwright test สำหรับทดสอบ staging จริง (ไม่ mock เครือข่ายเหมือน `qa-tests/` ที่ต้องรันใน
+sandbox เพราะออกเน็ตไม่ได้) ทั้ง regression set เดิมและฟีเจอร์ใหม่ทั้งหมดของคืนวันที่ 21 ก.ค. 2026 —
+พบว่าไดเรกทอรี `qa-automation/` มีอยู่แล้วจริงบน branch `main` (จากงาน migration multi-tenant ก่อนหน้า)
+แต่ไม่เคย merge เข้า `staging` เลย จึง port เข้ามาแล้วขยายให้ครอบคลุมฟีเจอร์ใหม่ 13 การ์ดที่ทำในรอบ
+nightly QA คืนนั้นโดยเฉพาะ (TOS/JOBSTAT/AUDIT/MOVEPARTS/MOVEPART/PAYMENT/SALVAGE/FIELDSCAN/IMPORT/
+LABEL — 46 test ใหม่ รวมกับของเดิม 95 test เป็น 141 test ใน 28 ไฟล์) พร้อมแก้ compatibility ให้เข้ากับ
+ToS gate ที่เพิ่งเพิ่มเข้ามาคืนนั้น (สำคัญสุด: seed `shop_tos_acceptances` ให้ทุก test shop ล่วงหน้าใน
+`setup-test-data.mjs` กัน gate บล็อก suite เดิมทั้งหมด) — รายละเอียดเต็มอยู่ใน `qa-automation/README.md`
+หัวข้อ "คืนวันที่ 21 ก.ค. 2026"
+
+**⚠️ หมายเหตุสำคัญ:** ชุด `qa-automation/` นี้ **ยังไม่ครอบคลุมการ์ดที่ทำเพิ่มเติมหลังจากนั้น** ในเซสชัน
+ที่ต่อยอดมา (Cart-based selling flow, Field Visibility Whitelist, Stock Value Cap Engine, Onboarding
+Burst Mode, Write-off, Sales report payment_method breakdown, และ RLS bug fix ทั้ง 2 จุด) — เขียนขึ้น
+ก่อนที่งานเหล่านั้นจะเสร็จ ยังต้องเพิ่ม test สำหรับการ์ดกลุ่มนี้ต่อในรอบถัดไปถ้าต้องการให้ครอบคลุมครบ
+
+**เจอบั๊ก path ผิดในไฟล์เดิมจาก `main`:** `tests/job-creation-photos.spec.js` ชี้ path รูปทดสอบผิดที่
+(`tests/test-assets/` แทนที่จะเป็น `fixtures/test-assets/`) ทำให้ JOB-501–503 พังทันทีถ้ารันจริง —
+แก้แล้ว ไม่เกี่ยวกับฟีเจอร์คืนนี้ เป็นบั๊กเดิมที่ค้างมาจาก `main`
+
+**เจอ known gap:** RPC `get_part_audit_history()` ไม่รวม `field_scanner` ในรายชื่อ role ที่อนุญาต
+ทั้งที่ field_scanner แก้ไข part ได้จริง — แก้ไขอะไหล่ได้แต่ดูประวัติการแก้ไขของชิ้นนั้นไม่ได้ ยังไม่ได้
+แก้ (แค่ flag ไว้ใน test AUDIT-005 ให้ทีม dev ตัดสินใจ)
+
+⚠️ **ชุด test ใหม่ (`card-*.spec.js`) เขียนจากการอ่านโค้ด/schema/RLS จริงเท่านั้น ยังไม่เคยรันจริงสักครั้ง**
+เพราะ sandbox ที่เขียนไม่มี network ออก `*.supabase.co`/`*.vercel.app` — ผ่านแค่
+`npx playwright test --list` (parse/load สำเร็จหมด 141 test) คุณอั้มต้องรันจริงจากเครื่อง/CI ก่อนเชื่อ
+ผลได้เต็มที่ (ดู Quick Start ใน `qa-automation/README.md`)

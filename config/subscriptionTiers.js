@@ -9,12 +9,22 @@
  * maxDevicesPerUser     = 1 คนใช้ login พร้อมกันได้กี่เครื่อง (ทุก tier เท่ากัน
  *                         เป็นค่า global ป้องกันการแชร์ account เดียวหลายเครื่องเกินจำเป็น)
  * priceMonthly / priceYearly = หน่วยเป็นบาท, null = ติดต่อฝ่ายขาย (Enterprise)
+ * stockValueCap = การ์ด "Stock Value Cap Engine" — มูลค่าสต็อกสูงสุด (บาท) ก่อนเข้า grace period
+ *                 null = ไม่จำกัด (Enterprise) — ✅ ตัวเลขตัดสินใจชั่วคราวแล้วในการ์ด
+ *                 ⚠️ ตัวเลขชุดนี้ซ้ำอยู่ใน db/stock_value_cap_engine_migration.sql
+ *                 (fn_tier_stock_cap) ด้วย เพราะ trigger ฝั่ง DB ต้องรู้ cap ทันทีตอนแก้ parts
+ *                 โดยไม่พึ่งแอปเรียก RPC แยก — แก้ที่นี่แล้วต้องไปแก้ SQL function ให้ตรงกันด้วย
+ *                 (ดูหมายเหตุเต็มในไฟล์ migration ว่าทำไมถึงต้องมี 2 ที่)
  */
 
 export const GLOBAL_SESSION_CONFIG = {
-  maxDevicesPerUser: 2,
+  maxDevicesPerUser: 4,
   idleTimeoutMinutes: 15,        // ไม่มีกิจกรรมเกินเท่านี้ -> เริ่มนับถอยหลัง
   idleWarningCountdownSeconds: 100, // เวลานับถอยหลังก่อน logout อัตโนมัติ
+  sessionStaleAfterMinutes: 3, // แถวใน user_sessions ที่ last_seen_at เก่ากว่านี้ถือว่าเป็น
+                                // "session ผี" (ปิดแท็บ/แอปมือถือ/เน็ตหลุดโดยไม่ผ่าน beforeunload)
+                                // ไม่นับใน concurrent session limit และถูกเก็บกวาดทิ้งอัตโนมัติ
+                                // (heartbeat ทุก 60 วิ ค่านี้เผื่อพลาดได้ ~2-3 รอบก่อนถือว่าหลุดจริง)
 };
 
 export const SUBSCRIPTION_TIERS = {
@@ -24,6 +34,7 @@ export const SUBSCRIPTION_TIERS = {
     priceYearly: 0,
     maxMembers: 3,
     maxConcurrentSessions: 3,
+    stockValueCap: 500000,
     maxParts: 50,
     trialDays: 14,
     features: ["core_crud", "search", "mobile_camera"],
@@ -34,6 +45,7 @@ export const SUBSCRIPTION_TIERS = {
     priceYearly: 4000,
     maxMembers: 5,
     maxConcurrentSessions: 5,
+    stockValueCap: 1000000,
     maxParts: null, // ไม่จำกัด
     features: ["core_crud", "search", "mobile_camera", "admin_basic"],
   },
@@ -43,6 +55,7 @@ export const SUBSCRIPTION_TIERS = {
     priceYearly: 6500,
     maxMembers: 10,
     maxConcurrentSessions: 8,
+    stockValueCap: 3000000,
     maxParts: null,
     features: [
       "core_crud",
@@ -60,6 +73,7 @@ export const SUBSCRIPTION_TIERS = {
     priceYearly: 9000,
     maxMembers: 15,
     maxConcurrentSessions: 12,
+    stockValueCap: 10000000,
     maxParts: null,
     features: [
       "core_crud",
@@ -79,6 +93,7 @@ export const SUBSCRIPTION_TIERS = {
     priceYearly: null,
     maxMembers: null,
     maxConcurrentSessions: null,
+    stockValueCap: null,
     maxParts: null,
     features: ["all", "multi_branch", "api_access", "custom_reports"],
   },

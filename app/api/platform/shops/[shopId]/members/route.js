@@ -1,32 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../../lib/supabaseAdminClient";
+import { requirePlatformRole } from "../../../../../../lib/platformAdmin";
 
-async function verifyPlatformAdmin(request) {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.replace("Bearer ", "").trim();
-
-  if (!token) return { error: "ไม่พบ token กรุณาเข้าสู่ระบบใหม่", status: 401 };
-
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !userData?.user) {
-    return { error: "session ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่", status: 401 };
-  }
-
-  const { data: adminRow } = await supabaseAdmin
-    .from("platform_admins")
-    .select("user_id")
-    .eq("user_id", userData.user.id)
-    .maybeSingle();
-
-  if (!adminRow) return { error: "บัญชีนี้ไม่มีสิทธิ์เข้าหน้า Platform Admin", status: 403 };
-
-  return { userId: userData.user.id };
-}
+// GET (ดูสมาชิกของอู่) — ทั้ง 3 role เห็นเหมือนกันหมด
+const VIEW_ROLES = ["super_admin", "support", "analyst"];
 
 export async function GET(request, { params }) {
   try {
     const { shopId } = await params;
-    const authResult = await verifyPlatformAdmin(request);
+    const authResult = await requirePlatformRole(request, VIEW_ROLES);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
