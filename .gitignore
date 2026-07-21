@@ -4,3 +4,4 @@ node_modules
 .DS_Store
 qa-automation/.env
 qa-automation/test-results/
+test-results/

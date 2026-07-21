@@ -177,9 +177,11 @@ function ZonesAdminPageContent() {
     setMsg(null);
 
     // เช็คก่อนว่ามีอะไรอยู่ข้างในไหม (โซนย่อย หรือ อะไหล่ที่ผูกกับโซนนี้โดยตรง)
+    // นับเฉพาะอะไหล่ที่ quantity > 0 เท่านั้น (ตามการ์ดตัดสินใจ) — ของที่ขายหมดแล้ว/
+    // historical record (quantity = 0) ไม่นับเป็นตัวบล็อกการลบโซน
     const [childrenRes, partsRes] = await Promise.all([
       supabase.from("zones").select("id, code, name").eq("parent_id", zone.id),
-      supabase.from("parts").select("id, part_name").eq("zone_id", zone.id).limit(20),
+      supabase.from("parts").select("id, part_name").eq("zone_id", zone.id).gt("quantity", 0).limit(20),
     ]);
 
     const children = childrenRes.data || [];
