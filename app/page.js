@@ -31,8 +31,11 @@ function HomePageContent() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [viewMode, setViewModeState] = useState("list");
-  const [selectMode, setSelectMode] = useState(false);
+  // null = ปิดโหมดเลือกทั้งคู่, "qr" = เลือกพิมพ์ QR (เดิม), "sell" = เลือกขาย (ตะกร้า, ใหม่)
+  // เคลียร์ selection ทันทีที่สลับโหมด (ตัดสินใจแล้วในการ์ด Cart-based selling flow — กันสับสนเจตนา)
+  const [selectMode, setSelectMode] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const canSell = ROLE_PERMISSIONS[currentRole]?.sell_parts ?? false;
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
@@ -253,7 +256,7 @@ function HomePageContent() {
         <button
           type="button"
           onClick={() => {
-            setSelectMode((m) => !m);
+            setSelectMode((m) => (m === "qr" ? null : "qr"));
             setSelectedIds([]);
           }}
           className="no-print"
@@ -261,15 +264,37 @@ function HomePageContent() {
             padding: "8px 14px",
             borderRadius: 8,
             border: "1px solid var(--border-strong)",
-            background: selectMode ? "#2563eb" : "var(--surface)",
-            color: selectMode ? "white" : "var(--text-muted)",
+            background: selectMode === "qr" ? "#2563eb" : "var(--surface)",
+            color: selectMode === "qr" ? "white" : "var(--text-muted)",
             fontSize: 13,
             cursor: "pointer",
             marginLeft: 8,
           }}
         >
-          🏷️ {selectMode ? "ยกเลิกเลือก" : "เลือกพิมพ์ QR"}
+          🏷️ {selectMode === "qr" ? "ยกเลิกเลือก" : "เลือกพิมพ์ QR"}
         </button>
+        {canSell && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectMode((m) => (m === "sell" ? null : "sell"));
+              setSelectedIds([]);
+            }}
+            className="no-print"
+            style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--border-strong)",
+              background: selectMode === "sell" ? "#16a34a" : "var(--surface)",
+              color: selectMode === "sell" ? "white" : "var(--text-muted)",
+              fontSize: 13,
+              cursor: "pointer",
+              marginLeft: 8,
+            }}
+          >
+            🛒 {selectMode === "sell" ? "ยกเลิกเลือก" : "เลือกขาย"}
+          </button>
+        )}
       </div>
 
       {errorMsg && <div className="msg error">{errorMsg}</div>}
@@ -357,7 +382,7 @@ function HomePageContent() {
           );
         })}
 
-      {selectMode && selectedIds.length > 0 && (
+      {selectMode === "qr" && selectedIds.length > 0 && (
         <div
           className="no-print"
           style={{
@@ -374,6 +399,27 @@ function HomePageContent() {
             style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
           >
             🏷️ พิมพ์ QR ที่เลือก ({selectedIds.length})
+          </Link>
+        </div>
+      )}
+
+      {selectMode === "sell" && selectedIds.length > 0 && (
+        <div
+          className="no-print"
+          style={{
+            position: "sticky",
+            bottom: 16,
+            display: "flex",
+            justifyContent: "center",
+            marginTop: 16,
+          }}
+        >
+          <Link
+            href={`/checkout?ids=${selectedIds.join(",")}`}
+            className="nav-link"
+            style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.3)", background: "#16a34a" }}
+          >
+            🛒 ไปหน้าขาย ({selectedIds.length} ชิ้น)
           </Link>
         </div>
       )}

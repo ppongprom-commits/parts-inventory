@@ -18,6 +18,10 @@ export const PERMISSION_LABELS = {
   manage_zones_options: "จัดการโซน/ตัวเลือก (สภาพ/ที่มา/สถานะ)",
   invite_members: "เชิญสมาชิกเข้าอู่",
   change_roles: "เปลี่ยนสิทธิ์/ปิดใช้งานสมาชิก",
+  // การ์ด "Cart-based selling flow" (21 ก.ค. 2026 — ตัดสินใจแล้ว): ทุก role ที่หน้างานใช้
+  // โหมด "เลือกขาย" ได้ (รวม technician/assistant เหมือนกับขายทีละชิ้นเดิมที่ /edit/[id])
+  // Field Scanner ไม่นับ (ทำรายการขายไม่ได้เด็ดขาดตามการ์ดของตัวเอง)
+  sell_parts: "ขายอะไหล่ (ตะกร้า/ทีละชิ้น)",
 };
 
 export const ROLE_PERMISSIONS = {
@@ -29,6 +33,7 @@ export const ROLE_PERMISSIONS = {
     manage_zones_options: true,
     invite_members: true,
     change_roles: true,
+    sell_parts: true,
   },
   manager: {
     view_parts: true,
@@ -38,6 +43,7 @@ export const ROLE_PERMISSIONS = {
     manage_zones_options: true,
     invite_members: true,
     change_roles: true,
+    sell_parts: true,
   },
   supervisor: {
     view_parts: true,
@@ -47,6 +53,7 @@ export const ROLE_PERMISSIONS = {
     manage_zones_options: false,
     invite_members: false,
     change_roles: false,
+    sell_parts: true,
   },
   technician: {
     view_parts: true,
@@ -56,6 +63,7 @@ export const ROLE_PERMISSIONS = {
     manage_zones_options: false,
     invite_members: false,
     change_roles: false,
+    sell_parts: true,
   },
   assistant: {
     view_parts: true,
@@ -65,6 +73,7 @@ export const ROLE_PERMISSIONS = {
     manage_zones_options: false,
     invite_members: false,
     change_roles: false,
+    sell_parts: true,
   },
   // การ์ด "Field Scanner Role" (19 ก.ค. 2026 — ตัดสินใจแล้ว): กรอก/แก้ไขข้อมูลอะไหล่ได้เต็มที่
   // แต่ทำรายการขายไม่ได้เด็ดขาด ห้ามลบ/ดูข้อมูลลูกค้า/รีเซ็ต PIN คนอื่น — view_price ไม่ได้ระบุไว้
@@ -78,5 +87,6 @@ export const ROLE_PERMISSIONS = {
     manage_zones_options: false,
     invite_members: false,
     change_roles: false,
+    sell_parts: false,
   },
 };
