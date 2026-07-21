@@ -29,7 +29,7 @@ function EditPartPageContent() {
   const { id } = params;
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
-  const { currentShopId, currentRole } = useAuth();
+  const { currentShopId, currentRole, user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
@@ -45,6 +45,7 @@ function EditPartPageContent() {
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [writingOff, setWritingOff] = useState(false);
   const [msg, setMsg] = useState(null);
 
   const [zones, setZones] = useState([]);
@@ -353,6 +354,42 @@ function EditPartPageContent() {
     } catch (err) {
       setMsg({ type: "error", text: "ดำเนินการไม่สำเร็จ: " + err.message });
       setDeleting(false);
+    }
+  }
+
+  // การ์ด "Salvage vehicle cost allocation" edge case 1 — write-off เป็น generic action บนตัว
+  // part (ไม่ผูกกับ salvage อย่างเดียว) ต่างจาก "ซ่อนอะไหล่" ด้านบนตรงที่บันทึกเหตุผล+ผู้ทำ+เวลา
+  // ไว้เป็นหลักฐานทางบัญชีว่า "ตัดเป็นค่าเสียหาย" ไม่ใช่แค่ซ่อนเฉยๆ (ทั้งคู่ตั้ง is_active=false
+  // เหมือนกัน จึงหลุดออกจาก Stock Value Cap ทันทีทั้งคู่ผ่าน trigger ที่มีอยู่แล้ว)
+  async function handleWriteOff() {
+    const reason = window.prompt(
+      `ตัด "${form.part_name}" เป็นค่าเสียหาย (write-off)?\n\nกรุณาระบุเหตุผล (เช่น ใช้ไม่ได้/พังเพิ่มระหว่างเก็บ):`
+    );
+    if (reason === null) return; // กดยกเลิก
+    if (!reason.trim()) {
+      setMsg({ type: "error", text: "กรุณาระบุเหตุผลก่อนตัดเป็นค่าเสียหาย" });
+      return;
+    }
+
+    setWritingOff(true);
+    setMsg(null);
+
+    try {
+      const { error } = await supabase
+        .from("parts")
+        .update({
+          is_active: false,
+          write_off_reason: reason.trim(),
+          written_off_at: new Date().toISOString(),
+          written_off_by: user?.id || null,
+        })
+        .eq("id", id);
+      if (error) throw error;
+
+      router.push("/");
+    } catch (err) {
+      setMsg({ type: "error", text: "ตัดเป็นค่าเสียหายไม่สำเร็จ: " + err.message });
+      setWritingOff(false);
     }
   }
 
@@ -957,6 +994,28 @@ function EditPartPageContent() {
           }}
         >
           {deleting ? "กำลังดำเนินการ..." : "🗑️ ลบอะไหล่นี้ (ซ่อนจากหน้าแรก)"}
+        </button>
+      )}
+
+      {currentRole !== "assistant" && form.is_active && (
+        <button
+          type="button"
+          onClick={handleWriteOff}
+          disabled={saving || deleting || writingOff}
+          style={{
+            marginTop: 8,
+            width: "100%",
+            padding: 14,
+            borderRadius: 8,
+            border: "1px solid var(--danger-border)",
+            background: "transparent",
+            color: "var(--danger-text)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {writingOff ? "กำลังดำเนินการ..." : "📉 ตัดเป็นค่าเสียหาย (Write-off)"}
         </button>
       )}
     </div>
