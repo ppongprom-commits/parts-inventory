@@ -399,6 +399,19 @@ function AdminHubPageContent() {
 
       {canManage && (
         <Link
+          href="/admin/import-customers"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">📥 นำเข้าข้อมูลลูกค้าเดิม</div>
+            <div className="card-sub">อัปโหลด CSV รายชื่อลูกค้าจากระบบ/ไฟล์เก่า</div>
+          </div>
+        </Link>
+      )}
+
+      {canManage && (
+        <Link
           href="/admin/zones"
           className="card"
           style={{ textDecoration: "none", color: "inherit" }}
