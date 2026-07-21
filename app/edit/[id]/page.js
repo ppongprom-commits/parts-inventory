@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import CarAutocomplete from "../../../components/CarAutocomplete";
 import ZoneAutocomplete from "../../../components/ZoneAutocomplete";
+import ZoneQRScanner from "../../../components/ZoneQRScanner";
 import { getDefaultZone, setDefaultZone } from "../../../lib/zoneStorage";
 import { resizeImageFile } from "../../../lib/imageResize";
 import { uploadPartPhotos } from "../../../lib/storageHelpers";
@@ -678,6 +679,9 @@ function EditPartPageContent() {
           โซนจัดเก็บ
           {!zonesLoading && (
             <ZoneAutocomplete zones={zones} value={form.zone_id || null} onChange={handleZoneChange} />
+          )}
+          {!zonesLoading && zones.length > 0 && (
+            <ZoneQRScanner zones={zones} onScan={handleZoneChange} />
           )}
           {form.zone_code && !form.zone_id && (
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
