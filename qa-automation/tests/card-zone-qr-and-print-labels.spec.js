@@ -9,7 +9,7 @@
 import { test, expect } from "@playwright/test";
 import { loginWithEmail, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 let zoneId;
@@ -17,7 +17,7 @@ let partId;
 const zoneCode = `QA-LABEL-${Date.now()}`;
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
   const { data: zone } = await adminClient()
     .from("zones")
     .insert({ shop_id: mainShopId, code: zoneCode, name: "QA label zone" })

@@ -9,12 +9,12 @@ import {
   expectExpiredAccountScreen,
 } from "../fixtures/auth-helpers.js";
 import { adminClient, getShopIdByName, signInStaff } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 });
 
 test("FIELDSCAN-001 login สำเร็จ + เข้า /add ได้ + เพิ่มอะไหล่ได้จริง", async ({ page }) => {

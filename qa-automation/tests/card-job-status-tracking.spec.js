@@ -7,7 +7,7 @@ import { loginWithEmail, loginWithStaffPin, expectLoginSucceeded } from "../fixt
 import { fillBasicJobForm, submitJobForm, expectJobSavedSuccessfully, addWorkflowStepOnDetailPage,
   clickStartStep, clickHoldStep, clickResumeStep, clickCompleteStep, expectNoStepActions } from "../fixtures/job-helpers.js";
 import { adminClient, getShopIdByName, getUserIdByUsername, signInStaff } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 let technicianUserId;
@@ -18,7 +18,7 @@ const createdJobIds = [];
 test.describe.configure({ mode: "serial" }); // ต้องเรียงลำดับ — แต่ละ test สืบสถานะจาก test ก่อนหน้า
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
   technicianUserId = await getUserIdByUsername(mainShopId, accounts.technician.username);
 });
 

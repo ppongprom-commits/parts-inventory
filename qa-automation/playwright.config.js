@@ -14,8 +14,9 @@ if (!STAGING_BASE_URL) {
 
 export default defineConfig({
   testDir: "./tests",
-  timeout: 30_000,
-  expect: { timeout: 8_000 },
+  timeout: 40_000,
+  expect: { timeout: 10_000 },
+  globalSetup: "./scripts/global-setup.mjs",
   // เปิด parallel แล้ว (22 ก.ค. 2026) — เดิมปิดไว้เพราะทุก test แชร์ shop/staff account เดียวกัน
   // ตอนนี้แก้แล้วด้วย multi-shop: fixtures/test-data.js resolve credential ตาม
   // process.env.TEST_PARALLEL_INDEX (Playwright set ให้อัตโนมัติต่อ worker) แต่ละ worker

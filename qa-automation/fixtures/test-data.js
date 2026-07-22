@@ -27,6 +27,11 @@ export const currentShopIndex = (parallelIndex % SHOP_COUNT) + 1;
 export const SHOP_TIER_ORDER = ["trial", "starter", "founder", "pro", "enterprise"];
 export const currentShopTier = SHOP_TIER_ORDER[currentShopIndex - 1];
 
+// ชื่อ shop จริงตาม shopIndex — ต้องตรงกับที่ scripts/setup-test-data.mjs -> setupWorkerShop ตั้งไว้
+// ใช้แทนการ hardcode "QA Test Shop (auto)" ตรงๆ ใน test file ที่เรียก getShopIdByName()
+export const currentShopName =
+  currentShopIndex === 1 ? "QA Test Shop (auto)" : `QA Test Shop (auto) - Worker ${currentShopIndex}`;
+
 function envName(baseName) {
   // shop 1 ใช้ชื่อเดิมไม่มี suffix เสมอ (backward compat กับ manual/single-shop run)
   return currentShopIndex === 1 ? baseName : `${baseName}_S${currentShopIndex}`;

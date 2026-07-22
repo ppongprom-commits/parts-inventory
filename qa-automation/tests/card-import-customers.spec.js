@@ -5,7 +5,7 @@
 import { test, expect } from "@playwright/test";
 import { loginWithEmail, loginWithStaffPin, expectLoginSucceeded, expectRoleForbidden } from "../fixtures/auth-helpers.js";
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 // ⚠️ test ในไฟล์นี้พึ่งลำดับการรัน (IMPORT-004 พึ่งว่า IMPORT-003 นำเข้า phoneA ไปก่อนแล้ว) —
 // ใช้ได้เพราะ playwright.config.js ตั้ง fullyParallel:false ทั้งโปรเจกต์ (test ในไฟล์เดียวกันรัน
@@ -21,7 +21,7 @@ function csvFile(content) {
 }
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 });
 
 test.afterAll(async () => {

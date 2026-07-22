@@ -7,7 +7,7 @@ import {
   getMemberIdByUsername,
   setMemberRoleStatus,
 } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 // ------------------------------------------------------------
 // TC-207: is_shop_member() (lib RLS helper) query shop_members สดทุกครั้งที่มี request
@@ -21,7 +21,7 @@ let technicianMemberId;
 const createdPartIds = [];
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
   technicianMemberId = await getMemberIdByUsername(mainShopId, accounts.technician.username);
 });
 

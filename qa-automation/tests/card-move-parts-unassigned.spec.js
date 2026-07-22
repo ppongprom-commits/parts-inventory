@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 import { loginWithEmail, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { selectZoneAutocomplete } from "../fixtures/zone-helpers.js";
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 let destZoneId;
@@ -12,7 +12,7 @@ const destZoneCode = `QA-DEST-${Date.now()}`;
 const partIds = [];
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 
   const { data: zoneRow, error: zoneErr } = await adminClient()
     .from("zones")

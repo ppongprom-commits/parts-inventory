@@ -4,13 +4,13 @@
 import { test, expect } from "@playwright/test";
 import { loginWithEmail, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 let partId;
 
 test.beforeEach(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
   const { data, error } = await adminClient()
     .from("parts")
     .insert({ shop_id: mainShopId, part_name: `QA-PAYMENT-${Date.now()}`, price: 500, quantity: 5, item_type: "salvage" })

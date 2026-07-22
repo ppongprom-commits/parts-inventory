@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loginWithEmail, loginWithStaffPin, expectLoginSucceeded, expectRoleForbidden } from "../fixtures/auth-helpers.js";
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TINY_PNG = path.join(__dirname, "..", "fixtures", "test-assets", "tiny.png");
@@ -16,7 +16,7 @@ const vehicleIds = [];
 const partIds = [];
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 });
 
 test.afterAll(async () => {

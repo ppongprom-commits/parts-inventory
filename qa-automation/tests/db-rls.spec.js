@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInEmail, signInStaff, adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 // ------------------------------------------------------------
 // TC-206: ตรวจ RLS policy ตรงที่ระดับ Postgres โดยใช้ publishable key เดียวกับที่
@@ -19,7 +19,7 @@ let testZoneId;
 let testJobId;
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
   foreignShopId = await getShopIdByName("QA Platform-Admin Owner Shop (auto)");
 });
 

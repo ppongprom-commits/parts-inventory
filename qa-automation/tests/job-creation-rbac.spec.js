@@ -2,13 +2,13 @@ import { test, expect } from "@playwright/test";
 import { loginWithEmail, loginWithStaffPin, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { fillBasicJobForm, submitJobForm, expectJobSavedSuccessfully } from "../fixtures/job-helpers.js";
 import { adminClient, getShopIdByName, signInStaff } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 const createdJobIds = [];
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 });
 
 test.afterAll(async () => {

@@ -15,13 +15,13 @@ import {
   acceptTosGate,
 } from "../fixtures/auth-helpers.js";
 import { adminClient, getShopIdByName, signInEmail } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 import { CURRENT_TOS_VERSION } from "../../config/tosContent.js";
 
 let mainShopId;
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
   // ลบ acceptance ของเวอร์ชันปัจจุบันออกชั่วคราว จำลองร้านที่ยังไม่เคยกดยอมรับ
   await adminClient()
     .from("shop_tos_acceptances")

@@ -6,14 +6,14 @@ import {
   expectJobSavedSuccessfully,
 } from "../fixtures/job-helpers.js";
 import { adminClient, getShopIdByName, signInEmail } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 const createdJobIds = [];
 const createdCustomerPhones = [];
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 });
 
 test.afterAll(async () => {

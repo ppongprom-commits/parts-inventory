@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 import { loginWithEmail, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { selectZoneAutocomplete } from "../fixtures/zone-helpers.js";
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
-import { accounts } from "../fixtures/test-data.js";
+import { accounts, currentShopName } from "../fixtures/test-data.js";
 
 let mainShopId;
 let zoneOwnId, zoneConsignId;
@@ -15,7 +15,7 @@ const partIds = [];
 let originalForceScan;
 
 test.beforeAll(async () => {
-  mainShopId = await getShopIdByName("QA Test Shop (auto)");
+  mainShopId = await getShopIdByName(currentShopName);
 
   const [{ data: zOwn, error: e1 }, { data: zConsign, error: e2 }] = await Promise.all([
     adminClient().from("zones").insert({ shop_id: mainShopId, code: zoneOwnCode, owner_type: "own" }).select("id").single(),
