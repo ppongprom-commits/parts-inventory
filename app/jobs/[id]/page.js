@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
@@ -48,6 +48,7 @@ function JobDetailPageContent() {
   const [creatingDoc, setCreatingDoc] = useState(null);
   const [msg, setMsg] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const touchStartXRef = useRef(null);
 
   const [groups, setGroups] = useState([]);
   const [jobGroupIds, setJobGroupIds] = useState([]);
@@ -69,6 +70,24 @@ function JobDetailPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId, jobId]);
+
+  useEffect(() => {
+    if (lightboxIndex === null || !job?.photo_urls?.length) return;
+
+    function handleKeyDown(e) {
+      if (e.key === "ArrowLeft") {
+        setLightboxIndex((i) => (i - 1 + job.photo_urls.length) % job.photo_urls.length);
+      } else if (e.key === "ArrowRight") {
+        setLightboxIndex((i) => (i + 1) % job.photo_urls.length);
+      } else if (e.key === "Escape") {
+        setLightboxIndex(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightboxIndex, job?.photo_urls?.length]);
 
   async function fetchLinkedParts() {
     const { data } = await supabase
@@ -593,6 +612,21 @@ function JobDetailPageContent() {
           {lightboxIndex !== null && (
             <div
               onClick={() => setLightboxIndex(null)}
+              onTouchStart={(e) => {
+                touchStartXRef.current = e.touches[0].clientX;
+              }}
+              onTouchEnd={(e) => {
+                if (touchStartXRef.current === null) return;
+                const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+                touchStartXRef.current = null;
+                if (Math.abs(deltaX) < 40) return; // ไม่ใช่การปัด แค่แตะ
+                const len = job.photo_urls.length;
+                if (deltaX > 0) {
+                  setLightboxIndex((i) => (i - 1 + len) % len);
+                } else {
+                  setLightboxIndex((i) => (i + 1) % len);
+                }
+              }}
               style={{
                 position: "fixed",
                 inset: 0,
@@ -605,6 +639,34 @@ function JobDetailPageContent() {
                 padding: 20,
               }}
             >
+              {job.photo_urls.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((i) => (i - 1 + job.photo_urls.length) % job.photo_urls.length);
+                  }}
+                  aria-label="รูปก่อนหน้า"
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "white",
+                    fontSize: 22,
+                    cursor: "pointer",
+                    zIndex: 101,
+                  }}
+                >
+                  ‹
+                </button>
+              )}
+
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={job.photo_urls[lightboxIndex]}
@@ -612,6 +674,52 @@ function JobDetailPageContent() {
                 onClick={(e) => e.stopPropagation()}
                 style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8, objectFit: "contain" }}
               />
+
+              {job.photo_urls.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((i) => (i + 1) % job.photo_urls.length);
+                  }}
+                  aria-label="รูปถัดไป"
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "white",
+                    fontSize: 22,
+                    cursor: "pointer",
+                    zIndex: 101,
+                  }}
+                >
+                  ›
+                </button>
+              )}
+
+              {job.photo_urls.length > 1 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 20,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    color: "white",
+                    fontSize: 13,
+                    background: "rgba(0,0,0,0.5)",
+                    padding: "4px 12px",
+                    borderRadius: 20,
+                  }}
+                >
+                  {lightboxIndex + 1} / {job.photo_urls.length}
+                </div>
+              )}
             </div>
           )}
         </>
