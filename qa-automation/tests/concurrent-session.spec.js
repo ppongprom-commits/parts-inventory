@@ -3,6 +3,14 @@ import { loginWithEmail, expectLoginSucceeded } from "../fixtures/auth-helpers.j
 import { adminClient, getShopIdByName } from "../fixtures/db-client.js";
 import { concurrentAccounts } from "../fixtures/test-data.js";
 
+// TC-302a/b ใช้ shop เดียวกัน ("QA Concurrent-Session Shop (auto)") ที่ตั้งใจ share
+// กันข้าม test ในไฟล์นี้ — ถ้ารันแบบ fullyParallel (workers>1) 2 test นี้อาจถูกส่งไปคนละ
+// worker แล้วรันพร้อมกันจริง ทำให้ session count ของ shop เดียวกันชนกันเอง (เจอจริง
+// 22 ก.ค. 2026 ตอนเปิด parallel ครั้งแรก — TC-302b คาดหวัง 2 session แต่ได้ 3 เพราะ
+// TC-302a ที่รันพร้อมกันดันเพิ่ม session เข้ามาแทรก) บังคับ serial เฉพาะไฟล์นี้กันไว้เลย
+// ไม่ต้องพึ่งว่า Playwright จะจัดคิวให้บังเอิญไม่ชนกัน
+test.describe.configure({ mode: "serial" });
+
 // ------------------------------------------------------------
 // TC-302: lib/sessionTracking.js + lib/AuthProvider.js
 // ต้องใช้ browser context จริง (ไม่ใช่ direct API) เพราะ registerSession() ถูกเรียกจาก

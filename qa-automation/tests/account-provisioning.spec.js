@@ -1,12 +1,16 @@
 import { test, expect } from "@playwright/test";
 import { loginWithEmail, loginWithStaffPin, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { getAccessToken, captureTeamPageData, findMemberByUsername } from "../fixtures/api-helpers.js";
+import { adminClient } from "../fixtures/db-client.js";
 import { accounts } from "../fixtures/test-data.js";
 
 // selector อ้างอิงจาก app/admin/team/page.js (ฟอร์ม "สร้างบัญชีพนักงาน (Username + PIN)")
 async function fillCreateStaffForm(page, { username, pin, contactName, contactPhone, role }) {
   await page.getByLabel(/^Username/).fill(username);
-  const pinRow = page.locator("label", { hasText: /^PIN/ });
+  // ช่อง PIN เปลี่ยนจาก <label> เป็น <div> แล้ว (แก้ bare-label a11y bug ไปก่อนหน้านี้ —
+  // เดิม label ห่อทั้ง input+ปุ่ม "สุ่มใหม่" พร้อมกันทำให้ accessible name พัง เลยเปลี่ยนเป็น div)
+  // selector ตรงนี้ต้องตามให้ทันด้วย ไม่งั้น locator("label",...) จะหา element ไม่เจอเลย
+  const pinRow = page.locator("div", { hasText: /^PIN/ }).first();
   await pinRow.locator("input").fill(pin);
   await page.getByLabel("ชื่อ-นามสกุล").fill(contactName);
   await page.getByLabel("เบอร์โทร").fill(contactPhone);
@@ -124,8 +128,14 @@ test.describe("Account Provisioning — /admin/team (lib/staffAuth.js STAFF_ROLE
     await loginWithStaffPin(staffPage, accounts.technician.username, NEW_PIN);
     await expectLoginSucceeded(staffPage);
 
-    // หมายเหตุสำคัญ: test นี้เปลี่ยน PIN จริงของ technician test account ใน staging
-    // ถ้ามี test อื่นที่รันหลังจากนี้และ hardcode accounts.technician.pin เดิม จะ login ไม่ผ่าน
-    // แนะนำให้รัน suite นี้แยก หรือรัน setup:data ใหม่หลังจบเพื่อ sync PIN กลับ (idempotent)
+    // สำคัญ: test นี้เปลี่ยน PIN จริงของ technician บน worker นี้ — ถ้าไม่ restore กลับ
+    // test อื่นที่ใช้ accounts.technician.pin (ค่าคงที่จาก .env) บน worker เดียวกันจะ
+    // login ไม่ผ่านทันที (เจอจริง 22 ก.ค. 2026 ตอนเปิด parallel ครั้งแรก — JOB-205 ที่
+    // สุ่มไปอยู่ worker เดียวกับ TC-404 ล้มเหลวด้วย "Invalid login credentials")
+    // ต้อง restore ผ่าน service-role โดยตรง ไม่ผ่าน API เพราะ token เดิม (owner) ยังใช้ได้
+    // อยู่แล้วก็จริง แต่ทำผ่าน adminClient() ตรงๆ ชัวร์กว่าและไม่ผูกกับ auth flow ซ้ำ
+    await adminClient().auth.admin.updateUserById(technicianMember.user_id, {
+      password: accounts.technician.pin,
+    });
   });
 });
