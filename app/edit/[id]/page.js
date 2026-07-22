@@ -426,7 +426,7 @@ function EditPartPageContent() {
       <PartAuditHistory partId={id} shopId={currentShopId} />
 
       <form onSubmit={handleSubmit}>
-        <label>
+        <div>
           รูปภาพ * (อย่างน้อย 1 รูป เพิ่มได้หลายรูป)
           <input
             ref={cameraInputRef}
@@ -490,7 +490,7 @@ function EditPartPageContent() {
               🖼️ {processingPhoto ? "กำลังประมวลผล..." : "เลือกจากคลังภาพ"}
             </button>
           </div>
-        </label>
+        </div>
 
         {(existingPhotos.length > 0 || newPhotos.length > 0) && (
           <div className="photo-thumb-row">
@@ -743,7 +743,7 @@ function EditPartPageContent() {
           </Link>
         </div>
 
-        <label>
+        <div>
           ประเภทอะไหล่
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -779,7 +779,7 @@ function EditPartPageContent() {
               🧴 ของสิ้นเปลือง
             </button>
           </div>
-        </label>
+        </div>
 
         {form.item_type === "salvage" && form?.created_at && (
           <div

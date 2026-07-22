@@ -138,7 +138,7 @@ function NewSalvageVehiclePageContent() {
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
 
       <form onSubmit={handleSubmit}>
-        <label>
+        <div>
           รูปถ่ายทั้งคัน
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={processingPhoto}>
@@ -150,7 +150,7 @@ function NewSalvageVehiclePageContent() {
           </div>
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={handlePhotoChange} />
           <input ref={galleryInputRef} type="file" accept="image/*" multiple hidden onChange={handlePhotoChange} />
-        </label>
+        </div>
 
         {photos.length > 0 && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>

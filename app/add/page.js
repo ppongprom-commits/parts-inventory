@@ -306,7 +306,7 @@ function AddPartPageContent() {
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
 
       <form onSubmit={handleSubmit}>
-        <label>
+        <div>
           รูปอะไหล่ * (อย่างน้อย 1 รูป เพิ่มได้หลายรูป)
           <input
             ref={cameraInputRef}
@@ -370,7 +370,7 @@ function AddPartPageContent() {
               🖼️ {processingPhoto ? "กำลังประมวลผล..." : "เลือกจากคลังภาพ"}
             </button>
           </div>
-        </label>
+        </div>
 
         {photos.length > 0 && (
           <div className="photo-thumb-row">
@@ -450,7 +450,7 @@ function AddPartPageContent() {
           </div>
         )}
 
-        <label>
+        <div>
           ประเภทอะไหล่ *
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -491,7 +491,7 @@ function AddPartPageContent() {
               ? "อะไหล่ถอดจากรถชน/น้ำท่วม รอขาย (ประตู, กันชน, เครื่องยนต์ ฯลฯ)"
               : "ของใช้สิ้นเปลืองในงานซ่อม (น้ำมันเครื่อง, ไส้กรอง, ผ้าเบรก ฯลฯ)"}
           </div>
-        </label>
+        </div>
 
         <label>
           ชื่อชิ้นส่วน *

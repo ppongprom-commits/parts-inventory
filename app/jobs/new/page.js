@@ -221,7 +221,7 @@ function NewJobPageContent() {
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 16 }}>{msg.text}</div>}
 
       <form onSubmit={handleSubmit}>
-        <label>
+        <div>
           รูปสภาพรถตอนรับเข้า
           <input
             ref={cameraInputRef}
@@ -275,7 +275,7 @@ function NewJobPageContent() {
               🖼️ เลือกจากคลังภาพ
             </button>
           </div>
-        </label>
+        </div>
 
         {photos.length > 0 && (
           <div className="photo-thumb-row">
@@ -386,7 +386,7 @@ function NewJobPageContent() {
         </label>
 
         {groups.length > 0 && (
-          <label>
+          <div>
             ให้ใครเห็นงานนี้บ้าง (เลือกได้หลายกลุ่ม — ไม่เลือกเลย = ทุกคนในอู่เห็นได้)
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {groups.map((g) => {
@@ -412,10 +412,10 @@ function NewJobPageContent() {
                 );
               })}
             </div>
-          </label>
+          </div>
         )}
 
-        <label>
+        <div>
           ขั้นตอนการทำงาน (คร่าวๆ ก่อน — เพิ่ม/แก้ทีหลังได้)
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {workflowSteps.map((step, i) => (
@@ -476,7 +476,7 @@ function NewJobPageContent() {
               + เพิ่มขั้นตอน
             </button>
           </div>
-        </label>
+        </div>
 
         <button type="submit" disabled={saving}>
           {saving ? "กำลังบันทึก..." : "รับงานเข้าอู่"}
