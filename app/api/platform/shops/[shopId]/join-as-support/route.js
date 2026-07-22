@@ -23,8 +23,7 @@ export async function POST(request, { params }) {
     // เขียนผ่าน RPC เดียว (mutation + audit log ในทรานแซคชันเดียวกัน — ถ้าเขียน log ไม่สำเร็จ
     // การ join-as-support จะ rollback ไปด้วยทั้งหมด)
     const { data, error } = await supabaseAdmin.rpc("platform_join_as_support", {
-      p_admin_user_id: authResult.userId,
-      p_admin_role: authResult.role,
+      p_actor_user_id: authResult.userId,
       p_shop_id: shopId,
     });
 

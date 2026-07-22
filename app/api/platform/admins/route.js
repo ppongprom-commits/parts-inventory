@@ -77,7 +77,6 @@ export async function POST(request) {
 
     const { data, error } = await supabaseAdmin.rpc("platform_add_admin", {
       p_actor_user_id: authResult.userId,
-      p_actor_role: authResult.role,
       p_target_user_id: targetUser.id,
       p_role: role,
     });
@@ -117,7 +116,6 @@ export async function PATCH(request) {
 
     const { data, error } = await supabaseAdmin.rpc("platform_change_admin_role", {
       p_actor_user_id: authResult.userId,
-      p_actor_role: authResult.role,
       p_target_user_id: user_id,
       p_new_role: role,
     });
@@ -152,7 +150,6 @@ export async function DELETE(request) {
 
     const { error } = await supabaseAdmin.rpc("platform_remove_admin", {
       p_actor_user_id: authResult.userId,
-      p_actor_role: authResult.role,
       p_target_user_id: userId,
     });
     if (error) throw error;

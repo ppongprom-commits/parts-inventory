@@ -79,8 +79,7 @@ export async function PATCH(request) {
     // เขียนผ่าน RPC เดียว (mutation + audit log ในทรานแซคชันเดียวกัน) — ถ้าเขียน log ไม่สำเร็จ
     // การแก้ subscription จะ rollback ไปด้วยทั้งหมด (ตัดสินใจไว้แล้วในการ์ด Platform admin audit log)
     const { data, error } = await supabaseAdmin.rpc("platform_update_shop_subscription", {
-      p_admin_user_id: authResult.userId,
-      p_admin_role: authResult.role,
+      p_actor_user_id: authResult.userId,
       p_shop_id: shop_id,
       p_subscription_status: subscription_status ?? null,
       p_subscription_plan: subscription_plan ?? null,
