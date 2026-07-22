@@ -47,9 +47,19 @@ export default function CarAutocomplete({ onSelect, placeholder }) {
       // (การเรียก .or() หลายครั้งจะ AND กันเอง ทำให้ "byd atto" หาเจอได้
       //  แม้ยี่ห้อกับรุ่นจะอยู่คนละ column กัน)
       tokens.forEach((token) => {
-        queryBuilder = queryBuilder.or(
-          `brand_name.ilike.%${token}%,model_name.ilike.%${token}%,generation_code.ilike.%${token}%,trim_name.ilike.%${token}%`
-        );
+        // token ที่เป็นตัวเลขล้วนสั้นๆ (1-3 หลัก) ไม่ match กับ generation_code
+        // เพราะ generation_code มักเก็บช่วงปี (เช่น "1996-ปัจจุบัน") ทำให้ token
+        // อย่าง "1" หรือ "2" ไป match ปีของรุ่นอื่นโดยบังเอิญแทบทุกรุ่น แล้วดัน
+        // ผลลัพธ์ที่ผู้ใช้ต้องการ (เช่น "1-Series") ตกขอบ LIMIT ไป
+        // ยังคง match generation_code ตามปกติถ้า token มีตัวอักษรปน (เช่น "F20", "GJ")
+        const isShortNumericToken = /^\d{1,3}$/.test(token);
+        queryBuilder = isShortNumericToken
+          ? queryBuilder.or(
+              `brand_name.ilike.%${token}%,model_name.ilike.%${token}%,trim_name.ilike.%${token}%`
+            )
+          : queryBuilder.or(
+              `brand_name.ilike.%${token}%,model_name.ilike.%${token}%,generation_code.ilike.%${token}%,trim_name.ilike.%${token}%`
+            );
       });
 
       const { data, error } = await queryBuilder
