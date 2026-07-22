@@ -5,19 +5,26 @@ import { adminClient } from "../fixtures/db-client.js";
 import { accounts } from "../fixtures/test-data.js";
 
 // selector อ้างอิงจาก app/admin/team/page.js (ฟอร์ม "สร้างบัญชีพนักงาน (Username + PIN)")
+// หน้านี้มี 3 ฟอร์มที่มี label "บทบาท" ซ้ำกัน (create-staff, reset ของสมาชิกเดิมแต่ละแถว,
+// เชิญผ่านอีเมล) — ต้อง scope ทุก field ให้อยู่ใน <form> ของ create-staff โดยเฉพาะเท่านั้น
+// ไม่งั้น getByLabel("บทบาท") จะเจอ 3 ตัว (strict mode violation) เจอปัญหานี้จริง 22 ก.ค. 2026
+// ตอนแก้ selector ของ PIN field ไปแล้วรอบก่อน แต่ลืมเผื่อ field อื่นในฟอร์มเดียวกัน
 async function fillCreateStaffForm(page, { username, pin, contactName, contactPhone, role }) {
-  await page.getByLabel(/^Username/).fill(username);
+  const createForm = page.locator("form").filter({
+    has: page.getByRole("button", { name: "+ สร้างบัญชีพนักงาน" }),
+  });
+
+  await createForm.getByLabel(/^Username/).fill(username);
   // ช่อง PIN เปลี่ยนจาก <label> เป็น <div> แล้ว (แก้ bare-label a11y bug ไปก่อนหน้านี้ —
   // เดิม label ห่อทั้ง input+ปุ่ม "สุ่มใหม่" พร้อมกันทำให้ accessible name พัง เลยเปลี่ยนเป็น div)
-  // selector ตรงนี้ต้องตามให้ทันด้วย ไม่งั้น locator("label",...) จะหา element ไม่เจอเลย
-  const pinRow = page.locator("div", { hasText: /^PIN/ }).first();
+  const pinRow = createForm.locator("div", { hasText: /^PIN/ }).first();
   await pinRow.locator("input").fill(pin);
-  await page.getByLabel("ชื่อ-นามสกุล").fill(contactName);
-  await page.getByLabel("เบอร์โทร").fill(contactPhone);
+  await createForm.getByLabel("ชื่อ-นามสกุล").fill(contactName);
+  await createForm.getByLabel("เบอร์โทร").fill(contactPhone);
   if (role) {
-    await page.getByLabel("บทบาท").selectOption(role);
+    await createForm.getByLabel("บทบาท").selectOption(role);
   }
-  await page.getByRole("button", { name: /สร้างบัญชีพนักงาน/ }).click();
+  await createForm.getByRole("button", { name: /สร้างบัญชีพนักงาน/ }).click();
 }
 
 test.describe("Account Provisioning — /admin/team (lib/staffAuth.js STAFF_ROLES)", () => {
