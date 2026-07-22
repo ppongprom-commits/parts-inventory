@@ -6,3 +6,5 @@ qa-automation/.env
 qa-automation/test-results/
 test-results/
 qa-automation.backup-*/
+*.bundle
+*.patch
