@@ -126,6 +126,11 @@
 - FAQ/Troubleshooting จากลูกค้าจริง
 - รายละเอียดการใช้งาน Jobs/Visibility Groups เชิงลึก (เพิ่ม workflow step status tracking แล้ว
   21 ก.ค. 2026 — ดูข้อ 3 — ส่วนที่เหลือยังไม่ได้เขียน)
+- **เพิ่ม 22 ก.ค. 2026 (ยังไม่ได้เขียนรอบนี้ — flag ไว้ก่อน):** Salvage Vehicle Intake +
+  Disassembly ทั้งหน้า (`/salvage-vehicles`) รวมการปันส่วนต้นทุนที่เพิ่งทำเสร็จคืนนี้ (ดู `SOP.md`
+  หัวข้อ 7 สำหรับสรุปสั้นๆ ตอนนี้), Export CSV แบบละเอียดทั้ง 3 ประเภท (อะไหล่/งานซ่อม/การขาย —
+  หน้า `/admin`), Onboarding Burst Mode (บัญชี Field Scanner ชั่วคราว + workflow ขอต่ออายุ
+  Manager→Owner รวมกรณี Platform Admin กดแทนได้), Platform Admin role tiers โดยละเอียด
 
 ## อ้างอิงอื่นที่เกี่ยวข้อง
 

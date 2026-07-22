@@ -716,8 +716,9 @@ Burst Mode, Write-off, Sales report payment_method breakdown, และ RLS bug 
 
 Sandbox รอบนี้เข้า `*.vercel.app`/`*.supabase.co` ตรงไม่ได้เหมือนเดิม (มีแค่ github.com/npm ผ่าน
 allowlist) — Playwright ยังใช้ได้ปกติแต่รันชน staging จริงไม่ได้ จึงเลือกการ์ดที่ verify ได้โดยไม่ต้องพึ่ง
-browser E2E: 1 การ์ดโค้ด (security fix ผ่าน Supabase MCP โดยตรง) + 1 การ์ดเอกสาร (cross-check
-`SOP.md` กับโค้ดจริง)
+browser E2E ทั้งหมด 8 การ์ด (5 โค้ด, 1 QA-test fix, 2 เอกสาร/verification) — ทุกจุดที่แตะ DB จริง
+verify ผ่าน Supabase MCP โดยจำลอง role จริง (`set local role authenticated` + `request.jwt.claims`)
+ก่อนเชื่อ ไม่ใช่แค่ "compile ผ่าน" — รายละเอียดเต็มอยู่ในคอมเมนต์ Notion ของแต่ละการ์ด สรุปย่อด้านล่าง:
 
 **🔴 การ์ดโค้ด — P0 Security: `platform_add_admin`/`change_admin_role`/`remove_admin` ไม่เช็คสิทธิ์จริง:**
 - ฟังก์ชันทั้ง 3 (ตามการ์ด) เชื่อพารามิเตอร์ `p_actor_role` ที่ผู้เรียกส่งมาเองล้วนๆ ไม่เคยเช็คจาก DB เลย
@@ -750,5 +751,42 @@ browser E2E: 1 การ์ดโค้ด (security fix ผ่าน Supabase M
 - Section อื่นที่เช็ค (Accounting Module, ขายของยังไม่ตีราคา, salvage cost allocation) ยังตรงกับ "ยังไม่ทำ"
   ตามเดิม ไม่มี drift
 
+**✅ การ์ดโค้ด — ToS consent:** ตรวจสอบเท่านั้น ไม่ได้แก้อะไร — code+schema+เนื้อหาสัญญาร่างครบแล้วจริง
+(ยืนยันจาก staging DB: มีร้านจริงยอมรับเวอร์ชันปัจจุบันแล้วหลายร้าน) เหลือแค่ส่วนที่ automation ทำแทน
+ไม่ได้ (ให้ทนายจริง review ร่างสัญญา) — ไม่ใช่ gap ของโค้ด
+
+**✅ การ์ดโค้ด — Salvage vehicle cost allocation (relative sales value method):** มติทั้งหมด
+(rounding, freeze, sold_whole restriction, เศษเหล็ก) เคาะไว้ครบตั้งแต่ 21 ก.ค. แต่ยังไม่เคย implement —
+คืนนี้ทำครบ: `parts.estimated_value`/`allocated_cost` (คอลัมน์หลังไม่เคยมีอยู่จริงมาก่อนทั้งที่ถูกอ้างถึง
+ในคอมเมนต์ของการ์ดอื่น — เจอระหว่างทดสอบ), trigger คำนวณอัตโนมัติ, freeze/guard trigger, RPC
+`sell_salvage_vehicle_scrap`, RLS floor ตาม RBAC matrix, ปุ่ม UI ที่ `/add` และหน้ารายละเอียดรถ —
+verify ผ่าน Supabase MCP ครบทุกจุด (สัดส่วน, freeze, guard, RBAC, Σ allocated_cost = purchase_price)
+ผ่านหมดในรอบแรก + revoke การเปิด RPC โดยไม่ตั้งใจของ trigger function 2 ตัว (1 ตัวใหม่คืนนี้ + 1 ตัวเดิม
+จาก intake migration ที่เจอพร้อมกัน)
+
+**✅ การ์ดโค้ด — Onboarding Burst Mode:** เติม 2 ช่องว่างระหว่างมติ 21 ก.ค. กับโค้ดเดิม (ที่บันทึกไว้ตรงๆ
+ว่ายังไม่ implement เพราะเขียนก่อนมติจะเคาะ) — cap 20 บัญชี configurable ต่อ tier (Enterprise = ไม่จำกัด)
+ย้ายเข้า `config/subscriptionTiers.js`, Platform Admin (super_admin/support) กดอนุมัติ/ปฏิเสธคำขอต่ออายุ
+แทน Owner ได้ถ้า Owner ไม่ตอบ พร้อมลง platform_audit_log ชัดเจนว่าเป็น override — เจอ+ป้องกันบั๊กคลาส
+เดียวกับ P0 security ล่วงหน้า (เพิ่ม action ใหม่เข้า CHECK constraint ตั้งแต่แรก แทนที่จะลืมแบบ 4 ฟังก์ชัน
+ก่อนหน้า)
+
+**✅ การ์ดโค้ด — Export CSV เพิ่ม Jobs + Sales:** เดิมมีแค่ Parts (คอมเมนต์บอกตรงๆ ว่าเลื่อน Jobs/Sales
+ไว้เพราะ payment_method/cart flow ยังไม่มี — ตอนนี้มีแล้ว) เพิ่ม `/api/jobs/export-csv`,
+`/api/sales/export-csv`, เพิ่มคอลัมน์ `allocated_cost` ใน Parts export — ตรวจ column/table name ทุกจุด
+กับ schema จริงผ่าน Supabase MCP แล้ว
+
+**✅ การ์ดโค้ด — Stock Value Cap Engine:** ปลดล็อกสูตรต้นทุนที่ค้างไว้ตั้งแต่การ์ดนี้ทำครั้งแรก
+(price×quantity เพราะตอนนั้น allocated_cost ยังไม่มี) เปลี่ยนเป็น `coalesce(allocated_cost, price, 0)
+× quantity` แล้ว recompute ทุกร้าน — verify แล้วว่าไม่กระทบร้านที่มีอยู่จริงเลย (ยังไม่มี salvage part
+จริง) และคำนวณถูกต้องเมื่อมี allocated_cost (จำลองทดสอบแล้ว)
+
+**สถานะการ์ดที่ตรวจแล้วแต่ไม่ได้แตะ (ใหญ่เกินไป/ยังมีคำถามค้างที่ต้องให้คุณอั้มตัดสินใจ ไม่ใช่ automation
+ตัดสินใจเอง):** Admin Role (7th role) — ขนาด L กระทบหลายจุดเกินไปสำหรับ sandbox ที่ verify แบบ live
+ไม่ได้, "Salvage vehicle cost allocation edge cases" ส่วนที่เหลือ (NRV check ต้องรอ Accounting Module,
+เกณฑ์ write-off approval ยังไม่ตัดสินใจ), "รองรับยี่ห้ออะไหล่ (Part Brand)" — การ์ดใหม่วันนี้เอง ระบุไว้
+ตรงๆ ว่า "ต้องตัดสินใจก่อนเริ่ม implement" 2 ข้อ (ชื่อ item_type ใหม่, quantity semantics)
+
 **⚠️ GitHub push ไม่สำเร็จอีกครั้ง** (403 — sandbox อัตโนมัตินี้มีแค่สิทธิ์ read บน repo เหมือนทุกรอบก่อน
-หน้า) — commit `c03e29d` อยู่ใน local git history ของ sandbox เท่านั้น มี patch file ให้คุณอั้ม apply เอง
+หน้า) — commit ทั้งหมด (9 commits คืนนี้) อยู่ใน local git history ของ sandbox เท่านั้น มี patch file
+ให้คุณอั้ม apply เอง
