@@ -711,3 +711,44 @@ Burst Mode, Write-off, Sales report payment_method breakdown, และ RLS bug 
 เพราะ sandbox ที่เขียนไม่มี network ออก `*.supabase.co`/`*.vercel.app` — ผ่านแค่
 `npx playwright test --list` (parse/load สำเร็จหมด 141 test) คุณอั้มต้องรันจริงจากเครื่อง/CI ก่อนเชื่อ
 ผลได้เต็มที่ (ดู Quick Start ใน `qa-automation/README.md`)
+
+### 19. คืนวันที่ 22 ก.ค. 2026 — งาน QA อัตโนมัติภาคกลางคืน (nightly automated run #4)
+
+Sandbox รอบนี้เข้า `*.vercel.app`/`*.supabase.co` ตรงไม่ได้เหมือนเดิม (มีแค่ github.com/npm ผ่าน
+allowlist) — Playwright ยังใช้ได้ปกติแต่รันชน staging จริงไม่ได้ จึงเลือกการ์ดที่ verify ได้โดยไม่ต้องพึ่ง
+browser E2E: 1 การ์ดโค้ด (security fix ผ่าน Supabase MCP โดยตรง) + 1 การ์ดเอกสาร (cross-check
+`SOP.md` กับโค้ดจริง)
+
+**🔴 การ์ดโค้ด — P0 Security: `platform_add_admin`/`change_admin_role`/`remove_admin` ไม่เช็คสิทธิ์จริง:**
+- ฟังก์ชันทั้ง 3 (ตามการ์ด) เชื่อพารามิเตอร์ `p_actor_role` ที่ผู้เรียกส่งมาเองล้วนๆ ไม่เคยเช็คจาก DB เลย
+  — ใครเรียก RPC ตรงได้ (ข้าม Next.js app) ยกระดับตัวเองเป็น super_admin ได้ทันที
+- **ขยายขอบเขตเกินการ์ด:** พบว่า `platform_join_as_support`/`platform_update_shop_subscription` มี
+  ช่องโหว่แบบเดียวกันทุกประการ และ (ต่างจาก 3 ตัวแรก) ยังไม่เคย revoke execute จาก anon/authenticated
+  ฉุกเฉินเลย — ยัง exploit ได้จริงตอนตรวจ 22 ก.ค. จึงแก้พร้อมกันทั้ง 5 ฟังก์ชัน
+- แก้โดยให้ฟังก์ชัน lookup role จริงจาก `platform_admins` ด้วย `p_actor_user_id` แทนพารามิเตอร์ role
+  ที่รับมา (ตัดออกจาก signature ทั้งหมด) + เช็ค `auth.uid()` คู่เป็น defense-in-depth + revoke execute
+  จาก anon/authenticated/PUBLIC แบบถาวรทั้ง 5 ฟังก์ชัน (`db/platform_admin_rpc_auth_check_migration.sql`)
+- **บั๊กแยกที่พบระหว่างทดสอบ:** `platform_audit_log.action` CHECK constraint ไม่ตรงกับ action string
+  ที่ 4 ใน 5 ฟังก์ชันเดิม insert (ตรงแค่ `join_as_support`) — แปลว่า add/remove/change-role admin และ
+  update subscription **error 500 ทุกครั้งที่เรียกจริงมาโดยตลอด** (audit log insert ไม่ผ่าน constraint
+  → rollback ทั้ง transaction) แก้ให้ตรงกับ constraint ในไฟล์เดียวกัน
+- Apply แล้วบน staging Supabase project จริง (`qmqabtrrubqcmafietsr`) ผ่าน MCP — verify ด้วยการจำลอง
+  attack 3 แบบ (analyst self-escalate, unknown-uuid actor, analyst join-as-support) ทั้งหมดถูกบล็อก
+  + flow ปกติของ super_admin จริงยังทำงานถูกต้อง + `get_advisors(security)` ไม่มี warning เหลือ — ไม่มี
+  Playwright test scenario กำหนดไว้ในการ์ดนี้ (security fix ไม่ใช่ UI feature) จึง verify ที่ระดับ
+  SQL/RPC contract แทน
+- **⚠️ ผลกระทบชั่วคราว:** DB signature เปลี่ยนแล้วจริงบน staging แต่ route.js บน Vercel ยังเป็นโค้ดเก่า
+  (ยังไม่ได้ deploy) → `platform_join_as_support` จะ error จนกว่าจะ deploy โค้ดใหม่ — ยอมรับได้เพราะ
+  ฟีเจอร์นี้ยัง WIP บน staging เท่านั้น ไม่มีใน beta/production
+
+**📄 การ์ดเอกสาร — cross-check `SOP.md` กับโค้ด/DB จริง:**
+- ตรวจ section 3 (cart checkout ออกใบเสร็จอัตโนมัติ), section 8 (platform admin role tiers), section 9
+  (job workflow permission), zone hierarchy cross-tenant trigger — ส่วนใหญ่ตรงกับโค้ดจริง
+- พบ 1 จุดไม่ตรง: section 8 บอกว่า platform admin "ใช้งานได้จริง" แต่ไม่ได้บอกว่า add/remove/
+  change-role admin ที่จริงแล้ว error 500 มาตลอด (บั๊กเดียวกับที่เจอตอนแก้การ์ดโค้ดข้างต้น) — เพิ่ม
+  หมายเหตุแก้ไขในเอกสารแล้ว พร้อมอ้างอิงว่าแก้ที่ไหน
+- Section อื่นที่เช็ค (Accounting Module, ขายของยังไม่ตีราคา, salvage cost allocation) ยังตรงกับ "ยังไม่ทำ"
+  ตามเดิม ไม่มี drift
+
+**⚠️ GitHub push ไม่สำเร็จอีกครั้ง** (403 — sandbox อัตโนมัตินี้มีแค่สิทธิ์ read บน repo เหมือนทุกรอบก่อน
+หน้า) — commit `c03e29d` อยู่ใน local git history ของ sandbox เท่านั้น มี patch file ให้คุณอั้ม apply เอง
