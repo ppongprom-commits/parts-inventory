@@ -47,7 +47,7 @@ export async function POST(request) {
       );
     }
     if (!isValidPin(pin)) {
-      return NextResponse.json({ error: "PIN/รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข ยาว 4-20 ตัว" }, { status: 400 });
+      return NextResponse.json({ error: "PIN/รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข ยาว 6-20 ตัว" }, { status: 400 });
     }
 
     // 1) ตรวจสิทธิ์: owner/manager ของอู่นี้เท่านั้น

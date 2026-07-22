@@ -437,7 +437,7 @@ function TeamPageContent() {
                 />
               </label>
               <div>
-                PIN (ตัวอักษร/ตัวเลข 4-20 ตัว)
+                PIN (ตัวอักษร/ตัวเลข 6-20 ตัว)
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     type="text"

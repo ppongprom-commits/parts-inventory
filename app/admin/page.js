@@ -58,7 +58,7 @@ function ChangePinCard() {
       <div className="card-body" style={{ marginBottom: 10 }}>
         <div className="card-title">🔑 เปลี่ยน PIN ของฉัน</div>
         <div className="card-sub">
-          Username: {currentShop.login_username} — ตั้ง PIN/รหัสผ่านใหม่ได้เอง (ตัวอักษร+ตัวเลขผสมได้ ยาว 4-20 ตัว)
+          Username: {currentShop.login_username} — ตั้ง PIN/รหัสผ่านใหม่ได้เอง (ตัวอักษร+ตัวเลขผสมได้ ยาว 6-20 ตัว)
         </div>
       </div>
 
