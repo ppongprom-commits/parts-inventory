@@ -55,7 +55,31 @@ function SalvageVehicleDetailPageContent() {
     }
   }
 
-  const canManage = ["owner", "manager", "supervisor", "technician"].includes(currentRole);
+  // การ์ด "Salvage vehicle cost allocation" — ขายซากที่เหลือเป็นเศษเหล็ก (สร้าง part สังเคราะห์รับ
+  // allocated_cost ส่วนที่เหลือทั้งหมด แล้วปิดคันเป็น fully_disassembled อัตโนมัติ) ผ่าน RPC
+  // sell_salvage_vehicle_scrap (เช็คสิทธิ์ owner/manager/supervisor จาก auth.uid() ภายในตัวมันเอง —
+  // ดู db/salvage_vehicle_cost_allocation_migration.sql)
+  async function handleSellScrap() {
+    if (!confirm("ยืนยันขายซากที่เหลือเป็นเศษเหล็ก? การกระทำนี้จะปิดคันนี้ทันที (ทำอีกครั้งไม่ได้)")) {
+      return;
+    }
+    setMsg(null);
+    const { error } = await supabase.rpc("sell_salvage_vehicle_scrap", { p_vehicle_id: Number(id) });
+    if (error) {
+      setMsg({ type: "error", text: "ขายซากที่เหลือไม่สำเร็จ: " + error.message });
+    } else {
+      setMsg({ type: "success", text: "ขายซากที่เหลือสำเร็จ — สร้างรายการอะไหล่เศษเหล็กแล้ว" });
+      load();
+    }
+  }
+
+  // เพิ่ม/ถอดอะไหล่จากคัน — ทุก role ที่เพิ่มอะไหล่ได้ปกติ (matrix การ์ด: "ทุก role ที่เพิ่มอะไหล่ได้
+  // ปกติ รวม Technician/Assistant/Field Scanner") — หน้านี้จำกัดที่ RequireAuth ไว้แค่ 5 role อยู่แล้ว
+  // (ไม่รวม field_scanner ตอนนี้ เพราะ field_scanner ยังไม่มีสิทธิ์เข้าหน้านี้โดยตรง — คนละการ์ด)
+  const canExtract = ["owner", "manager", "supervisor", "technician"].includes(currentRole);
+  // ปิดคัน/sold_whole/ขายเศษเหล็ก — Owner/Manager/Supervisor เท่านั้นตาม RBAC matrix ที่ตัดสินใจแล้ว
+  // ในการ์ด (ต่างจาก canExtract เดิมที่รวม technician ด้วย — แก้ไข 22 ก.ค. 2026 ให้ตรงกับมติจริง)
+  const canClose = ["owner", "manager", "supervisor"].includes(currentRole);
 
   if (loading) {
     return (
@@ -104,14 +128,21 @@ function SalvageVehicleDetailPageContent() {
         </div>
       </div>
 
-      {canManage && vehicle.status !== "fully_disassembled" && vehicle.status !== "sold_whole" && (
+      {vehicle.status !== "fully_disassembled" && vehicle.status !== "sold_whole" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-          <button type="button" onClick={() => router.push(`/add?salvage_vehicle_id=${vehicle.vehicle_id}`)} data-testid="disassemble-button">
-            ➡️ ถอดอะไหล่จากคันนี้
-          </button>
-          {parts.length > 0 && (
+          {canExtract && (
+            <button type="button" onClick={() => router.push(`/add?salvage_vehicle_id=${vehicle.vehicle_id}`)} data-testid="disassemble-button">
+              ➡️ ถอดอะไหล่จากคันนี้
+            </button>
+          )}
+          {canClose && parts.length > 0 && (
             <button type="button" className="secondary" onClick={handleMarkFullyDisassembled} data-testid="mark-fully-disassembled">
               ✅ ถอดหมดแล้ว/ปิดคัน
+            </button>
+          )}
+          {canClose && (
+            <button type="button" className="secondary" onClick={handleSellScrap} data-testid="sell-scrap-button">
+              🗑️ ขายซากที่เหลือ (เศษเหล็ก)
             </button>
           )}
         </div>

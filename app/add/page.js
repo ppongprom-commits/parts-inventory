@@ -23,7 +23,14 @@ function AddPartPageContent() {
   const linkedSalvageVehicleId = searchParams.get("salvage_vehicle_id");
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
-  const { currentShopId } = useAuth();
+  const { currentShopId, currentRole } = useAuth();
+  // การ์ด "Salvage vehicle cost allocation" — floor เดียวกับราคาทุน (Owner/Manager/Supervisor)
+  // ต่างจาก field อื่นในฟอร์มนี้ที่ไม่ซ่อนตาม role (ปล่อยให้ API/RLS ปฏิเสธแทน) เพราะ estimated_value
+  // ถูก enforce ด้วย RESTRICTIVE RLS policy ระดับ "ทั้งแถว" — ถ้าส่งค่าไปทั้งที่ไม่มีสิทธิ์ การบันทึก
+  // อะไหล่ "ทั้งฟอร์ม" (รวมรูปที่เพิ่งอัปโหลด) จะถูกปฏิเสธไปด้วยทั้งหมด ไม่ใช่แค่ field นี้ field เดียว —
+  // ซ่อนที่ UI ไว้ก่อนเพื่อกัน role อื่นเผลอกรอกแล้วบันทึกทั้งฟอร์มไม่ผ่านโดยไม่จำเป็น (RLS floor ที่ DB
+  // ยังคงอยู่เป็น defense-in-depth เผื่อเรียก API ตรงข้าม UI)
+  const canSetEstimatedValue = ["owner", "manager", "supervisor"].includes(currentRole);
 
   const [form, setForm] = useState({
     item_type: "salvage",
@@ -37,6 +44,12 @@ function AddPartPageContent() {
     min_stock_level: "",
     price: "",
     part_number: "",
+    // การ์ด "Salvage vehicle cost allocation" — เฉพาะกรอกตอนถอดจากซากรถเท่านั้น (มี
+    // linkedSalvageVehicleId) ใช้เป็นตัวหารคำนวณ allocated_cost แบบ relative sales value —
+    // ไม่ซ่อนช่องนี้ตาม role ที่ UI (ตามหลักการที่ใช้ทั้งโปรเจกต์: "API/server เป็น source of
+    // truth" — RLS floor ที่ DB บล็อกจริงถ้า role ไม่ใช่ owner/manager/supervisor พร้อมข้อความ
+    // error ที่เข้าใจได้ ดู db/salvage_vehicle_cost_allocation_migration.sql)
+    estimated_value: "",
     notes: "",
   });
 
@@ -233,6 +246,10 @@ function AddPartPageContent() {
         item_type: form.item_type,
         job_id: linkedJobId || null,
         salvage_vehicle_id: linkedSalvageVehicleId || null,
+        estimated_value:
+          linkedSalvageVehicleId && canSetEstimatedValue && form.estimated_value
+            ? Number(form.estimated_value)
+            : null,
         min_stock_level: form.min_stock_level ? Number(form.min_stock_level) : null,
         price: form.price ? Number(form.price) : null,
         part_number: form.part_number || null,
@@ -259,6 +276,7 @@ function AddPartPageContent() {
         source_type: sourceTypes[0] || "",
         price: "",
         part_number: "",
+        estimated_value: "",
       });
       setSelectedGeneration(null);
       setPhotos([]);
@@ -448,6 +466,25 @@ function AddPartPageContent() {
           >
             🚗 อะไหล่ชิ้นนี้ถอดจากซากรถ #{linkedSalvageVehicleId} — จะผูกอัตโนมัติ
           </div>
+        )}
+
+        {linkedSalvageVehicleId && canSetEstimatedValue && (
+          <label>
+            มูลค่าประเมิน (บาท) — สำหรับคำนวณต้นทุนปันส่วน
+            <input
+              type="number"
+              name="estimated_value"
+              value={form.estimated_value}
+              onChange={handleChange}
+              placeholder="เช่น 3000 (เว้นว่างได้ถ้ายังไม่ประเมิน)"
+              min="0"
+              step="any"
+              data-testid="estimated-value-input"
+            />
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+              ใช้เป็นตัวหารคำนวณ allocated_cost (ต้นทุนปันส่วน) แบบสัดส่วนมูลค่า
+            </div>
+          </label>
         )}
 
         <div>
