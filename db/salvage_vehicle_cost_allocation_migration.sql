@@ -122,6 +122,27 @@ create trigger trg_allocate_salvage_part_cost
 -- เพราะ trigger invocation เกิดที่ระดับ DB engine ตรงๆ ไม่ผ่าน PostgREST/grant ชุดนี้
 revoke execute on function fn_allocate_salvage_part_cost() from public, anon, authenticated;
 
+-- พบเพิ่มระหว่างตรวจ get_advisors รอบสุดท้ายของ session นี้ (22 ก.ค. 2026): 2 ฟังก์ชันเดิมจาก
+-- db/salvage_vehicle_intake_migration.sql (ก่อนหน้าเซสชันนี้) มีปัญหาเดียวกัน — แก้พร้อมกันเพราะ
+-- อยู่ในพื้นที่เดียวกันที่กำลังตรวจอยู่แล้ว:
+-- 1. auto_start_salvage_disassembly() เป็น trigger-only function เหมือนกัน แต่ไม่เคย revoke
+--    execute จาก anon/authenticated ไว้เลย (เปิดเป็น RPC โดยไม่ได้ตั้งใจเหมือนกันทุกประการ)
+revoke execute on function auto_start_salvage_disassembly() from public, anon, authenticated;
+
+-- 2. update_salvage_vehicles_updated_at() ไม่มี search_path กำกับ (function_search_path_mutable
+--    warning) — ไม่ใช่ security definer เลยความเสี่ยงต่ำกว่า แต่แก้ให้ครบตาม convention เดียวกับ
+--    ฟังก์ชันอื่นๆ ในไฟล์นี้
+create or replace function update_salvage_vehicles_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 -- 4) Freeze estimated_total_value/value_groups ตั้งแต่เริ่มถอด (status เข้า disassembling เป็นต้นไป)
 --    แก้ purchase_price/chassis_number/photo_urls/notes ฯลฯ ยังทำได้ปกติ — freeze เฉพาะ 2 คอลัมน์
 --    ที่ใช้เป็นตัวหารคำนวณสัดส่วนเท่านั้น (ตามมติการ์ด)
