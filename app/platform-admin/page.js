@@ -27,7 +27,7 @@ const ROLE_LABELS = {
   assistant: "ผู้ช่วยช่าง",
 };
 
-async function authedFetch(path, options = {}) {
+async function authedFetchFull(path, options = {}) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -42,6 +42,11 @@ async function authedFetch(path, options = {}) {
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "เกิดข้อผิดพลาด");
+  return json;
+}
+
+async function authedFetch(path, options = {}) {
+  const json = await authedFetchFull(path, options);
   return json.data;
 }
 
@@ -230,12 +235,121 @@ function ShopDetailPanel({ shop, onClose, onSaved }) {
   );
 }
 
+const AUDIT_ACTION_LABELS = {
+  update_shop_subscription: "แก้ subscription/billing",
+  join_as_support: "Join-as-support",
+  add_platform_admin: "เพิ่ม platform admin",
+  change_platform_admin_role: "เปลี่ยน role platform admin",
+  remove_platform_admin: "ลบ platform admin",
+};
+
+function ActivityLogTab() {
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filterText, setFilterText] = useState("");
+  const PAGE_SIZE = 50;
+
+  async function load(offset = 0) {
+    setLoading(true);
+    setError(null);
+    try {
+      const json = await authedFetchFull(`/api/platform/audit-log?limit=${PAGE_SIZE}&offset=${offset}`);
+      setRows((prev) => (offset === 0 ? json.data : [...prev, ...json.data]));
+      setTotal(json.total ?? 0);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!filterText) return rows;
+    const q = filterText.toLowerCase();
+    return rows.filter(
+      (r) =>
+        r.admin_email?.toLowerCase().includes(q) ||
+        r.target_shop_name?.toLowerCase().includes(q) ||
+        r.action?.toLowerCase().includes(q)
+    );
+  }, [rows, filterText]);
+
+  return (
+    <div>
+      <div className="filters" style={{ marginBottom: 16 }}>
+        <input
+          type="text"
+          placeholder="กรองตามคน / อู่ / action"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+        />
+      </div>
+
+      {error && <div className="msg error">{error}</div>}
+      {loading && rows.length === 0 && <div className="empty">กำลังโหลด...</div>}
+      {!loading && filtered.length === 0 && <div className="empty">ไม่มีรายการ</div>}
+
+      {filtered.map((r) => (
+        <div
+          key={r.audit_id}
+          className="card"
+          style={{ cursor: "default", flexDirection: "column", alignItems: "flex-start" }}
+        >
+          <div className="card-body" style={{ width: "100%" }}>
+            <div className="card-title">
+              {AUDIT_ACTION_LABELS[r.action] || r.action}
+              {r.status === "failed" && (
+                <span style={{ color: "var(--danger-text)", marginLeft: 8, fontSize: 12 }}>❌ ล้มเหลว</span>
+              )}
+            </div>
+            <div className="card-sub">
+              {r.admin_email || r.admin_user_id} ({r.admin_role || "?"})
+              {r.target_shop_name && <> · อู่: {r.target_shop_name}</>}
+            </div>
+            <div className="card-sub" style={{ fontSize: 12 }}>
+              {new Date(r.created_at).toLocaleString("th-TH")}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {rows.length < total && !filterText && (
+        <button
+          type="button"
+          onClick={() => load(rows.length)}
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: 12,
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+            background: "transparent",
+            color: "var(--link)",
+            cursor: "pointer",
+            marginTop: 8,
+          }}
+        >
+          {loading ? "กำลังโหลด..." : `โหลดเพิ่ม (${rows.length}/${total})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function PlatformAdminPage() {
   const router = useRouter();
   const { session, loading: authLoading, memberships, switchShop, refreshMemberships, signOut } = useAuth();
 
   const myShopIds = useMemo(() => new Set(memberships.map((m) => m.shop_id)), [memberships]);
   const [joiningShopId, setJoiningShopId] = useState(null);
+  const [activeTab, setActiveTab] = useState("shops");
 
   async function handleViewShop(shopId) {
     switchShop(shopId);
@@ -350,6 +464,43 @@ export default function PlatformAdminPage() {
         </Link>
       </div>
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab("shops")}
+          style={{
+            padding: "8px 16px",
+            border: "none",
+            borderBottom: activeTab === "shops" ? "2px solid #2563eb" : "2px solid transparent",
+            background: "transparent",
+            color: activeTab === "shops" ? "var(--text)" : "var(--text-muted)",
+            fontWeight: activeTab === "shops" ? 700 : 400,
+            cursor: "pointer",
+          }}
+        >
+          🏪 รายชื่ออู่
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("activity")}
+          style={{
+            padding: "8px 16px",
+            border: "none",
+            borderBottom: activeTab === "activity" ? "2px solid #2563eb" : "2px solid transparent",
+            background: "transparent",
+            color: activeTab === "activity" ? "var(--text)" : "var(--text-muted)",
+            fontWeight: activeTab === "activity" ? 700 : 400,
+            cursor: "pointer",
+          }}
+        >
+          📜 Activity Log
+        </button>
+      </div>
+
+      {activeTab === "activity" ? (
+        <ActivityLogTab />
+      ) : (
+      <>
       {/* สรุปสถิติ */}
       <div className="filters" style={{ marginBottom: 16 }}>
         <div className="tag" style={{ fontSize: 13 }}>
@@ -475,6 +626,8 @@ export default function PlatformAdminPage() {
           )}
         </div>
       ))}
+      </>
+      )}
       </div>
     </IdleSessionGuard>
   );
