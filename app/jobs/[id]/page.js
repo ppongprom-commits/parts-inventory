@@ -9,6 +9,7 @@ import RequireAuth from "../../../components/RequireAuth";
 import { JOB_STATUSES, JOB_STATUS_STYLE, JOB_SOURCE_TYPES } from "../../../lib/jobStatusLabels";
 import CarDamageDiagram from "../../../components/CarDamageDiagram";
 import CarAutocomplete from "../../../components/CarAutocomplete";
+import JobTypeBundleConfirmModal from "../../../components/JobTypeBundleConfirmModal";
 
 const ROLE_LABELS = {
   owner: "เจ้าของ",
@@ -42,6 +43,12 @@ function JobDetailPageContent() {
   const [selectedConsumablePart, setSelectedConsumablePart] = useState(null);
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyResults, setHistoryResults] = useState([]);
+  const [bundleQuery, setBundleQuery] = useState("");
+  const [bundleResults, setBundleResults] = useState([]);
+  const [selectedBundleTemplate, setSelectedBundleTemplate] = useState(null);
+  const [bundleVariantChoices, setBundleVariantChoices] = useState({}); // { [item_id]: variant_id }
+  const [showNewBundleModal, setShowNewBundleModal] = useState(false);
+  const [savingBundle, setSavingBundle] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [customerShareUrl, setCustomerShareUrl] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -276,6 +283,17 @@ function JobDetailPageContent() {
     setHistoryResults(data || []);
   }
 
+  // ช่องค้นหารวมเดียว (bundle/สต็อก/ประวัติ) แชร์ query text เดียวกันผ่าน newCostItem.description
+  // เลือกผลลัพธ์แบบไหนก็ต้องปิด dropdown ของทั้ง 3 แหล่งพร้อมกัน ไม่ใช่แค่แหล่งที่เลือก
+  function clearSearchState() {
+    setBundleQuery("");
+    setBundleResults([]);
+    setConsumableQuery("");
+    setConsumableResults([]);
+    setHistoryQuery("");
+    setHistoryResults([]);
+  }
+
   function handleSelectHistoryItem(item) {
     setSelectedConsumablePart(null); // มาจากประวัติ ไม่ผูกกับสต็อก ไม่ตัดสต็อก
     setNewCostItem((f) => ({
@@ -285,8 +303,189 @@ function JobDetailPageContent() {
       _categoryTouched: true,
       // ตั้งใจไม่แตะ amount/quantity — เว้นให้กรอกเองเหมือนเดิมตามที่ตกลงกันไว้
     }));
-    setHistoryQuery("");
-    setHistoryResults([]);
+    clearSearchState();
+  }
+
+  // การ์ด "Job Type Bundle Template" — ค้นหาเซตตามชื่อประเภทงาน (พิมพ์ = filter จาก preset ที่มี
+  // อยู่จริงเท่านั้น — ไม่มีทาง "ใช้คำที่พิมพ์" ตรงๆ ตามที่การ์ดกำหนดไว้สำหรับ Technician)
+  async function searchBundles(query) {
+    setBundleQuery(query);
+    setSelectedBundleTemplate(null);
+    setBundleVariantChoices({});
+    if (!query.trim()) {
+      setBundleResults([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("job_type_bundle_templates")
+      .select(
+        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, part_id, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, part_id, sort_order))"
+      )
+      .eq("shop_id", currentShopId)
+      .ilike("job_type_name", `%${query.trim()}%`)
+      .limit(8);
+    setBundleResults(data || []);
+  }
+
+  function handleSelectBundleResult(template) {
+    setSelectedBundleTemplate(template);
+    const defaults = {};
+    (template.job_type_bundle_items || []).forEach((item) => {
+      const variants = item.job_type_bundle_item_variants || [];
+      if (variants.length > 0) {
+        defaults[item.item_id] = variants[0].variant_id;
+      }
+    });
+    setBundleVariantChoices(defaults);
+    clearSearchState();
+    setNewCostItem((f) => ({ ...f, description: "" })); // เลือกเซตแล้ว เคลียร์ query ทิ้ง ไม่ใช่ค่ารายละเอียดจริง
+  }
+
+  // นำเซตที่เลือก (จากค้นหา หรือเพิ่งสร้างใหม่) ไปใส่เป็น job_cost_items หลายแถวพร้อมกัน
+  // row.amount ที่รับเข้ามาคือ "ราคาต่อหน่วย" (unit price — ตรงกับที่ trigger price-memory จำไว้
+  // จาก amount/quantity เดิม) ต้องคูณด้วย quantity เองตรงนี้เพื่อได้ job_cost_items.amount ที่เป็น
+  // ยอดรวมต่อแถว (ตรงกับ semantics เดิมของฟอร์มเพิ่มรายการด้วยมือที่มีช่อง "จำนวน" + "บาท (รวม)" แยกกัน)
+  async function applyBundleItems(items) {
+    const maxSort = costItems.reduce((max, c) => Math.max(max, c.sort_order || 0), 0);
+    const rows = items.map((row, i) => {
+      const quantity = row.quantity != null && row.quantity !== "" ? Number(row.quantity) : 1;
+      const unitAmount = row.amount != null && row.amount !== "" ? Number(row.amount) : 0;
+      return {
+        job_id: jobId,
+        category: row.category,
+        description: row.description,
+        amount: unitAmount * quantity,
+        quantity,
+        part_id: row.part_id || null,
+        bundle_item_id: row.bundle_item_id || null,
+        bundle_variant_id: row.bundle_variant_id || null,
+        sort_order: maxSort + i + 1,
+      };
+    });
+    const { error } = await supabase.from("job_cost_items").insert(rows);
+    if (error) {
+      setMsg({ type: "error", text: "ใส่เซตไม่สำเร็จ: " + error.message });
+    } else {
+      fetchCostItems();
+    }
+  }
+
+  function handleApplyBundle() {
+    const items = selectedBundleTemplate?.job_type_bundle_items || [];
+    const rows = items.map((item) => {
+      const variants = item.job_type_bundle_item_variants || [];
+      if (variants.length > 0) {
+        const chosen = variants.find((v) => v.variant_id === bundleVariantChoices[item.item_id]) || variants[0];
+        return {
+          category: item.category,
+          description: chosen.description,
+          amount: chosen.default_amount,
+          quantity: chosen.default_quantity,
+          part_id: chosen.part_id,
+          bundle_variant_id: chosen.variant_id,
+        };
+      }
+      return {
+        category: item.category,
+        description: item.description,
+        amount: item.default_amount,
+        quantity: item.default_quantity,
+        part_id: item.part_id || null,
+        bundle_item_id: item.item_id,
+      };
+    });
+    applyBundleItems(rows);
+    setSelectedBundleTemplate(null);
+    setBundleVariantChoices({});
+  }
+
+  // Owner/Manager/Admin เท่านั้นที่เห็นปุ่มนี้ (การ์ด) — สร้างเซตใหม่ inline จากหน้างานเลย ไม่ต้อง
+  // ไปหน้าตั้งค่าแยก แล้วนำมาใช้กับงานปัจจุบันทันที
+  async function handleCreateAndApplyBundle(jobTypeName, items) {
+    setSavingBundle(true);
+    try {
+      const { data: template, error: templateError } = await supabase
+        .from("job_type_bundle_templates")
+        .insert({ shop_id: currentShopId, job_type_name: jobTypeName, created_by: user.id })
+        .select("template_id")
+        .single();
+      if (templateError) throw templateError;
+
+      const itemsToInsert = items.map((item, i) => ({
+        template_id: template.template_id,
+        category: item.category,
+        item_group_label: item.item_group_label.trim(),
+        description: item.description.trim(),
+        default_amount: item.default_amount !== "" ? Number(item.default_amount) : null,
+        default_quantity: item.default_quantity !== "" ? Number(item.default_quantity) : 1,
+        is_price_locked: item.is_price_locked,
+        part_id: item.part_id || null,
+        sort_order: i,
+      }));
+      const { data: insertedItems, error: itemsError } = await supabase
+        .from("job_type_bundle_items")
+        .insert(itemsToInsert)
+        .select("item_id, category, description, default_amount, default_quantity, part_id");
+      if (itemsError) throw itemsError;
+
+      const variantRows = [];
+      items.forEach((item, i) => {
+        const insertedItemId = insertedItems[i].item_id;
+        (item.variants || [])
+          .filter((v) => v.variant_label.trim() && v.description.trim())
+          .forEach((v, vi) => {
+            variantRows.push({
+              item_id: insertedItemId,
+              variant_label: v.variant_label.trim(),
+              description: v.description.trim(),
+              default_amount: v.default_amount !== "" ? Number(v.default_amount) : null,
+              default_quantity: v.default_quantity !== "" ? Number(v.default_quantity) : 1,
+              part_id: v.part_id || null,
+              sort_order: vi,
+            });
+          });
+      });
+      let insertedVariants = [];
+      if (variantRows.length > 0) {
+        const { data, error: variantsError } = await supabase
+          .from("job_type_bundle_item_variants")
+          .insert(variantRows)
+          .select("item_id, description, default_amount, default_quantity, part_id");
+        if (variantsError) throw variantsError;
+        insertedVariants = data || [];
+      }
+
+      // ใส่เข้างานปัจจุบันทันที — ถ้ารายการไหนมี sub-variant ใช้ตัวแรกที่กรอกไว้เป็นค่าเริ่มต้น
+      // (ปรับ/เลือกตัวอื่นทีหลังได้ผ่านการค้นหาเซตนี้ซ้ำในงานถัดไป)
+      const rows = insertedItems.map((item) => {
+        const firstVariant = insertedVariants.find((v) => v.item_id === item.item_id);
+        if (firstVariant) {
+          return {
+            category: item.category,
+            description: firstVariant.description,
+            amount: firstVariant.default_amount,
+            quantity: firstVariant.default_quantity,
+            part_id: firstVariant.part_id,
+          };
+        }
+        return {
+          category: item.category,
+          description: item.description,
+          amount: item.default_amount,
+          quantity: item.default_quantity,
+          part_id: item.part_id || null,
+          bundle_item_id: item.item_id,
+        };
+      });
+      await applyBundleItems(rows);
+      setShowNewBundleModal(false);
+      clearSearchState();
+      setNewCostItem((f) => ({ ...f, description: "" }));
+    } catch (err) {
+      setMsg({ type: "error", text: "สร้างเซตไม่สำเร็จ: " + err.message });
+    } finally {
+      setSavingBundle(false);
+    }
   }
 
   function handleSelectConsumable(part) {
@@ -299,8 +498,7 @@ function JobDetailPageContent() {
       quantity: "1",
       _categoryTouched: true,
     }));
-    setConsumableQuery("");
-    setConsumableResults([]);
+    clearSearchState();
   }
 
   // เพิ่มรายการแบบเร็ว — ถ้าพิมพ์ขึ้นต้นด้วย "ค่า" จะเดาเป็นค่าแรงให้อัตโนมัติ
@@ -311,6 +509,15 @@ function JobDetailPageContent() {
       const guessedCategory = value.trim().startsWith("ค่า") ? "labor" : f.category;
       return { ...f, description: value, category: f._categoryTouched ? f.category : guessedCategory };
     });
+  }
+
+  // ช่อง "รายละเอียด" ตอนนี้เป็นช่องค้นหารวม — พิมพ์คำเดียวยิงหาพร้อมกันทั้ง 3 แหล่ง
+  // (เซตงาน/สต็อก/ประวัติ) แทนที่จะต้องมี 3 กล่องแยกเหมือนเดิม
+  function handleUnifiedSearch(value) {
+    handleDescriptionChange(value);
+    searchBundles(value);
+    searchConsumables(value);
+    searchHistory(value);
   }
 
   async function handleAddCostItem() {
@@ -1221,125 +1428,9 @@ function JobDetailPageContent() {
           </select>
         </label>
 
-        {/* ค้นหาของสิ้นเปลืองจากสต็อก — เลือกแล้วตัดสต็อกอัตโนมัติตอนบันทึก */}
-        <div style={{ position: "relative", marginTop: 12 }}>
-          <input
-            type="text"
-            placeholder="🔍 ค้นหาอะไหล่จากสต็อก (ของสิ้นเปลือง/อะไหล่ถอด — ไม่บังคับ)"
-            value={consumableQuery}
-            onChange={(e) => searchConsumables(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          {consumableResults.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 10,
-                background: "var(--surface)",
-                border: "1px solid var(--border-strong)",
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 200,
-                overflowY: "auto",
-              }}
-            >
-              {consumableResults.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleSelectConsumable(p)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: 10,
-                    border: "none",
-                    borderBottom: "1px solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {p.item_type === "salvage" ? "🔩" : "📦"} {p.part_name} — เหลือ {p.quantity} ·{" "}
-                  {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {selectedConsumablePart && (
-          <div
-            style={{
-              fontSize: 12,
-              color: "var(--zone-text)",
-              background: "var(--zone-bg)",
-              padding: 8,
-              borderRadius: 8,
-              marginTop: 8,
-            }}
-          >
-            🔗 ผูกกับสต็อก: {selectedConsumablePart.part_name} — บันทึกแล้วจะตัดสต็อกอัตโนมัติ
-          </div>
-        )}
-
-        {/* ค้นหารายการที่เคยพิมพ์ไว้ก่อนหน้า (ค่าแรง/ค่าอะไหล่/อื่นๆ) มาหยิบใช้ซ้ำ —
-            ไม่ตัดสต็อก ไม่ auto-fill ราคา/จำนวน เว้นให้กรอกเองเสมอ */}
-        <div style={{ position: "relative", marginTop: 8 }}>
-          <input
-            type="text"
-            placeholder="🕘 ค้นหารายการที่เคยใช้ (ค่าแรง/ค่าอะไหล่ — ไม่ตัดสต็อก)"
-            value={historyQuery}
-            onChange={(e) => searchHistory(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          {historyResults.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 10,
-                background: "var(--surface)",
-                border: "1px solid var(--border-strong)",
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 200,
-                overflowY: "auto",
-              }}
-            >
-              {historyResults.map((item, i) => (
-                <button
-                  key={`${item.description}-${item.category}-${i}`}
-                  type="button"
-                  onClick={() => handleSelectHistoryItem(item)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: 10,
-                    border: "none",
-                    borderBottom: "1px solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {item.description}{" "}
-                  <span style={{ color: "var(--text-muted)" }}>({CATEGORY_LABELS[item.category] || item.category})</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ฟอร์มเพิ่มรายการแบบเร็ว: พิมพ์ "ค่า..." จะเดาเป็นค่าแรงให้อัตโนมัติ */}
+        {/* ฟอร์มเพิ่มรายการแบบเร็ว: ช่อง "รายละเอียด" ตอนนี้เป็นช่องค้นหารวม พิมพ์แล้วยิงหา
+            พร้อมกันทั้งเซตงาน (bundle) / อะไหล่ในสต็อก / รายการที่เคยใช้ก่อนหน้า และ "ค่า..." ยังเดา
+            เป็นค่าแรงอัตโนมัติเหมือนเดิม — รวม 3 กล่องเดิมเป็นกล่องเดียวเพื่อลดความรก */}
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 4 }}>
             {["labor", "parts", "other"].map((cat) => (
@@ -1362,13 +1453,130 @@ function JobDetailPageContent() {
               </button>
             ))}
           </div>
-          <input
-            type="text"
-            placeholder="รายละเอียด (พิมพ์ 'ค่า...' = ค่าแรงอัตโนมัติ)"
-            value={newCostItem.description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            style={{ flex: 1, minWidth: 160 }}
-          />
+          <div style={{ position: "relative", flex: 1, minWidth: 160 }}>
+            <input
+              type="text"
+              placeholder="รายละเอียด — พิมพ์ชื่องาน/อะไหล่/รายการที่เคยใช้ ('ค่า...' = ค่าแรงอัตโนมัติ)"
+              value={newCostItem.description}
+              onChange={(e) => handleUnifiedSearch(e.target.value)}
+              style={{ width: "100%" }}
+            />
+            {(bundleResults.length > 0 || consumableResults.length > 0 || historyResults.length > 0) && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  zIndex: 10,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border-strong)",
+                  borderRadius: 8,
+                  marginTop: 4,
+                  maxHeight: 280,
+                  overflowY: "auto",
+                }}
+              >
+                {bundleResults.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                      🧰 เซตงาน
+                    </div>
+                    {bundleResults.map((t) => (
+                      <button
+                        key={t.template_id}
+                        type="button"
+                        onClick={() => handleSelectBundleResult(t)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 10,
+                          border: "none",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text)",
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        🧰 {t.job_type_name} ({(t.job_type_bundle_items || []).length} รายการ)
+                      </button>
+                    ))}
+                  </>
+                )}
+                {consumableResults.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                      📦 สต็อก
+                    </div>
+                    {consumableResults.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectConsumable(p)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 10,
+                          border: "none",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text)",
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        {p.item_type === "salvage" ? "🔩" : "📦"} {p.part_name} — เหลือ {p.quantity} ·{" "}
+                        {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {historyResults.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                      🕘 เคยใช้
+                    </div>
+                    {historyResults.map((item, i) => (
+                      <button
+                        key={`${item.description}-${item.category}-${i}`}
+                        type="button"
+                        onClick={() => handleSelectHistoryItem(item)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 10,
+                          border: "none",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text)",
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        {item.description}{" "}
+                        <span style={{ color: "var(--text-muted)" }}>({CATEGORY_LABELS[item.category] || item.category})</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+            {/* Technician ไม่มีปุ่มนี้เด็ดขาด (การ์ด) — พิมพ์แล้วไม่เจอต้องให้ Owner/Manager/Admin
+                สร้างเซตใหม่แทน */}
+            {bundleQuery.trim() && bundleResults.length === 0 && ["owner", "manager", "admin"].includes(currentRole) && (
+              <button
+                type="button"
+                onClick={() => setShowNewBundleModal(true)}
+                style={{ marginTop: 6, fontSize: 12 }}
+              >
+                + สร้างชุดใหม่ &quot;{bundleQuery.trim()}&quot;
+              </button>
+            )}
+          </div>
           <input
             type="number"
             placeholder="จำนวน"
@@ -1401,6 +1609,82 @@ function JobDetailPageContent() {
             + เพิ่ม
           </button>
         </div>
+
+        {selectedBundleTemplate && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid var(--border-strong)",
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>🧰 {selectedBundleTemplate.job_type_name}</div>
+            {(selectedBundleTemplate.job_type_bundle_items || []).map((item) => {
+              const variants = item.job_type_bundle_item_variants || [];
+              return (
+                <div key={item.item_id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 13 }}>
+                  <span style={{ flex: 1 }}>
+                    {CATEGORY_LABELS[item.category]}: {item.item_group_label}
+                  </span>
+                  {variants.length > 0 ? (
+                    <select
+                      value={bundleVariantChoices[item.item_id] || ""}
+                      onChange={(e) =>
+                        setBundleVariantChoices((prev) => ({ ...prev, [item.item_id]: Number(e.target.value) }))
+                      }
+                    >
+                      {variants.map((v) => (
+                        <option key={v.variant_id} value={v.variant_id}>
+                          {v.variant_label} — × {v.default_quantity ?? 1}{" "}
+                          ({v.default_amount ? `${Number(v.default_amount).toLocaleString()} บาท/หน่วย` : "ไม่มีราคา"})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)" }}>
+                      × {item.default_quantity ?? 1}{" "}
+                      {item.default_amount ? `(${Number(item.default_amount).toLocaleString()} บาท/หน่วย)` : "(ไม่มีราคา)"}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button type="button" onClick={handleApplyBundle}>
+                ✅ ใช้เซตนี้
+              </button>
+              <button type="button" onClick={() => setSelectedBundleTemplate(null)}>
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showNewBundleModal && (
+          <JobTypeBundleConfirmModal
+            initialJobTypeName={bundleQuery.trim()}
+            shopId={currentShopId}
+            saving={savingBundle}
+            onCancel={() => setShowNewBundleModal(false)}
+            onSave={handleCreateAndApplyBundle}
+          />
+        )}
+
+        {selectedConsumablePart && (
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--zone-text)",
+              background: "var(--zone-bg)",
+              padding: 8,
+              borderRadius: 8,
+              marginTop: 8,
+            }}
+          >
+            🔗 ผูกกับสต็อก: {selectedConsumablePart.part_name} — บันทึกแล้วจะตัดสต็อกอัตโนมัติ
+          </div>
+        )}
       </div>
 
       {/* ================= Phase B: เอกสาร 3 ประเภท ================= */}
