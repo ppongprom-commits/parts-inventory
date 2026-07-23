@@ -29,6 +29,7 @@ create table if not exists job_type_bundle_items (
   item_group_label  text not null,   -- เช่น "น้ำมันเกียร์" — ชื่อรายการก่อนเลือก sub-variant
   description       text not null,   -- ข้อความ default variant เช่น "น้ำมันเครื่อง 5W-30"
   default_amount    numeric,         -- ราคาล่าสุด — null ได้สำหรับค่าแรง (ไม่ auto-lock ตามการ์ด)
+  default_quantity  numeric not null default 1, -- ปริมาณเริ่มต้นตอนใส่เข้างาน (เช่น น้ำมันเครื่อง 4 ลิตร)
   is_price_locked   boolean not null default false, -- true = ค่าอะไหล่ (จำราคา), false = ค่าแรง
   sort_order        integer not null default 0,
   created_at        timestamptz not null default now()
@@ -37,14 +38,15 @@ create index if not exists idx_job_type_bundle_items_template on job_type_bundle
 
 -- รองรับ sub-variant ในรายการเดียวกัน (requirement #4: น้ำมันเกียร์ CVT vs WS คนละ SKU)
 create table if not exists job_type_bundle_item_variants (
-  variant_id     bigint generated always as identity primary key,
-  item_id        bigint not null references job_type_bundle_items(item_id) on delete cascade,
-  variant_label  text not null,     -- "เกียร์ CVT" / "เกียร์ WS"
-  description    text not null,     -- ข้อความที่จะเขียนลง job_cost_items.description ตอนนำไปใช้
-  default_amount numeric,
-  part_id        uuid references parts(id), -- ผูกกับ SKU สต็อกจริงได้ (ไม่บังคับ)
-  sort_order     integer not null default 0,
-  created_at     timestamptz not null default now()
+  variant_id       bigint generated always as identity primary key,
+  item_id          bigint not null references job_type_bundle_items(item_id) on delete cascade,
+  variant_label    text not null,     -- "เกียร์ CVT" / "เกียร์ WS"
+  description      text not null,     -- ข้อความที่จะเขียนลง job_cost_items.description ตอนนำไปใช้
+  default_amount   numeric,
+  default_quantity numeric not null default 1,
+  part_id          uuid references parts(id), -- ผูกกับ SKU สต็อกจริงได้ (ไม่บังคับ)
+  sort_order       integer not null default 0,
+  created_at       timestamptz not null default now()
 );
 create index if not exists idx_job_type_bundle_item_variants_item on job_type_bundle_item_variants (item_id);
 

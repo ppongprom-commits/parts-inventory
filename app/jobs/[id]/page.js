@@ -358,7 +358,7 @@ function JobDetailPageContent() {
     const { data } = await supabase
       .from("job_type_bundle_templates")
       .select(
-        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, part_id, sort_order))"
+        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, part_id, sort_order))"
       )
       .eq("shop_id", currentShopId)
       .ilike("job_type_name", `%${query.trim()}%`)
@@ -381,19 +381,26 @@ function JobDetailPageContent() {
   }
 
   // นำเซตที่เลือก (จากค้นหา หรือเพิ่งสร้างใหม่) ไปใส่เป็น job_cost_items หลายแถวพร้อมกัน
+  // row.amount ที่รับเข้ามาคือ "ราคาต่อหน่วย" (unit price — ตรงกับที่ trigger price-memory จำไว้
+  // จาก amount/quantity เดิม) ต้องคูณด้วย quantity เองตรงนี้เพื่อได้ job_cost_items.amount ที่เป็น
+  // ยอดรวมต่อแถว (ตรงกับ semantics เดิมของฟอร์มเพิ่มรายการด้วยมือที่มีช่อง "จำนวน" + "บาท (รวม)" แยกกัน)
   async function applyBundleItems(items) {
     const maxSort = costItems.reduce((max, c) => Math.max(max, c.sort_order || 0), 0);
-    const rows = items.map((row, i) => ({
-      job_id: jobId,
-      category: row.category,
-      description: row.description,
-      amount: row.amount != null && row.amount !== "" ? Number(row.amount) : 0,
-      quantity: 1,
-      part_id: row.part_id || null,
-      bundle_item_id: row.bundle_item_id || null,
-      bundle_variant_id: row.bundle_variant_id || null,
-      sort_order: maxSort + i + 1,
-    }));
+    const rows = items.map((row, i) => {
+      const quantity = row.quantity != null && row.quantity !== "" ? Number(row.quantity) : 1;
+      const unitAmount = row.amount != null && row.amount !== "" ? Number(row.amount) : 0;
+      return {
+        job_id: jobId,
+        category: row.category,
+        description: row.description,
+        amount: unitAmount * quantity,
+        quantity,
+        part_id: row.part_id || null,
+        bundle_item_id: row.bundle_item_id || null,
+        bundle_variant_id: row.bundle_variant_id || null,
+        sort_order: maxSort + i + 1,
+      };
+    });
     const { error } = await supabase.from("job_cost_items").insert(rows);
     if (error) {
       setMsg({ type: "error", text: "ใส่เซตไม่สำเร็จ: " + error.message });
@@ -412,6 +419,7 @@ function JobDetailPageContent() {
           category: item.category,
           description: chosen.description,
           amount: chosen.default_amount,
+          quantity: chosen.default_quantity,
           part_id: chosen.part_id,
           bundle_variant_id: chosen.variant_id,
         };
@@ -420,6 +428,7 @@ function JobDetailPageContent() {
         category: item.category,
         description: item.description,
         amount: item.default_amount,
+        quantity: item.default_quantity,
         bundle_item_id: item.item_id,
       };
     });
@@ -446,13 +455,14 @@ function JobDetailPageContent() {
         item_group_label: item.item_group_label.trim(),
         description: item.description.trim(),
         default_amount: item.default_amount !== "" ? Number(item.default_amount) : null,
+        default_quantity: item.default_quantity !== "" ? Number(item.default_quantity) : 1,
         is_price_locked: item.is_price_locked,
         sort_order: i,
       }));
       const { data: insertedItems, error: itemsError } = await supabase
         .from("job_type_bundle_items")
         .insert(itemsToInsert)
-        .select("item_id, category, description, default_amount");
+        .select("item_id, category, description, default_amount, default_quantity");
       if (itemsError) throw itemsError;
 
       const variantRows = [];
@@ -466,6 +476,7 @@ function JobDetailPageContent() {
               variant_label: v.variant_label.trim(),
               description: v.description.trim(),
               default_amount: v.default_amount !== "" ? Number(v.default_amount) : null,
+              default_quantity: v.default_quantity !== "" ? Number(v.default_quantity) : 1,
               sort_order: vi,
             });
           });
@@ -475,7 +486,7 @@ function JobDetailPageContent() {
         const { data, error: variantsError } = await supabase
           .from("job_type_bundle_item_variants")
           .insert(variantRows)
-          .select("item_id, description, default_amount, part_id");
+          .select("item_id, description, default_amount, default_quantity, part_id");
         if (variantsError) throw variantsError;
         insertedVariants = data || [];
       }
@@ -485,9 +496,21 @@ function JobDetailPageContent() {
       const rows = insertedItems.map((item) => {
         const firstVariant = insertedVariants.find((v) => v.item_id === item.item_id);
         if (firstVariant) {
-          return { category: item.category, description: firstVariant.description, amount: firstVariant.default_amount, part_id: firstVariant.part_id };
+          return {
+            category: item.category,
+            description: firstVariant.description,
+            amount: firstVariant.default_amount,
+            quantity: firstVariant.default_quantity,
+            part_id: firstVariant.part_id,
+          };
         }
-        return { category: item.category, description: item.description, amount: item.default_amount, bundle_item_id: item.item_id };
+        return {
+          category: item.category,
+          description: item.description,
+          amount: item.default_amount,
+          quantity: item.default_quantity,
+          bundle_item_id: item.item_id,
+        };
       });
       await applyBundleItems(rows);
       setShowNewBundleModal(false);
@@ -1582,13 +1605,15 @@ function JobDetailPageContent() {
                     >
                       {variants.map((v) => (
                         <option key={v.variant_id} value={v.variant_id}>
-                          {v.variant_label} ({v.default_amount ? `${Number(v.default_amount).toLocaleString()} บาท` : "ไม่มีราคา"})
+                          {v.variant_label} — × {v.default_quantity ?? 1}{" "}
+                          ({v.default_amount ? `${Number(v.default_amount).toLocaleString()} บาท/หน่วย` : "ไม่มีราคา"})
                         </option>
                       ))}
                     </select>
                   ) : (
                     <span style={{ color: "var(--text-muted)" }}>
-                      {item.default_amount ? `${Number(item.default_amount).toLocaleString()} บาท` : "ไม่มีราคา"}
+                      × {item.default_quantity ?? 1}{" "}
+                      {item.default_amount ? `(${Number(item.default_amount).toLocaleString()} บาท/หน่วย)` : "(ไม่มีราคา)"}
                     </span>
                   )}
                 </div>

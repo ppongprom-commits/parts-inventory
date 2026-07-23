@@ -10,13 +10,14 @@ function emptyItem() {
     item_group_label: "",
     description: "",
     default_amount: "",
+    default_quantity: "1",
     is_price_locked: true,
     variants: [],
   };
 }
 
 function emptyVariant() {
-  return { variant_label: "", description: "", default_amount: "" };
+  return { variant_label: "", description: "", default_amount: "", default_quantity: "1" };
 }
 
 // การ์ด "Job Type Bundle Template" — Dev note: "ต้องออกแบบ modal/screen 'ยืนยันก่อน save' ใหม่ —
@@ -72,6 +73,7 @@ export default function JobTypeBundleConfirmModal({ initialJobTypeName, onCancel
       }}
     >
       <div
+        className="job-bundle-modal"
         style={{
           background: "var(--surface)",
           borderRadius: 12,
@@ -82,6 +84,15 @@ export default function JobTypeBundleConfirmModal({ initialJobTypeName, onCancel
           overflowY: "auto",
         }}
       >
+        {/* กรอบกว้างขึ้นเฉพาะจอใหญ่ (desktop) — จอมือถือใช้ width:100% เดิม ไม่กระทบ */}
+        <style jsx>{`
+          @media (min-width: 901px) {
+            .job-bundle-modal {
+              max-width: 820px !important;
+            }
+          }
+        `}</style>
+
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>สร้างเซตใหม่ — ต้องการปรับอะไรก่อน save ไหม?</div>
         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>
           รายการทั้งหมดด้านล่างจะถูกบันทึกเป็นเซต (preset) สำหรับประเภทงานนี้ — แก้ไข/ลบก่อนกด save ได้
@@ -141,6 +152,15 @@ export default function JobTypeBundleConfirmModal({ initialJobTypeName, onCancel
               />
               <input
                 type="number"
+                placeholder="ปริมาณ"
+                value={item.default_quantity}
+                onChange={(e) => updateItem(itemIndex, { default_quantity: e.target.value })}
+                style={{ width: 70 }}
+                min="0.01"
+                step="any"
+              />
+              <input
+                type="number"
                 placeholder="ราคา"
                 value={item.default_amount}
                 onChange={(e) => updateItem(itemIndex, { default_amount: e.target.value })}
@@ -163,6 +183,15 @@ export default function JobTypeBundleConfirmModal({ initialJobTypeName, onCancel
                   value={variant.description}
                   onChange={(e) => updateVariant(itemIndex, variantIndex, { description: e.target.value })}
                   style={{ flex: 1, minWidth: 100 }}
+                />
+                <input
+                  type="number"
+                  placeholder="ปริมาณ"
+                  value={variant.default_quantity}
+                  onChange={(e) => updateVariant(itemIndex, variantIndex, { default_quantity: e.target.value })}
+                  style={{ width: 60 }}
+                  min="0.01"
+                  step="any"
                 />
                 <input
                   type="number"

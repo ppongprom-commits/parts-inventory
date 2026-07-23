@@ -27,7 +27,7 @@ function JobTypeBundlesPageContent() {
     const { data, error: fetchError } = await supabase
       .from("job_type_bundle_templates")
       .select(
-        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, sort_order))"
+        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, sort_order))"
       )
       .eq("shop_id", currentShopId)
       .order("job_type_name");
@@ -58,6 +58,7 @@ function JobTypeBundlesPageContent() {
         item_group_label: item.item_group_label.trim(),
         description: item.description.trim(),
         default_amount: item.default_amount !== "" ? Number(item.default_amount) : null,
+        default_quantity: item.default_quantity !== "" ? Number(item.default_quantity) : 1,
         is_price_locked: item.is_price_locked,
         sort_order: i,
       }));
@@ -77,6 +78,7 @@ function JobTypeBundlesPageContent() {
               variant_label: v.variant_label.trim(),
               description: v.description.trim(),
               default_amount: v.default_amount !== "" ? Number(v.default_amount) : null,
+              default_quantity: v.default_quantity !== "" ? Number(v.default_quantity) : 1,
               sort_order: vi,
             });
           });
@@ -112,6 +114,14 @@ function JobTypeBundlesPageContent() {
     await supabase
       .from("job_type_bundle_items")
       .update({ default_amount: amount !== "" ? Number(amount) : null })
+      .eq("item_id", itemId);
+    loadTemplates();
+  }
+
+  async function handleUpdateItemQuantity(itemId, quantity) {
+    await supabase
+      .from("job_type_bundle_items")
+      .update({ default_quantity: quantity !== "" ? Number(quantity) : 1 })
       .eq("item_id", itemId);
     loadTemplates();
   }
@@ -167,8 +177,18 @@ function JobTypeBundlesPageContent() {
                     </span>
                     <input
                       type="number"
+                      defaultValue={item.default_quantity ?? 1}
+                      onBlur={(e) => handleUpdateItemQuantity(item.item_id, e.target.value)}
+                      title="ปริมาณ"
+                      min="0.01"
+                      step="any"
+                      style={{ width: 60 }}
+                    />
+                    <input
+                      type="number"
                       defaultValue={item.default_amount ?? ""}
                       onBlur={(e) => handleUpdateItemAmount(item.item_id, e.target.value)}
+                      title="ราคาต่อหน่วย"
                       style={{ width: 80 }}
                     />
                     <button
