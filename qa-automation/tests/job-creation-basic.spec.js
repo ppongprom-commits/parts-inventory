@@ -51,7 +51,9 @@ test.describe("JOB-001-004 — Happy path & minimal-field creation", () => {
 
     const { data: job } = await adminClient().from("jobs").select("*").eq("job_id", jobId).single();
     expect(job.customer_name).toBe("QA Test Customer");
-    expect(job.car_brand).toBe("Nissan");
+    // car_brand ตอนนี้มาจากการเลือก CarAutocomplete dropdown (ค่าจริงจาก DB) ไม่ใช่ข้อความที่พิมพ์
+    // เอง — ฐานข้อมูลรถเก็บ brand_name เป็นตัวพิมพ์ใหญ่ล้วน (เช่น "NISSAN") ไม่ใช่ "Nissan"
+    expect(job.car_brand).toBe("NISSAN");
     expect(job.status).toBe("received");
   });
 
@@ -159,7 +161,15 @@ test.describe("JOB-402 — Car autocomplete generation capture", () => {
   test("พิมพ์ car_brand เองด้วยมือ (ไม่ผ่าน autocomplete) -> car_year_display/generation_id ต้องเป็น null", async ({
     page,
   }) => {
-    await fillBasicJobForm(page, { carBrand: "Toyota", carModel: "Vios" });
+    // การ์ด "Job-creation screen redesign" เอาช่อง "ยี่ห้อรถ"/"รุ่นรถ" แบบพิมพ์อิสระออกไปแล้ว —
+    // ตอนนี้ car_brand/car_model จะถูกบันทึกก็ต่อเมื่อเลือกจาก CarAutocomplete dropdown เท่านั้น
+    // (ดู app/jobs/new/page.js: form.car_brand ถูก set เฉพาะใน onSelect ของ CarAutocomplete)
+    // "พิมพ์เองด้วยมือ" ในความหมายปัจจุบันคือพิมพ์ในช่องค้นหาแล้ว "ไม่กด" เลือกผลลัพธ์ — ต้องยัง
+    // ไม่มี generation_id/car_year_display ติดมาด้วยเหมือนเดิม (และตอนนี้ car_brand/car_model เองก็
+    // จะไม่ถูกบันทึกด้วย เพราะไม่มีทางพิมพ์อิสระแล้วให้ระบบรับค่าตรงๆ อีกต่อไป)
+    await fillBasicJobForm(page, {});
+    await page.getByPlaceholder(/พิมพ์ยี่ห้อหรือรุ่น/).fill("Toyota Vios");
+    await page.getByLabel("ชื่อลูกค้า").click(); // เผื่อ dropdown เปิดค้าง ไม่ใช่ส่วนที่ทดสอบ
     await submitJobForm(page);
     const jobId = await expectJobSavedSuccessfully(page);
     createdJobIds.push(jobId);
@@ -182,7 +192,11 @@ test.describe("JOB-701 — UI/UX: ปุ่ม submit disable ระหว่า
     });
 
     await fillBasicJobForm(page, { customerName: "QA button-disable test" });
-    const button = page.getByRole("button", { name: /รับงานเข้าอู่/ });
+    // ใช้ button[type="submit"] แทน getByRole(name:) เพราะปุ่มเปลี่ยนข้อความเป็น "กำลังบันทึก..."
+    // ระหว่าง saving — locator ที่ query ด้วยชื่อจะหาไม่เจอตัวเองอีกต่อไปหลัง text เปลี่ยน (locator
+    // เป็น lazy, re-query ทุกครั้งที่ assert) ต้อง scope ด้วยอย่างอื่นที่ไม่เปลี่ยนแทน
+    const button = page.locator('button[type="submit"]');
+    await expect(button).toHaveText(/รับงานเข้าอู่/);
     await button.click();
 
     await expect(button).toBeDisabled();

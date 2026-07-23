@@ -14,9 +14,20 @@ let partId;
 
 test.beforeAll(async () => {
   mainShopId = await getShopIdByName(currentShopName);
+  // หน้า /edit/[id] ตอนนี้บังคับต้องมีรูปอย่างน้อย 1 รูปก่อนบันทึกได้ (ดู handleSubmit ใน
+  // app/edit/[id]/page.js: totalPhotoCount === 0 -> block ทั้งฟอร์ม ไม่เรียก update เลย) —
+  // AUDIT-003 ต้องเซฟผ่าน UI จริงได้ จึงต้อง seed photo_url/photo_urls มาด้วย ไม่งั้นกด
+  // "บันทึกการแก้ไข" แล้วจะโดนบล็อกเงียบๆ ไม่มี error message ให้เห็นเลย
   const { data, error } = await adminClient()
     .from("parts")
-    .insert({ shop_id: mainShopId, part_name: `QA-AUDIT-${Date.now()}`, price: 100, item_type: "salvage" })
+    .insert({
+      shop_id: mainShopId,
+      part_name: `QA-AUDIT-${Date.now()}`,
+      price: 100,
+      item_type: "salvage",
+      photo_url: "https://placehold.co/400x300.png",
+      photo_urls: ["https://placehold.co/400x300.png"],
+    })
     .select("id")
     .single();
   expect(error).toBeNull();
@@ -64,9 +75,14 @@ test("AUDIT-003 หน้า /edit/[id] แก้ราคาผ่าน UI จ
   await page.getByRole("button", { name: "บันทึกการแก้ไข" }).click();
   await expect(page.locator(".msg.success", { hasText: "บันทึกการแก้ไขเรียบร้อยแล้ว" })).toBeVisible({ timeout: 8000 });
 
+  // components/PartAuditHistory.js ดึงประวัติแค่ตอน mount (useEffect ผูกกับ partId เฉยๆ ไม่มี
+  // reactivity ผูกกับการเซฟของฟอร์มพ่อ) แถมหลังเซฟสำเร็จหน้านี้ยัง router.push("/") อัตโนมัติใน
+  // 800ms — เปิด panel ทันทีจะยังเห็นข้อมูลเก่าค้างจากตอนโหลดหน้าแรก (แค่ "สร้างรายการ") ต้อง
+  // goto หน้า /edit/[id] ซ้ำเพื่อ mount ใหม่ให้ query audit_log ล่าสุดจริง ๆ ก่อนเปิด panel
+  await page.goto(`/edit/${partId}`);
   await page.getByTestId("part-history-toggle").click();
   await expect(page.getByTestId("part-history-list")).toBeVisible();
-  // แถวบนสุด (ล่าสุด) ต้องมี diff ของ ราคาขาย: 250 → 777
+  // แถวบนสุด (ล่าสุด) ต้องมี diff ของ ราคาขาย: 100 → 777 (part ของเทสนี้สร้างใหม่ด้วย price:100)
   await expect(page.getByTestId("part-history-list")).toContainText("ราคาขาย");
   await expect(page.getByTestId("part-history-list")).toContainText("777");
 });

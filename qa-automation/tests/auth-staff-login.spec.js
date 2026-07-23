@@ -29,7 +29,10 @@ test.describe("Username + PIN Login (/staff-login) — supervisor / technician /
   test("TC-102 login ล้มเหลวเมื่อ PIN ผิด", async ({ page }) => {
     await loginWithStaffPin(page, accounts.technician.username, "0000");
     const err = await expectLoginFailed(page, { onPath: "/staff-login" });
-    await expect(err).toContainText("username หรือ PIN ไม่ถูกต้อง");
+    // app/staff-login/page.js: ข้อความเปลี่ยนเป็น "เข้าสู่ระบบไม่สำเร็จ — ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง"
+    // (เติม prefix "เข้าสู่ระบบไม่สำเร็จ" + คำว่า "username" ถูกแปลเป็น "ชื่อผู้ใช้") — เช็คแบบ substring
+    // ด้วยส่วนที่ยังคงไม่เผย enumeration เหมือนเดิม
+    await expect(err).toContainText("ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง");
   });
 
   // TC-103
@@ -37,7 +40,10 @@ test.describe("Username + PIN Login (/staff-login) — supervisor / technician /
     await loginWithStaffPin(page, "ghostuser_ไม่มีจริง", "1234");
     const err = await expectLoginFailed(page, { onPath: "/staff-login" });
     // ข้อความต้องเหมือนกับ TC-102 เป๊ะ ไม่ควรบอกว่า "ไม่พบ username" แยกออกมา
-    await expect(err).toContainText("username หรือ PIN ไม่ถูกต้อง");
+    // app/staff-login/page.js: ข้อความเปลี่ยนเป็น "เข้าสู่ระบบไม่สำเร็จ — ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง"
+    // (เติม prefix "เข้าสู่ระบบไม่สำเร็จ" + คำว่า "username" ถูกแปลเป็น "ชื่อผู้ใช้") — เช็คแบบ substring
+    // ด้วยส่วนที่ยังคงไม่เผย enumeration เหมือนเดิม
+    await expect(err).toContainText("ชื่อผู้ใช้หรือ PIN ไม่ถูกต้อง");
   });
 
   // TC-104 — client-side validation ตาม USERNAME_PATTERN (a-z 0-9 . _ , 3-20 ตัว)

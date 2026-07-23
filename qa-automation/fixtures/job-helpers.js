@@ -22,11 +22,11 @@ export async function fillBasicJobForm(page, fields = {}) {
   if (fields.licensePlate !== undefined) {
     await page.getByLabel("ทะเบียนรถ").fill(fields.licensePlate);
   }
-  if (fields.carBrand !== undefined) {
-    await page.getByLabel("ยี่ห้อรถ").fill(fields.carBrand);
-  }
-  if (fields.carModel !== undefined) {
-    await page.getByLabel("รุ่นรถ").fill(fields.carModel);
+  // การ์ด "Job-creation screen redesign: plate-first lookup + customer search" — ช่อง
+  // "ยี่ห้อรถ"/"รุ่นรถ" แบบพิมพ์อิสระถูกแทนที่ด้วย CarAutocomplete (ค้นหาจากฐานข้อมูลจริงแล้ว
+  // เลือกจาก dropdown เท่านั้น) เหมือนหน้า /add — ไม่มีช่อง label เดี่ยวๆ ให้ fill ตรงๆ อีกต่อไป
+  if (fields.carBrand !== undefined || fields.carModel !== undefined) {
+    await searchAndSelectCar(page, [fields.carBrand, fields.carModel].filter(Boolean).join(" "));
   }
   if (fields.sourceType !== undefined) {
     await page.getByLabel("ที่มา").selectOption(fields.sourceType);
@@ -34,6 +34,15 @@ export async function fillBasicJobForm(page, fields = {}) {
   if (fields.notes !== undefined) {
     await page.getByLabel("หมายเหตุ").fill(fields.notes);
   }
+}
+
+/** พิมพ์ค้นหารถใน CarAutocomplete (components/CarAutocomplete.js) แล้วคลิกเลือกผลลัพธ์แรกที่ตรง —
+ *  ใช้ทั้งหน้า /jobs/new และ /add เพราะ component เดียวกัน ไม่มี label/testid ผูกกับ input จึงหา
+ *  ด้วย placeholder แทน ผลลัพธ์จริงจาก DB มักเป็นตัวพิมพ์ใหญ่ (เช่น "NISSAN") ไม่ตรงตัวพิมพ์กับที่
+ *  ผู้ใช้พิมพ์เสมอไป — getByText แบบ string เป็น case-insensitive substring match อยู่แล้วจึงพอ */
+export async function searchAndSelectCar(page, query) {
+  await page.getByPlaceholder(/พิมพ์ยี่ห้อหรือรุ่น/).fill(query);
+  await page.getByText(query, { exact: false }).first().click();
 }
 
 /** เลือก visibility group ตามชื่อ (toggle button — ดู app/jobs/new/page.js บรรทัด groups.map) */

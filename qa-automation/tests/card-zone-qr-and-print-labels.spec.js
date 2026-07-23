@@ -41,42 +41,60 @@ test.afterAll(async () => {
 test("LABEL-001 /print-zone-labels ใช้ @page size 40mm 60mm และแสดง breadcrumb โซนจริง (ไม่ใช่ zone_code เดิม)", async ({ page }) => {
   await loginWithEmail(page, accounts.owner.email, accounts.owner.password);
   await expectLoginSucceeded(page);
-  await page.goto("/print-zone-labels");
+  // หน้านี้ต้องมี query param ?ids=<zone id,...> เสมอ (ดู app/print-zone-labels/page.js: ids.length
+  // === 0 -> ไม่ fetch อะไรเลย, "ไม่พบโซนที่เลือก") — จุดเข้าจริงคือปุ่ม "พิมพ์" ใน app/admin/zones/page.js
+  // และ components/ZoneTreeNode.js ที่ต่อ ids มาให้เสมอ ไม่เคย goto เปล่า ๆ
+  await page.goto(`/print-zone-labels?ids=${zoneId}`);
+  // <style jsx global> เฉพาะหน้านี้ inject เข้า DOM หลัง hydration เสร็จ (ไม่ใช่ตอน goto() resolve
+  // เลย) — รอให้เนื้อหน้าจริง (breadcrumb โซน) โผล่มาก่อน ถึงจะมั่นใจว่า stylesheet มาครบแล้ว
+  // โซนนี้เป็น top-level (ไม่มี parent) breadcrumb เลยเท่ากับ zone code เฉยๆ — ข้อความ zoneCode
+  // เลยไปโผล่ซ้ำ 3 จุด (title + breadcrumb ปกติ + breadcrumb ย่อฉบับพิมพ์) ต้อง .first() กัน
+  // strict-mode violation
+  await expect(page.getByText(zoneCode).first()).toBeVisible({ timeout: 8000 });
 
+  // app/globals.css เองก็มี @media print ของตัวเอง (แค่ app-shell/app-main padding — บรรทัด 650)
+  // ซึ่งโหลดมาก่อน <style jsx> เฉพาะหน้านี้เสมอ — ถ้า return ตัวแรกที่เจอเลยจะได้ก้อนนั้นแทน
+  // (ไม่มี "40mm"/"60mm") ต้องรวบรวม cssText ของทุก @media print rule ที่เจอทั้งหมดก่อนค่อยเช็ค
   const printCss = await page.evaluate(() => {
+    let combined = "";
     for (const sheet of document.styleSheets) {
       try {
         for (const rule of sheet.cssRules) {
-          if (rule.media?.mediaText === "print") return rule.cssText;
+          if (rule.media?.mediaText === "print") combined += rule.cssText;
         }
       } catch {
         // cross-origin stylesheet — ข้าม
       }
     }
-    return "";
+    return combined;
   });
   expect(printCss).toContain("40mm");
   expect(printCss).toContain("60mm");
-
-  await expect(page.getByText(zoneCode)).toBeVisible({ timeout: 8000 });
 });
 
 test("LABEL-002 /print-labels (ป้ายอะไหล่) ใช้ขนาดกระดาษเดียวกัน 40x60mm", async ({ page }) => {
   await loginWithEmail(page, accounts.owner.email, accounts.owner.password);
   await expectLoginSucceeded(page);
   await page.goto("/print-labels");
+  // <style jsx global> เฉพาะหน้านี้ inject เข้า DOM หลัง hydration เสร็จ (ไม่ใช่ตอน goto() resolve
+  // เลย) — รอให้เนื้อหน้าจริงโหลดเสร็จก่อน (ผ่านพ้น "กำลังโหลด...") ถึงจะมั่นใจว่า stylesheet มาครบแล้ว
+  await page.waitForSelector(".label-grid", { state: "attached", timeout: 8000 });
 
+  // app/globals.css เองก็มี @media print ของตัวเอง (แค่ app-shell/app-main padding — บรรทัด 650)
+  // ซึ่งโหลดมาก่อน <style jsx> เฉพาะหน้านี้เสมอ — ถ้า return ตัวแรกที่เจอเลยจะได้ก้อนนั้นแทน
+  // (ไม่มี "40mm"/"60mm") ต้องรวบรวม cssText ของทุก @media print rule ที่เจอทั้งหมดก่อนค่อยเช็ค
   const printCss = await page.evaluate(() => {
+    let combined = "";
     for (const sheet of document.styleSheets) {
       try {
         for (const rule of sheet.cssRules) {
-          if (rule.media?.mediaText === "print") return rule.cssText;
+          if (rule.media?.mediaText === "print") combined += rule.cssText;
         }
       } catch {
         // cross-origin stylesheet — ข้าม
       }
     }
-    return "";
+    return combined;
   });
   expect(printCss).toContain("40mm");
   expect(printCss).toContain("60mm");
