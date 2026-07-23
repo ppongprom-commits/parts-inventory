@@ -18,7 +18,11 @@ export default defineConfig({
   expect: { timeout: 8_000 },
   fullyParallel: false, // ปิด parallel เพราะหลาย test แชร์ shop/staff account เดียวกัน อาจชน state กัน
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  // รันจริงแล้วเสถียร เลยเปิดเป็น 8 (จากเดิม 1) — แต่ยังไม่มี throttle/mock ฝั่ง email เลย ถ้าเพิ่ม
+  // test ที่ยิงอีเมลจริงทีหลัง (เช่น ลืมรหัสผ่าน/signup/เชิญทีมผ่านอีเมล) ต้องระวัง Supabase Auth
+  // rate limit อีเมล (default ต่ำมาก) — รันพร้อมกัน 8 worker อาจโดน 429 เงียบๆ ยังไม่ได้ปรับ limit
+  // ฝั่ง Supabase หรือทำ retry/backoff รองรับตรงนี้ไว้เลย
+  workers: 8,
   reporter: [
     ["list"],
     ["json", { outputFile: "test-results/results.json" }],
