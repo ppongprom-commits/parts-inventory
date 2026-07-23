@@ -332,6 +332,17 @@ function JobDetailPageContent() {
     setHistoryResults(data || []);
   }
 
+  // ช่องค้นหารวมเดียว (bundle/สต็อก/ประวัติ) แชร์ query text เดียวกันผ่าน newCostItem.description
+  // เลือกผลลัพธ์แบบไหนก็ต้องปิด dropdown ของทั้ง 3 แหล่งพร้อมกัน ไม่ใช่แค่แหล่งที่เลือก
+  function clearSearchState() {
+    setBundleQuery("");
+    setBundleResults([]);
+    setConsumableQuery("");
+    setConsumableResults([]);
+    setHistoryQuery("");
+    setHistoryResults([]);
+  }
+
   function handleSelectHistoryItem(item) {
     setSelectedConsumablePart(null); // มาจากประวัติ ไม่ผูกกับสต็อก ไม่ตัดสต็อก
     setNewCostItem((f) => ({
@@ -341,8 +352,7 @@ function JobDetailPageContent() {
       _categoryTouched: true,
       // ตั้งใจไม่แตะ amount/quantity — เว้นให้กรอกเองเหมือนเดิมตามที่ตกลงกันไว้
     }));
-    setHistoryQuery("");
-    setHistoryResults([]);
+    clearSearchState();
   }
 
   // การ์ด "Job Type Bundle Template" — ค้นหาเซตตามชื่อประเภทงาน (พิมพ์ = filter จาก preset ที่มี
@@ -376,8 +386,8 @@ function JobDetailPageContent() {
       }
     });
     setBundleVariantChoices(defaults);
-    setBundleQuery("");
-    setBundleResults([]);
+    clearSearchState();
+    setNewCostItem((f) => ({ ...f, description: "" })); // เลือกเซตแล้ว เคลียร์ query ทิ้ง ไม่ใช่ค่ารายละเอียดจริง
   }
 
   // นำเซตที่เลือก (จากค้นหา หรือเพิ่งสร้างใหม่) ไปใส่เป็น job_cost_items หลายแถวพร้อมกัน
@@ -514,7 +524,8 @@ function JobDetailPageContent() {
       });
       await applyBundleItems(rows);
       setShowNewBundleModal(false);
-      setBundleQuery("");
+      clearSearchState();
+      setNewCostItem((f) => ({ ...f, description: "" }));
     } catch (err) {
       setMsg({ type: "error", text: "สร้างเซตไม่สำเร็จ: " + err.message });
     } finally {
@@ -532,8 +543,7 @@ function JobDetailPageContent() {
       quantity: "1",
       _categoryTouched: true,
     }));
-    setConsumableQuery("");
-    setConsumableResults([]);
+    clearSearchState();
   }
 
   // เพิ่มรายการแบบเร็ว — ถ้าพิมพ์ขึ้นต้นด้วย "ค่า" จะเดาเป็นค่าแรงให้อัตโนมัติ
@@ -544,6 +554,15 @@ function JobDetailPageContent() {
       const guessedCategory = value.trim().startsWith("ค่า") ? "labor" : f.category;
       return { ...f, description: value, category: f._categoryTouched ? f.category : guessedCategory };
     });
+  }
+
+  // ช่อง "รายละเอียด" ตอนนี้เป็นช่องค้นหารวม — พิมพ์คำเดียวยิงหาพร้อมกันทั้ง 3 แหล่ง
+  // (เซตงาน/สต็อก/ประวัติ) แทนที่จะต้องมี 3 กล่องแยกเหมือนเดิม
+  function handleUnifiedSearch(value) {
+    handleDescriptionChange(value);
+    searchBundles(value);
+    searchConsumables(value);
+    searchHistory(value);
   }
 
   async function handleAddCostItem() {
@@ -1517,66 +1536,186 @@ function JobDetailPageContent() {
           </select>
         </label>
 
-        {/* การ์ด "Job Type Bundle Template" — พิมพ์ชื่อประเภทงาน -> ดึงเซตอะไหล่+ค่าแรงมาให้
-            อัตโนมัติ พร้อมราคาล่าสุด ลบรายการที่ไม่ต้องการออกได้ก่อนใช้จริง */}
-        <div style={{ position: "relative", marginTop: 12 }}>
+        {/* ฟอร์มเพิ่มรายการแบบเร็ว: ช่อง "รายละเอียด" ตอนนี้เป็นช่องค้นหารวม พิมพ์แล้วยิงหา
+            พร้อมกันทั้งเซตงาน (bundle) / อะไหล่ในสต็อก / รายการที่เคยใช้ก่อนหน้า และ "ค่า..." ยังเดา
+            เป็นค่าแรงอัตโนมัติเหมือนเดิม — รวม 3 กล่องเดิมเป็นกล่องเดียวเพื่อลดความรก */}
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {["labor", "parts", "other"].map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setNewCostItem((f) => ({ ...f, category: cat, _categoryTouched: true }))}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-strong)",
+                  background: newCostItem.category === cat ? "#2563eb" : "var(--surface)",
+                  color: newCostItem.category === cat ? "white" : "var(--text-muted)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {CATEGORY_LABELS[cat]}
+              </button>
+            ))}
+          </div>
+          <div style={{ position: "relative", flex: 1, minWidth: 160 }}>
+            <input
+              type="text"
+              placeholder="รายละเอียด — พิมพ์ชื่องาน/อะไหล่/รายการที่เคยใช้ ('ค่า...' = ค่าแรงอัตโนมัติ)"
+              value={newCostItem.description}
+              onChange={(e) => handleUnifiedSearch(e.target.value)}
+              style={{ width: "100%" }}
+            />
+            {(bundleResults.length > 0 || consumableResults.length > 0 || historyResults.length > 0) && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  zIndex: 10,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border-strong)",
+                  borderRadius: 8,
+                  marginTop: 4,
+                  maxHeight: 280,
+                  overflowY: "auto",
+                }}
+              >
+                {bundleResults.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                      🧰 เซตงาน
+                    </div>
+                    {bundleResults.map((t) => (
+                      <button
+                        key={t.template_id}
+                        type="button"
+                        onClick={() => handleSelectBundleResult(t)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 10,
+                          border: "none",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text)",
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        🧰 {t.job_type_name} ({(t.job_type_bundle_items || []).length} รายการ)
+                      </button>
+                    ))}
+                  </>
+                )}
+                {consumableResults.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                      📦 สต็อก
+                    </div>
+                    {consumableResults.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectConsumable(p)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 10,
+                          border: "none",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text)",
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        {p.item_type === "salvage" ? "🔩" : "📦"} {p.part_name} — เหลือ {p.quantity} ·{" "}
+                        {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {historyResults.length > 0 && (
+                  <>
+                    <div style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                      🕘 เคยใช้
+                    </div>
+                    {historyResults.map((item, i) => (
+                      <button
+                        key={`${item.description}-${item.category}-${i}`}
+                        type="button"
+                        onClick={() => handleSelectHistoryItem(item)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: 10,
+                          border: "none",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "var(--text)",
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        {item.description}{" "}
+                        <span style={{ color: "var(--text-muted)" }}>({CATEGORY_LABELS[item.category] || item.category})</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+            {/* Technician ไม่มีปุ่มนี้เด็ดขาด (การ์ด) — พิมพ์แล้วไม่เจอต้องให้ Owner/Manager/Admin
+                สร้างเซตใหม่แทน */}
+            {bundleQuery.trim() && bundleResults.length === 0 && ["owner", "manager", "admin"].includes(currentRole) && (
+              <button
+                type="button"
+                onClick={() => setShowNewBundleModal(true)}
+                style={{ marginTop: 6, fontSize: 12 }}
+              >
+                + สร้างชุดใหม่ &quot;{bundleQuery.trim()}&quot;
+              </button>
+            )}
+          </div>
           <input
-            type="text"
-            placeholder="🧰 พิมพ์ชื่อประเภทงาน (เช่น เปลี่ยนถ่ายน้ำมันเครื่อง) — ดึงเซตอะไหล่+ค่าแรงอัตโนมัติ"
-            value={bundleQuery}
-            onChange={(e) => searchBundles(e.target.value)}
-            style={{ width: "100%" }}
+            type="number"
+            placeholder="จำนวน"
+            value={newCostItem.quantity}
+            onChange={(e) => setNewCostItem((f) => ({ ...f, quantity: e.target.value }))}
+            style={{ width: 70 }}
+            min="0.01"
+            step="any"
           />
-          {bundleResults.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 10,
-                background: "var(--surface)",
-                border: "1px solid var(--border-strong)",
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 200,
-                overflowY: "auto",
-              }}
-            >
-              {bundleResults.map((t) => (
-                <button
-                  key={t.template_id}
-                  type="button"
-                  onClick={() => handleSelectBundleResult(t)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: 10,
-                    border: "none",
-                    borderBottom: "1px solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  🧰 {t.job_type_name} ({(t.job_type_bundle_items || []).length} รายการ)
-                </button>
-              ))}
-            </div>
-          )}
-          {/* Technician ไม่มีปุ่มนี้เด็ดขาด (การ์ด) — พิมพ์แล้วไม่เจอต้องให้ Owner/Manager/Admin
-              สร้างเซตใหม่แทน */}
-          {bundleQuery.trim() && bundleResults.length === 0 && ["owner", "manager", "admin"].includes(currentRole) && (
-            <button
-              type="button"
-              onClick={() => setShowNewBundleModal(true)}
-              style={{ marginTop: 6, fontSize: 12 }}
-            >
-              + สร้างชุดใหม่ &quot;{bundleQuery.trim()}&quot;
-            </button>
-          )}
+          <input
+            type="number"
+            placeholder="บาท (รวม)"
+            value={newCostItem.amount}
+            onChange={(e) => setNewCostItem((f) => ({ ...f, amount: e.target.value }))}
+            style={{ width: 100 }}
+          />
+          <button
+            type="button"
+            onClick={handleAddCostItem}
+            style={{
+              padding: "0 16px",
+              borderRadius: 8,
+              border: "none",
+              background: "#2563eb",
+              color: "white",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + เพิ่ม
+          </button>
         </div>
 
         {selectedBundleTemplate && (
@@ -1639,57 +1778,6 @@ function JobDetailPageContent() {
           />
         )}
 
-        {/* ค้นหาของสิ้นเปลืองจากสต็อก — เลือกแล้วตัดสต็อกอัตโนมัติตอนบันทึก */}
-        <div style={{ position: "relative", marginTop: 12 }}>
-          <input
-            type="text"
-            placeholder="🔍 ค้นหาอะไหล่จากสต็อก (ของสิ้นเปลือง/อะไหล่ถอด — ไม่บังคับ)"
-            value={consumableQuery}
-            onChange={(e) => searchConsumables(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          {consumableResults.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 10,
-                background: "var(--surface)",
-                border: "1px solid var(--border-strong)",
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 200,
-                overflowY: "auto",
-              }}
-            >
-              {consumableResults.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleSelectConsumable(p)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: 10,
-                    border: "none",
-                    borderBottom: "1px solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {p.item_type === "salvage" ? "🔩" : "📦"} {p.part_name} — เหลือ {p.quantity} ·{" "}
-                  {p.price ? `${Number(p.price).toLocaleString()} บาท` : "ไม่มีราคา"}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
         {selectedConsumablePart && (
           <div
             style={{
@@ -1704,121 +1792,6 @@ function JobDetailPageContent() {
             🔗 ผูกกับสต็อก: {selectedConsumablePart.part_name} — บันทึกแล้วจะตัดสต็อกอัตโนมัติ
           </div>
         )}
-
-        {/* ค้นหารายการที่เคยพิมพ์ไว้ก่อนหน้า (ค่าแรง/ค่าอะไหล่/อื่นๆ) มาหยิบใช้ซ้ำ —
-            ไม่ตัดสต็อก ไม่ auto-fill ราคา/จำนวน เว้นให้กรอกเองเสมอ */}
-        <div style={{ position: "relative", marginTop: 8 }}>
-          <input
-            type="text"
-            placeholder="🕘 ค้นหารายการที่เคยใช้ (ค่าแรง/ค่าอะไหล่ — ไม่ตัดสต็อก)"
-            value={historyQuery}
-            onChange={(e) => searchHistory(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          {historyResults.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 10,
-                background: "var(--surface)",
-                border: "1px solid var(--border-strong)",
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 200,
-                overflowY: "auto",
-              }}
-            >
-              {historyResults.map((item, i) => (
-                <button
-                  key={`${item.description}-${item.category}-${i}`}
-                  type="button"
-                  onClick={() => handleSelectHistoryItem(item)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: 10,
-                    border: "none",
-                    borderBottom: "1px solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {item.description}{" "}
-                  <span style={{ color: "var(--text-muted)" }}>({CATEGORY_LABELS[item.category] || item.category})</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ฟอร์มเพิ่มรายการแบบเร็ว: พิมพ์ "ค่า..." จะเดาเป็นค่าแรงให้อัตโนมัติ */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            {["labor", "parts", "other"].map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setNewCostItem((f) => ({ ...f, category: cat, _categoryTouched: true }))}
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: "1px solid var(--border-strong)",
-                  background: newCostItem.category === cat ? "#2563eb" : "var(--surface)",
-                  color: newCostItem.category === cat ? "white" : "var(--text-muted)",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {CATEGORY_LABELS[cat]}
-              </button>
-            ))}
-          </div>
-          <input
-            type="text"
-            placeholder="รายละเอียด (พิมพ์ 'ค่า...' = ค่าแรงอัตโนมัติ)"
-            value={newCostItem.description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            style={{ flex: 1, minWidth: 160 }}
-          />
-          <input
-            type="number"
-            placeholder="จำนวน"
-            value={newCostItem.quantity}
-            onChange={(e) => setNewCostItem((f) => ({ ...f, quantity: e.target.value }))}
-            style={{ width: 70 }}
-            min="0.01"
-            step="any"
-          />
-          <input
-            type="number"
-            placeholder="บาท (รวม)"
-            value={newCostItem.amount}
-            onChange={(e) => setNewCostItem((f) => ({ ...f, amount: e.target.value }))}
-            style={{ width: 100 }}
-          />
-          <button
-            type="button"
-            onClick={handleAddCostItem}
-            style={{
-              padding: "0 16px",
-              borderRadius: 8,
-              border: "none",
-              background: "#2563eb",
-              color: "white",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            + เพิ่ม
-          </button>
-        </div>
       </div>
 
       {/* ================= Phase B: เอกสาร 3 ประเภท ================= */}
