@@ -177,7 +177,7 @@ function MovePartsPageContent() {
 
 export default function MovePartsPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
         <MovePartsPageContent />
       </Suspense>

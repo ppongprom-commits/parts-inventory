@@ -518,7 +518,7 @@ function JobDocumentPageContent() {
 
 export default function JobDocumentPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <JobDocumentPageContent />
     </RequireAuth>
   );

@@ -6,12 +6,19 @@ import { supabase } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
 import { parseCsvWithHeader, isPlausiblePhone } from "../../../lib/csvImport";
+import { getApprovalRequirement } from "../../../config/adminApprovalDefaults";
 
 // การ์ด "Import ข้อมูลลูกค้าเดิม — migrate จากระบบ/ไฟล์เก่าเข้า Parts Inventory"
 // ขอบเขต/ตัดสินใจที่การ์ดทิ้งไว้เป็น gap — ดูเหตุผลเต็มใน db/import_customers_migration.sql:
 //  - Duplicate: match ด้วยเบอร์โทรเท่านั้น, เจอซ้ำกับที่มีอยู่แล้ว -> skip (ไม่ merge/ไม่ทับ)
 //  - บังคับกรอกอย่างน้อย ชื่อ หรือ เบอร์โทร อย่างใดอย่างหนึ่ง
 //  - สิทธิ์: owner/manager เท่านั้น (จำกัดเพิ่มจาก RLS เดิมของ customers ที่กว้างกว่านี้)
+//
+// การ์ด "Admin Role (7th role)": item (3) "จัดการข้อมูลลูกค้า (import/แก้ไข)" — Admin เข้าร่วม
+// Owner/Manager สำหรับหน้านี้ (ตอบ RBAC ที่ค้างไว้ในการ์ด Import เดิม) + import_customers เป็น
+// action_type ที่ requires_approval=true โดย default (bulk operation กระทบข้อมูลจำนวนมาก) —
+// ถ้า config ของร้านต้องขออนุมัติ จะสร้าง pending_admin_actions แทนการ insert ตรง แล้วให้ผู้อนุมัติ
+// กดอนุมัติจากคิว "รออนุมัติ" (ดู app/admin/settings/admin-approvals/page.js)
 const TARGET_FIELDS = [
   { key: "name", label: "ชื่อลูกค้า" },
   { key: "phone", label: "เบอร์โทร" },
@@ -20,7 +27,7 @@ const TARGET_FIELDS = [
 ];
 
 function ImportCustomersPageContent() {
-  const { currentShopId } = useAuth();
+  const { currentShopId, user } = useAuth();
   const fileInputRef = useRef(null);
 
   const [fileName, setFileName] = useState("");
@@ -135,14 +142,43 @@ function ImportCustomersPageContent() {
       }
     }
 
+    // การ์ด "Admin Role" — import_customers ขออนุมัติตาม config ของร้าน (default: ต้องขออนุมัติ,
+    // ผู้อนุมัติ default = manager, Owner กด approve ได้เสมอเป็น fallback) — ไม่มีแถว override ของ
+    // ร้าน = ใช้ default table ตรงๆ ไม่บังคับตั้งค่าก่อนใช้ (getApprovalRequirement จัดการให้)
     let insertedCount = 0;
     let insertError = null;
+    let pendingApprovalId = null;
     if (toInsert.length > 0) {
-      const { data, error } = await supabase.from("customers").insert(toInsert).select("customer_id");
-      if (error) {
-        insertError = error.message;
+      const { data: overrides } = await supabase
+        .from("admin_action_approval_config")
+        .select("action_type, requires_approval, approver_role, approver_user_id")
+        .eq("shop_id", currentShopId);
+
+      const requirement = getApprovalRequirement("import_customers", overrides || []);
+
+      if (requirement.requiresApproval) {
+        const { data: pending, error: pendingError } = await supabase
+          .from("pending_admin_actions")
+          .insert({
+            shop_id: currentShopId,
+            action_type: "import_customers",
+            performed_by: user.id,
+            payload: { rows: toInsert },
+          })
+          .select("id")
+          .single();
+        if (pendingError) {
+          insertError = pendingError.message;
+        } else {
+          pendingApprovalId = pending.id;
+        }
       } else {
-        insertedCount = data?.length || 0;
+        const { data, error } = await supabase.from("customers").insert(toInsert).select("customer_id");
+        if (error) {
+          insertError = error.message;
+        } else {
+          insertedCount = data?.length || 0;
+        }
       }
     }
 
@@ -151,6 +187,7 @@ function ImportCustomersPageContent() {
       inserted: insertedCount,
       skippedInvalid: invalidRows.length,
       skippedExisting: skippedExisting.length,
+      pendingApprovalId,
       error: insertError,
     });
     setImporting(false);
@@ -221,6 +258,12 @@ function ImportCustomersPageContent() {
             <div className={`msg ${result.error ? "error" : "success"}`} style={{ marginTop: 16 }} data-testid="import-result">
               {result.error ? (
                 `นำเข้าไม่สำเร็จ: ${result.error}`
+              ) : result.pendingApprovalId ? (
+                <>
+                  ส่งขออนุมัตินำเข้า {result.totalRows - result.skippedInvalid - result.skippedExisting} รายชื่อแล้ว —
+                  รอผู้จัดการ/เจ้าของอนุมัติก่อนจึงจะนำเข้าจริง (ข้าม {result.skippedInvalid} แถวข้อมูลไม่ครบ/ผิดรูปแบบ,
+                  ข้าม {result.skippedExisting} แถวเบอร์โทรซ้ำ)
+                </>
               ) : (
                 <>
                   นำเข้าสำเร็จ {result.inserted} รายชื่อ — ข้าม {result.skippedInvalid} แถว (ข้อมูลไม่ครบ/ผิดรูปแบบ),
@@ -246,7 +289,7 @@ function ImportCustomersPageContent() {
 
 export default function ImportCustomersPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "admin"]}>
       <ImportCustomersPageContent />
     </RequireAuth>
   );

@@ -1024,7 +1024,7 @@ function EditPartPageContent() {
 
 export default function EditPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner", "admin"]}>
       <EditPartPageContent />
     </RequireAuth>
   );

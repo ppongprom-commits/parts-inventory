@@ -334,9 +334,13 @@ function ZoneMoveSettingsCard() {
 
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
-  const { currentRole } = useAuth();
+  const { currentRole, shopHasAdminMember } = useAuth();
   const canManage = currentRole === "owner" || currentRole === "manager";
   const canExport = ["owner", "manager", "supervisor"].includes(currentRole);
+  // การ์ด "Admin Role (7th role)" item (3): Admin เข้าร่วม Owner/Manager สำหรับจัดการลูกค้า
+  // (import/แก้ไข) — เฉพาะการ์ดนี้เท่านั้น ไม่ขยาย canManage รวม (zone/car-data/shop-info ยังคง
+  // owner/manager เท่านั้นตามเดิม ไม่อยู่ใน scope ของ Admin Role)
+  const canManageCustomers = canManage || currentRole === "admin";
 
   return (
     <div className="container">
@@ -415,7 +419,7 @@ function AdminHubPageContent() {
         </Link>
       )}
 
-      {canManage && (
+      {canManageCustomers && (
         <Link
           href="/admin/import-customers"
           className="card"
@@ -424,6 +428,48 @@ function AdminHubPageContent() {
           <div className="card-body">
             <div className="card-title">📥 นำเข้าข้อมูลลูกค้าเดิม</div>
             <div className="card-sub">อัปโหลด CSV รายชื่อลูกค้าจากระบบ/ไฟล์เก่า</div>
+          </div>
+        </Link>
+      )}
+
+      {/* การ์ด "Admin Role (7th role)" — simplify principle: 2 การ์ดนี้แสดงเฉพาะร้านที่มี user
+          role admin อยู่จริงอย่างน้อย 1 คน (shopHasAdminMember) ร้านที่ไม่เคย invite admin เลย
+          ไม่เห็นเมนูนี้เลย ไม่มี overhead ใดๆ เพิ่ม */}
+      {canManage && shopHasAdminMember && (
+        <Link
+          href="/admin/settings/admin-approvals"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">⚙️ ตั้งค่าการขออนุมัติ (Admin)</div>
+            <div className="card-sub">กำหนดว่างานไหนที่ Admin ทำแล้วต้องรออนุมัติ</div>
+          </div>
+        </Link>
+      )}
+
+      {canManageCustomers && (
+        <Link
+          href="/admin/job-type-bundles"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🧰 เซตอะไหล่+ค่าแรงตามประเภทงาน</div>
+            <div className="card-sub">ดู/แก้/ลบเซตที่ใช้ตอนเลือกประเภทงานในหน้างาน</div>
+          </div>
+        </Link>
+      )}
+
+      {canManageCustomers && shopHasAdminMember && (
+        <Link
+          href="/admin/admin-approvals"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🕒 รออนุมัติ</div>
+            <div className="card-sub">ตรวจ/อนุมัติงานที่ Admin ส่งมารออนุมัติ</div>
           </div>
         </Link>
       )}

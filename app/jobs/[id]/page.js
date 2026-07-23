@@ -8,6 +8,7 @@ import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
 import { JOB_STATUSES, JOB_STATUS_STYLE, JOB_SOURCE_TYPES } from "../../../lib/jobStatusLabels";
 import CarDamageDiagram from "../../../components/CarDamageDiagram";
+import JobTypeBundleConfirmModal from "../../../components/JobTypeBundleConfirmModal";
 
 const ROLE_LABELS = {
   owner: "เจ้าของ",
@@ -41,6 +42,13 @@ function JobDetailPageContent() {
   const [selectedConsumablePart, setSelectedConsumablePart] = useState(null);
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyResults, setHistoryResults] = useState([]);
+  // การ์ด "Job Type Bundle Template" — พิมพ์ชื่อประเภทงาน -> ดึงเซตอะไหล่+ค่าแรงมาให้อัตโนมัติ
+  const [bundleQuery, setBundleQuery] = useState("");
+  const [bundleResults, setBundleResults] = useState([]);
+  const [selectedBundleTemplate, setSelectedBundleTemplate] = useState(null);
+  const [bundleVariantChoices, setBundleVariantChoices] = useState({}); // { [item_id]: variant_id }
+  const [showNewBundleModal, setShowNewBundleModal] = useState(false);
+  const [savingBundle, setSavingBundle] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [customerShareUrl, setCustomerShareUrl] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -333,6 +341,160 @@ function JobDetailPageContent() {
     }));
     setHistoryQuery("");
     setHistoryResults([]);
+  }
+
+  // การ์ด "Job Type Bundle Template" — ค้นหาเซตตามชื่อประเภทงาน (พิมพ์ = filter จาก preset ที่มี
+  // อยู่จริงเท่านั้น — ไม่มีทาง "ใช้คำที่พิมพ์" ตรงๆ ตามที่การ์ดกำหนดไว้สำหรับ Technician)
+  async function searchBundles(query) {
+    setBundleQuery(query);
+    setSelectedBundleTemplate(null);
+    setBundleVariantChoices({});
+    if (!query.trim()) {
+      setBundleResults([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("job_type_bundle_templates")
+      .select(
+        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, part_id, sort_order))"
+      )
+      .eq("shop_id", currentShopId)
+      .ilike("job_type_name", `%${query.trim()}%`)
+      .limit(8);
+    setBundleResults(data || []);
+  }
+
+  function handleSelectBundleResult(template) {
+    setSelectedBundleTemplate(template);
+    const defaults = {};
+    (template.job_type_bundle_items || []).forEach((item) => {
+      const variants = item.job_type_bundle_item_variants || [];
+      if (variants.length > 0) {
+        defaults[item.item_id] = variants[0].variant_id;
+      }
+    });
+    setBundleVariantChoices(defaults);
+    setBundleQuery("");
+    setBundleResults([]);
+  }
+
+  // นำเซตที่เลือก (จากค้นหา หรือเพิ่งสร้างใหม่) ไปใส่เป็น job_cost_items หลายแถวพร้อมกัน
+  async function applyBundleItems(items) {
+    const maxSort = costItems.reduce((max, c) => Math.max(max, c.sort_order || 0), 0);
+    const rows = items.map((row, i) => ({
+      job_id: jobId,
+      category: row.category,
+      description: row.description,
+      amount: row.amount != null && row.amount !== "" ? Number(row.amount) : 0,
+      quantity: 1,
+      part_id: row.part_id || null,
+      bundle_item_id: row.bundle_item_id || null,
+      bundle_variant_id: row.bundle_variant_id || null,
+      sort_order: maxSort + i + 1,
+    }));
+    const { error } = await supabase.from("job_cost_items").insert(rows);
+    if (error) {
+      setMsg({ type: "error", text: "ใส่เซตไม่สำเร็จ: " + error.message });
+    } else {
+      fetchCostItems();
+    }
+  }
+
+  function handleApplyBundle() {
+    const items = selectedBundleTemplate?.job_type_bundle_items || [];
+    const rows = items.map((item) => {
+      const variants = item.job_type_bundle_item_variants || [];
+      if (variants.length > 0) {
+        const chosen = variants.find((v) => v.variant_id === bundleVariantChoices[item.item_id]) || variants[0];
+        return {
+          category: item.category,
+          description: chosen.description,
+          amount: chosen.default_amount,
+          part_id: chosen.part_id,
+          bundle_variant_id: chosen.variant_id,
+        };
+      }
+      return {
+        category: item.category,
+        description: item.description,
+        amount: item.default_amount,
+        bundle_item_id: item.item_id,
+      };
+    });
+    applyBundleItems(rows);
+    setSelectedBundleTemplate(null);
+    setBundleVariantChoices({});
+  }
+
+  // Owner/Manager/Admin เท่านั้นที่เห็นปุ่มนี้ (การ์ด) — สร้างเซตใหม่ inline จากหน้างานเลย ไม่ต้อง
+  // ไปหน้าตั้งค่าแยก แล้วนำมาใช้กับงานปัจจุบันทันที
+  async function handleCreateAndApplyBundle(jobTypeName, items) {
+    setSavingBundle(true);
+    try {
+      const { data: template, error: templateError } = await supabase
+        .from("job_type_bundle_templates")
+        .insert({ shop_id: currentShopId, job_type_name: jobTypeName, created_by: user.id })
+        .select("template_id")
+        .single();
+      if (templateError) throw templateError;
+
+      const itemsToInsert = items.map((item, i) => ({
+        template_id: template.template_id,
+        category: item.category,
+        item_group_label: item.item_group_label.trim(),
+        description: item.description.trim(),
+        default_amount: item.default_amount !== "" ? Number(item.default_amount) : null,
+        is_price_locked: item.is_price_locked,
+        sort_order: i,
+      }));
+      const { data: insertedItems, error: itemsError } = await supabase
+        .from("job_type_bundle_items")
+        .insert(itemsToInsert)
+        .select("item_id, category, description, default_amount");
+      if (itemsError) throw itemsError;
+
+      const variantRows = [];
+      items.forEach((item, i) => {
+        const insertedItemId = insertedItems[i].item_id;
+        (item.variants || [])
+          .filter((v) => v.variant_label.trim() && v.description.trim())
+          .forEach((v, vi) => {
+            variantRows.push({
+              item_id: insertedItemId,
+              variant_label: v.variant_label.trim(),
+              description: v.description.trim(),
+              default_amount: v.default_amount !== "" ? Number(v.default_amount) : null,
+              sort_order: vi,
+            });
+          });
+      });
+      let insertedVariants = [];
+      if (variantRows.length > 0) {
+        const { data, error: variantsError } = await supabase
+          .from("job_type_bundle_item_variants")
+          .insert(variantRows)
+          .select("item_id, description, default_amount, part_id");
+        if (variantsError) throw variantsError;
+        insertedVariants = data || [];
+      }
+
+      // ใส่เข้างานปัจจุบันทันที — ถ้ารายการไหนมี sub-variant ใช้ตัวแรกที่กรอกไว้เป็นค่าเริ่มต้น
+      // (ปรับ/เลือกตัวอื่นทีหลังได้ผ่านการค้นหาเซตนี้ซ้ำในงานถัดไป)
+      const rows = insertedItems.map((item) => {
+        const firstVariant = insertedVariants.find((v) => v.item_id === item.item_id);
+        if (firstVariant) {
+          return { category: item.category, description: firstVariant.description, amount: firstVariant.default_amount, part_id: firstVariant.part_id };
+        }
+        return { category: item.category, description: item.description, amount: item.default_amount, bundle_item_id: item.item_id };
+      });
+      await applyBundleItems(rows);
+      setShowNewBundleModal(false);
+      setBundleQuery("");
+    } catch (err) {
+      setMsg({ type: "error", text: "สร้างเซตไม่สำเร็จ: " + err.message });
+    } finally {
+      setSavingBundle(false);
+    }
   }
 
   function handleSelectConsumable(part) {
@@ -1291,6 +1453,126 @@ function JobDetailPageContent() {
           </select>
         </label>
 
+        {/* การ์ด "Job Type Bundle Template" — พิมพ์ชื่อประเภทงาน -> ดึงเซตอะไหล่+ค่าแรงมาให้
+            อัตโนมัติ พร้อมราคาล่าสุด ลบรายการที่ไม่ต้องการออกได้ก่อนใช้จริง */}
+        <div style={{ position: "relative", marginTop: 12 }}>
+          <input
+            type="text"
+            placeholder="🧰 พิมพ์ชื่อประเภทงาน (เช่น เปลี่ยนถ่ายน้ำมันเครื่อง) — ดึงเซตอะไหล่+ค่าแรงอัตโนมัติ"
+            value={bundleQuery}
+            onChange={(e) => searchBundles(e.target.value)}
+            style={{ width: "100%" }}
+          />
+          {bundleResults.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                background: "var(--surface)",
+                border: "1px solid var(--border-strong)",
+                borderRadius: 8,
+                marginTop: 4,
+                maxHeight: 200,
+                overflowY: "auto",
+              }}
+            >
+              {bundleResults.map((t) => (
+                <button
+                  key={t.template_id}
+                  type="button"
+                  onClick={() => handleSelectBundleResult(t)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: 10,
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    background: "transparent",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  🧰 {t.job_type_name} ({(t.job_type_bundle_items || []).length} รายการ)
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Technician ไม่มีปุ่มนี้เด็ดขาด (การ์ด) — พิมพ์แล้วไม่เจอต้องให้ Owner/Manager/Admin
+              สร้างเซตใหม่แทน */}
+          {bundleQuery.trim() && bundleResults.length === 0 && ["owner", "manager", "admin"].includes(currentRole) && (
+            <button
+              type="button"
+              onClick={() => setShowNewBundleModal(true)}
+              style={{ marginTop: 6, fontSize: 12 }}
+            >
+              + สร้างชุดใหม่ &quot;{bundleQuery.trim()}&quot;
+            </button>
+          )}
+        </div>
+
+        {selectedBundleTemplate && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid var(--border-strong)",
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>🧰 {selectedBundleTemplate.job_type_name}</div>
+            {(selectedBundleTemplate.job_type_bundle_items || []).map((item) => {
+              const variants = item.job_type_bundle_item_variants || [];
+              return (
+                <div key={item.item_id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 13 }}>
+                  <span style={{ flex: 1 }}>
+                    {CATEGORY_LABELS[item.category]}: {item.item_group_label}
+                  </span>
+                  {variants.length > 0 ? (
+                    <select
+                      value={bundleVariantChoices[item.item_id] || ""}
+                      onChange={(e) =>
+                        setBundleVariantChoices((prev) => ({ ...prev, [item.item_id]: Number(e.target.value) }))
+                      }
+                    >
+                      {variants.map((v) => (
+                        <option key={v.variant_id} value={v.variant_id}>
+                          {v.variant_label} ({v.default_amount ? `${Number(v.default_amount).toLocaleString()} บาท` : "ไม่มีราคา"})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {item.default_amount ? `${Number(item.default_amount).toLocaleString()} บาท` : "ไม่มีราคา"}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button type="button" onClick={handleApplyBundle}>
+                ✅ ใช้เซตนี้
+              </button>
+              <button type="button" onClick={() => setSelectedBundleTemplate(null)}>
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showNewBundleModal && (
+          <JobTypeBundleConfirmModal
+            initialJobTypeName={bundleQuery.trim()}
+            saving={savingBundle}
+            onCancel={() => setShowNewBundleModal(false)}
+            onSave={handleCreateAndApplyBundle}
+          />
+        )}
+
         {/* ค้นหาของสิ้นเปลืองจากสต็อก — เลือกแล้วตัดสต็อกอัตโนมัติตอนบันทึก */}
         <div style={{ position: "relative", marginTop: 12 }}>
           <input
@@ -1613,7 +1895,7 @@ function JobDetailPageContent() {
 
 export default function JobDetailPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <JobDetailPageContent />
     </RequireAuth>
   );

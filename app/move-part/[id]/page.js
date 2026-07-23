@@ -176,7 +176,7 @@ function MovePartPageContent() {
 
 export default function MovePartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <MovePartPageContent />
     </RequireAuth>
   );

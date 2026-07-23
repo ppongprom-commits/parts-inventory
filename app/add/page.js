@@ -745,7 +745,7 @@ function AddPartPageContent() {
 
 export default function AddPartPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "field_scanner", "admin"]}>
       <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
         <AddPartPageContent />
       </Suspense>

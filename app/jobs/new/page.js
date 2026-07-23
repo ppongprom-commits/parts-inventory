@@ -488,7 +488,7 @@ function NewJobPageContent() {
 
 export default function NewJobPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <NewJobPageContent />
     </RequireAuth>
   );

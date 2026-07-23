@@ -790,3 +790,104 @@ verify ผ่าน Supabase MCP ครบทุกจุด (สัดส่ว
 **⚠️ GitHub push ไม่สำเร็จอีกครั้ง** (403 — sandbox อัตโนมัตินี้มีแค่สิทธิ์ read บน repo เหมือนทุกรอบก่อน
 หน้า) — commit ทั้งหมด (9 commits คืนนี้) อยู่ใน local git history ของ sandbox เท่านั้น มี patch file
 ให้คุณอั้ม apply เอง
+
+---
+
+### 20. คืนวันที่ 23 ก.ค. 2026 — Admin Role + Job Type Bundle Template + Platform Revenue Module
+
+สามการ์ด "🔴 Highest" ที่ค้างอยู่บนบอร์ด ทำพร้อมกันตามลำดับ dependency: Admin Role ก่อน (เพราะ
+Job Type Bundle Template ต้องพึ่ง role `admin` ที่ยังไม่มี) แล้วค่อย Platform Revenue Module
+(อิสระจาก 2 การ์ดแรก) Branch: `feature/admin-role-7th-role` แตกจาก `staging` (ไม่ใช่ `main` —
+`main` ตามหลัง `staging` 104 commits ขาด infra ที่ทั้ง 3 การ์ดต้องพึ่ง เช่น `platform_admins`,
+field visibility whitelist) ทุกจุดที่แตะ DB จริง verify ผ่าน Supabase MCP บน staging
+(`qmqabtrrubqcmafietsr`) รวมถึง round-trip test เต็มรูปของ Platform Revenue (record → recognize
+→ reconcile → cleanup) ก่อนปิดงาน
+
+**⚠️ แก้ไขสมมติฐานผิดของการ์ดเอง 2 จุด ระหว่างทำ:**
+1. การ์ด Admin Role อ้างว่าจะ "reuse UI ของ Approval Flow ที่มีอยู่แล้ว" — ตรวจสอบด้วย grep
+   ทั่วโปรเจกต์แล้ว **ไม่เคยมี Approval Flow (maker-checker) อยู่จริงเลยสักจุด** ต้องสร้างใหม่ทั้งระบบ
+   (ตาราง `admin_action_approval_config`/`pending_admin_actions` + RPC
+   `decide_pending_admin_action`) ทำให้การ์ดนี้ใหญ่กว่าที่ประเมินไว้เดิมมาก
+2. แผนเดิมจะ wire `edit_part_cost` (1 ใน 12 default action_type) เป็นจุด enforce จริง — ตรวจโค้ด
+   แล้วพบว่า**ไม่มีช่องแก้ราคาทุนของอะไหล่ที่มีอยู่แล้วในระบบเลย** (`allocated_cost` คำนวณจาก trigger
+   อัตโนมัติ, `estimated_value` แก้ได้แค่ตอนสร้างใหม่และมี RLS floor อยู่แล้ว) เหลือแค่
+   `import_customers` ที่เป็นจุด enforce จริงจุดเดียวรอบนี้ — อีก 11 action_type ตั้งค่าไว้ล่วงหน้าได้
+   ที่หน้า settings แต่ยังไม่ enforce จนกว่าฟีเจอร์ต้นทางจะสร้างเสร็จ (ตรงกันข้ามกับสมมติฐานตอนแรก
+   คือ card item (2) "จัดการเอกสาร/ใบเสร็จ" **ไม่ได้บล็อกด้วยการ์ดในอนาคต** — ตาราง
+   `job_documents`/`part_sale_documents` มีอยู่แล้วจริงบน staging เพิ่ม `admin` เข้า RLS ได้เลย)
+
+**✅ Admin Role (7th role) + Maker-Checker Approval Flow** (`db/admin_role_migration.sql`,
+`db/admin_action_approval_migration.sql`):
+- เพิ่ม `admin` เข้า role enum ของ `shop_members`/`shop_invites`/
+  `shop_field_visibility_overrides` — floor rule "จัดการ API key" ล็อกไว้เหมือน role อื่นที่ไม่ใช่
+  Owner/Manager
+- RLS sweep ตาม rule of thumb "เท่า Supervisor บนตารางที่การ์ดให้สิทธิ์จริง": `parts`
+  (insert/update/view + estimated_value floor), `customers`, `job_cost_items` (4 policy แยก
+  view/insert/update/delete), `jobs` (view/insert/update — ไม่รวม delete), `shops`/
+  `shop_members` (view), `shop_field_visibility_overrides` (view), `job_documents`/
+  `part_sale_documents` (create/update/view), `part_sales` (record/update/view — ให้
+  `sell_parts: true` ใน `config/rolePermissions.js` ใช้งานได้จริงไม่ใช่แค่ตั้งไว้เฉยๆ)
+- `config/fieldVisibility.js`/`config/rolePermissions.js` เพิ่ม `admin` block (parity กับ
+  supervisor) — Export CSV ได้ฟรีเพราะอ่านผ่าน matrix เดียวกันอยู่แล้ว
+- UI: `app/admin/team/page.js` (invite/staff-creation dropdown), `app/admin/import-customers/
+  page.js` (เพิ่ม admin เข้า allowedRoles — ตอบ RBAC ที่การ์ด Import ลูกค้าเดิมค้างไว้), และ
+  RequireAuth allowedRoles ของหน้าที่ RLS granted แล้ว (`/add`, `/edit/[id]`, `/move-part(s)`,
+  `/checkout`, `/jobs`, `/jobs/[id]`, `/jobs/new`, `/jobs/[id]/documents/[documentId]`)
+- Approval Flow ใหม่: `config/adminApprovalDefaults.js` (default table + fallback helper —
+  ร้านที่ไม่มี override แถวไหนเลยทำงานถูกต้อง 100% โดยไม่ต้องตั้งค่าอะไรก่อน), wire จริงที่
+  `import_customers` confirm step, หน้าใหม่ `app/admin/settings/admin-approvals/page.js`
+  (Owner/Manager ตั้งค่า) และ `app/admin/admin-approvals/page.js` (คิวรออนุมัติ) — เมนูทั้งคู่แสดง
+  เฉพาะร้านที่มี Admin จริงอย่างน้อย 1 คน (เพิ่ม `shopHasAdminMember` ใหม่ใน
+  `lib/AuthProvider.js` — pattern เดียวกับที่ `stock_cap_status` ใช้อยู่แล้ว)
+
+**✅ Job Type Bundle Template** (`db/job_type_bundle_template_migration.sql`):
+- ตาราง `job_type_bundle_templates`/`items`/`item_variants` (รองรับ sub-variant เช่น น้ำมันเกียร์
+  CVT vs WS) + คอลัมน์ผูก `job_cost_items.bundle_item_id`/`bundle_variant_id` + trigger
+  `fn_update_bundle_item_price_memory` (จำราคาอะไหล่อัตโนมัติ, ค่าแรงไม่จำเด็ดขาดตามที่การ์ดกำหนด)
+- RLS: อ่านได้ทุก role ที่ใช้เซตได้ (รวม technician), จัดการได้แค่ Owner/Manager/Admin
+- UI ใน `app/jobs/[id]/page.js`: combobox ค้นหา reuse pattern เดิมของ `search_cost_item_history`
+  (type-to-filter, click-to-select, ไม่มีทาง "ใช้คำที่พิมพ์" ตรงๆ — ตรงกับที่การ์ดกำหนดไว้สำหรับ
+  Technician พอดี) Owner/Manager/Admin เห็นปุ่ม "สร้างชุดใหม่" เพิ่มเมื่อพิมพ์แล้วไม่เจอ เปิด
+  `components/JobTypeBundleConfirmModal.js` (หน้าต่างยืนยัน+แก้ไขก่อน save ตามที่การ์ดระบุ) แล้วใส่
+  เข้างานปัจจุบันทันที
+- หน้าจัดการเพิ่มเติม `app/admin/job-type-bundles/page.js` (ดู/แก้ราคา/ลบเซตเก่า) — นอกเหนือจากที่
+  การ์ดขอไว้ (แค่ inline จากหน้างาน) แต่ยืนยันกับคุณอั้มแล้วว่าต้องการ
+
+**✅ Platform Revenue Module** (`db/platform_revenue_migration.sql`) — ขอบเขต **subscription
+revenue เท่านั้น**, commission ยังไม่ทำ (บล็อกด้วย marketplace feature ที่ยังไม่ออกแบบ — ไม่เดา
+schema/timing ล่วงหน้า):
+- ตาราง `platform_journal_entries`/`_lines`/`platform_revenue_events`/
+  `platform_deferred_revenue_schedule` — แยกจากบัญชีของอู่ 100% (ตาม convention เดียวกับ
+  `platform_admins`/`platform_audit_log`: enable RLS แต่ไม่สร้าง policy เลย เข้าถึงได้เฉพาะผ่าน
+  service_role)
+- RPC `create_platform_journal_entry` (ตรวจ debit=credit ก่อนบันทึกเสมอ, defense-in-depth
+  `auth.uid()` check + role lookup จริงจาก `platform_admins` — pattern เดียวกับ
+  `platform_add_admin` ในการ์ด P0 security ก่อนหน้า) และ `recognize_due_platform_revenue`
+  (idempotent เต็มรูป, insert entry balance โดยธรรมชาติ 2 บรรทัดเท่ากันเสมอ ไม่ต้องเช็ค sum แยก)
+- **pg_cron ใช้งานจริงแล้ว** — schedule รายวัน 01:00 เรียก `recognize_due_platform_revenue()`
+  อัตโนมัติ (extension ติดตั้งอยู่แล้วบน project นี้ ไม่ต้อง enable เพิ่ม) แก้ปัญหา "ยังไม่ตัดสินใจกลไก
+  cron" เฉพาะฟีเจอร์นี้เท่านั้น — Field Scanner Role/Stock Value Cap Engine ยังมีช่องโหว่เดิมค้างอยู่
+  (นอกขอบเขตรอบนี้ แต่ตอนนี้มี precedent ที่ใช้งานจริงแล้วให้ไปหยิบใช้ได้)
+- ต้องขยาย `platform_audit_log.action` CHECK constraint เพิ่ม `revenue_journal_entry_created` —
+  ถ้าลืมจะพังแบบเดียวกับบั๊กที่เจอในการ์ด P0 security ก่อนหน้า (insert ไม่ผ่าน constraint →
+  rollback ทั้ง transaction) — เพิ่มไว้ในไฟล์เดียวกันแล้ว
+- Access control **ตัดสินใจกับคุณอั้มแล้ว 23 ก.ค.**: Analyst เห็น journal เต็มเท่า Super Admin
+  (ต่างจาก default ที่การ์ดเสนอไว้ว่า Analyst เห็นแค่สรุป) — `DASHBOARD_ROLES`/
+  `JOURNAL_DETAIL_ROLES`/`RECORD_REVENUE_ROLES` ใน `app/api/platform/revenue/*/route.js`
+- UI: แท็บ "💰 Revenue" ใหม่ใน `/platform-admin` — MRR/ARR, deferred remaining, journal table,
+  ปุ่ม "บันทึกรับชำระ" + "Recognize now" — ตาม convention เดิมของหน้านี้ (ไม่ซ่อนปุ่มตาม role เลย
+  ปล่อยให้ API ตอบ 403 แทน)
+- **Verify แล้วด้วย round-trip test เต็มรูปบน staging** (ไม่ใช่แค่ apply migration เฉยๆ): บันทึก
+  รับชำระจริง → schedule 1 งวดย้อนหลัง → `recognize_due_platform_revenue()` รับรู้ถูกแค่งวดที่ถึง
+  กำหนด (ไม่แตะงวดอนาคต) → เรียกซ้ำได้ 0 (idempotent ยืนยันแล้ว) → `sum(debit) = sum(credit)`
+  ทุกบรรทัด → audit log 2 แถวถูกต้อง (manual actor + system/cron sentinel) → ลบข้อมูลทดสอบทิ้งหมด
+  หลังยืนยันผ่าน
+
+**Permission gate ที่เจอระหว่างทำ:** auto-mode classifier บล็อก `execute_sql` (Supabase MCP) เป็น
+database-mutating action แยกจากการอนุมัติแผนงาน — คุณอั้มอนุมัติเพิ่ม permission rule ใน
+`.claude/settings.local.json` ระหว่างเซสชันแล้ว
+
+**สถานะ:** ทุก migration apply บน staging Supabase จริงแล้ว + verify ผ่าน `get_advisors` (ไม่มี
+WARN/ERROR ใหม่นอกเหนือจาก INFO ที่ตั้งใจ — RLS enabled no policy ตาม platform_admins
+convention) โค้ดทั้งหมดอยู่ใน local git ของ branch `feature/admin-role-7th-role` (แตกจาก
+`staging`) ยังไม่ได้ commit/push — รอคุณอั้มตัดสินใจขั้นตอนถัดไป

@@ -241,6 +241,7 @@ const AUDIT_ACTION_LABELS = {
   add_platform_admin: "เพิ่ม platform admin",
   change_platform_admin_role: "เปลี่ยน role platform admin",
   remove_platform_admin: "ลบ platform admin",
+  revenue_journal_entry_created: "บันทึกรายการบัญชี Platform Revenue",
 };
 
 function ActivityLogTab() {
@@ -339,6 +340,206 @@ function ActivityLogTab() {
           {loading ? "กำลังโหลด..." : `โหลดเพิ่ม (${rows.length}/${total})`}
         </button>
       )}
+    </div>
+  );
+}
+
+// การ์ด "Platform Revenue Module" — เห็นเฉพาะ Platform Admin ขอบเขตรอบนี้: subscription revenue
+// เท่านั้น (commission บล็อกด้วย marketplace feature ที่ยังไม่ออกแบบ — placeholder เฉยๆ)
+// ตาม convention เดิมของหน้านี้: ไม่ซ่อน UI ตาม role เลย (ดูหมายเหตุ requirePlatformRole ใน
+// lib/platformAdmin.js) — ปุ่ม/ตารางที่ role ไม่ถึงจะโดน API ตอบ 403 แทน ง่ายกว่า conditional
+// rendering ทุกจุด และกัน bug "ซ่อนปุ่มแต่ endpoint ยังเปิดอยู่"
+function RecordSubscriptionPaymentForm({ shops, onClose, onSaved }) {
+  const [shopId, setShopId] = useState(shops?.[0]?.shop_id || "");
+  const [amount, setAmount] = useState("");
+  const [periodStart, setPeriodStart] = useState(new Date().toISOString().slice(0, 10));
+  const [months, setMonths] = useState("12");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleSubmit() {
+    setSaving(true);
+    setError(null);
+    try {
+      await authedFetch("/api/platform/revenue/subscription-payments", {
+        method: "POST",
+        body: JSON.stringify({ shop_id: Number(shopId), amount: Number(amount), period_start: periodStart, months: Number(months) }),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ flexDirection: "column", alignItems: "stretch", cursor: "default", marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>บันทึกรับชำระ subscription</div>
+      {error && <div className="msg error" style={{ marginBottom: 8 }}>{error}</div>}
+      <label>
+        อู่
+        <select value={shopId} onChange={(e) => setShopId(e.target.value)}>
+          {(shops || []).map((s) => (
+            <option key={s.shop_id} value={s.shop_id}>
+              {s.shop_name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        จำนวนเงินที่รับ (บาท, เต็มจำนวนที่จ่ายล่วงหน้า)
+        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+      </label>
+      <label>
+        เริ่มงวดวันที่
+        <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+      </label>
+      <label>
+        จำนวนเดือนที่ครอบคลุม
+        <input type="number" value={months} onChange={(e) => setMonths(e.target.value)} />
+      </label>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button type="button" onClick={handleSubmit} disabled={saving || !shopId || !amount}>
+          {saving ? "กำลังบันทึก..." : "บันทึก"}
+        </button>
+        <button type="button" onClick={onClose} disabled={saving}>
+          ยกเลิก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RevenueTab({ shops }) {
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState(null);
+  const [journal, setJournal] = useState(null);
+  const [journalError, setJournalError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [recognizing, setRecognizing] = useState(false);
+  const [recognizeMsg, setRecognizeMsg] = useState(null);
+  const [showRecordForm, setShowRecordForm] = useState(false);
+
+  async function loadAll() {
+    setLoading(true);
+    setSummaryError(null);
+    setJournalError(null);
+    try {
+      const data = await authedFetch("/api/platform/revenue/summary");
+      setSummary(data);
+    } catch (err) {
+      setSummaryError(err.message);
+    }
+    try {
+      const json = await authedFetchFull("/api/platform/revenue/journal?offset=0");
+      setJournal(json.data);
+    } catch (err) {
+      // ปกติสำหรับ role ที่ไม่ใช่ JOURNAL_DETAIL_ROLES (เช่น support) — ตั้งใจไม่ซ่อนส่วนนี้
+      // ล่วงหน้า ปล่อยให้ API ตอบ 403 ตรงๆ ตาม convention ของหน้านี้
+      setJournalError(err.message);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleRecognizeNow() {
+    setRecognizing(true);
+    setRecognizeMsg(null);
+    try {
+      const data = await authedFetch("/api/platform/revenue/recognize", { method: "POST" });
+      setRecognizeMsg(`รับรู้รายได้แล้ว ${data.recognizedCount} รายการ (ปกติรันอัตโนมัติทุกวัน 01:00 อยู่แล้ว)`);
+      loadAll();
+    } catch (err) {
+      setRecognizeMsg("เกิดข้อผิดพลาด: " + err.message);
+    } finally {
+      setRecognizing(false);
+    }
+  }
+
+  if (loading) return <div className="empty">กำลังโหลด...</div>;
+
+  const monthlyEntries = summary ? Object.entries(summary.monthlyGrowth).sort() : [];
+
+  return (
+    <div>
+      {summaryError && <div className="msg error" style={{ marginBottom: 16 }}>{summaryError}</div>}
+      {summary && (
+        <>
+          <div className="filters" style={{ marginBottom: 16 }}>
+            <div className="tag zone" style={{ fontSize: 13 }}>💰 MRR {summary.mrrTotal.toLocaleString()} บาท/เดือน</div>
+            <div className="tag" style={{ fontSize: 13 }}>📈 ARR {summary.arrTotal.toLocaleString()} บาท/ปี</div>
+            <div className="tag" style={{ fontSize: 13 }}>⏳ รายได้รับล่วงหน้าคงเหลือ {summary.deferredRemaining.toLocaleString()} บาท</div>
+            <div className="tag" style={{ fontSize: 13, color: "var(--text-muted)" }}>🧩 Commission: รอฟีเจอร์ Marketplace</div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>MRR แยกตาม tier</div>
+            {Object.entries(summary.mrrByTier).map(([tier, amount]) => (
+              <div key={tier} style={{ fontSize: 13 }}>
+                {tier}: {amount.toLocaleString()} บาท/เดือน
+              </div>
+            ))}
+            {Object.keys(summary.mrrByTier).length === 0 && <div className="empty">ยังไม่มีอู่ที่นับ MRR ได้</div>}
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>รายได้ที่รับรู้แล้วรายเดือน (จาก journal จริง)</div>
+            {monthlyEntries.map(([month, amount]) => (
+              <div key={month} style={{ fontSize: 13 }}>
+                {month}: {amount.toLocaleString()} บาท
+              </div>
+            ))}
+            {monthlyEntries.length === 0 && <div className="empty">ยังไม่มีรายการที่รับรู้แล้ว</div>}
+          </div>
+        </>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <button type="button" onClick={() => setShowRecordForm(true)}>
+          + บันทึกรับชำระ subscription
+        </button>
+        <button type="button" onClick={handleRecognizeNow} disabled={recognizing}>
+          {recognizing ? "กำลังรับรู้..." : "🔄 Recognize now"}
+        </button>
+      </div>
+      {recognizeMsg && <div className="msg success" style={{ marginBottom: 16 }}>{recognizeMsg}</div>}
+
+      {showRecordForm && (
+        <RecordSubscriptionPaymentForm
+          shops={shops}
+          onClose={() => setShowRecordForm(false)}
+          onSaved={() => {
+            setShowRecordForm(false);
+            loadAll();
+          }}
+        />
+      )}
+
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Journal entries</div>
+      {journalError && <div className="msg error">{journalError}</div>}
+      {journal && journal.length === 0 && <div className="empty">ยังไม่มีรายการ</div>}
+      {journal &&
+        journal.map((entry) => (
+          <div key={entry.entry_id} className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "flex-start" }}>
+            <div className="card-body" style={{ width: "100%" }}>
+              <div className="card-title">{entry.description}</div>
+              <div className="card-sub" style={{ fontSize: 12 }}>
+                {entry.entry_date} · {entry.source_type}
+              </div>
+              {entry.lines.map((l, i) => (
+                <div key={i} style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {l.account_code}: {Number(l.debit) > 0 ? `Dr ${Number(l.debit).toLocaleString()}` : `Cr ${Number(l.credit).toLocaleString()}`}
+                  {l.shop_id ? ` (shop_id ${l.shop_id})` : ""}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
     </div>
   );
 }
@@ -495,10 +696,27 @@ export default function PlatformAdminPage() {
         >
           📜 Activity Log
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("revenue")}
+          style={{
+            padding: "8px 16px",
+            border: "none",
+            borderBottom: activeTab === "revenue" ? "2px solid #2563eb" : "2px solid transparent",
+            background: "transparent",
+            color: activeTab === "revenue" ? "var(--text)" : "var(--text-muted)",
+            fontWeight: activeTab === "revenue" ? 700 : 400,
+            cursor: "pointer",
+          }}
+        >
+          💰 Revenue
+        </button>
       </div>
 
       {activeTab === "activity" ? (
         <ActivityLogTab />
+      ) : activeTab === "revenue" ? (
+        <RevenueTab shops={shops} />
       ) : (
       <>
       {/* สรุปสถิติ */}

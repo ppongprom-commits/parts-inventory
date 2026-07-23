@@ -104,6 +104,19 @@ export const DEFAULT_FIELD_VISIBILITY = {
     export_csv_jobs: false,
     manage_api_keys: false, // 🔒 floor
   },
+  // การ์ด "Admin Role (7th role)" (23 ก.ค. 2026 — ตัดสินใจแล้ว): ค่าเดียวกับ supervisor ทุกแถว
+  // ยกเว้น manage_api_keys ที่สงวนไว้ owner/manager เท่านั้น (floor rule เดิม ไม่เปลี่ยนตาม tier)
+  admin: {
+    sale_price: true,
+    cost_price: true,
+    customer_name: true,
+    customer_phone: true,
+    license_plate: true,
+    sales_reports: true,
+    export_csv_parts: true,
+    export_csv_jobs: true,
+    manage_api_keys: false, // 🔒 floor
+  },
 };
 
 // ❗ Floor rules — ห้าม override เป็น true ไม่ว่าเจ้าของร้านจะตั้งค่ายังไง (เหตุผลด้านความปลอดภัย,
@@ -115,6 +128,7 @@ export const FLOOR_RULES = [
   ["technician", "manage_api_keys"],
   ["assistant", "manage_api_keys"],
   ["field_scanner", "manage_api_keys"],
+  ["admin", "manage_api_keys"],
 ];
 
 function isFloorLocked(role, fieldGroup) {

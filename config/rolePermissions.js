@@ -89,4 +89,16 @@ export const ROLE_PERMISSIONS = {
     change_roles: false,
     sell_parts: false,
   },
+  // การ์ด "Admin Role (7th role)" (23 ก.ค. 2026 — ตัดสินใจแล้ว): เท่า supervisor ทุกสิทธิ์
+  // (สายสำนักงาน trust tier เดียวกับ supervisor แต่คนละสาย field/ops)
+  admin: {
+    view_parts: true,
+    view_price: true,
+    add_edit_parts: true,
+    delete_parts: false,
+    manage_zones_options: false,
+    invite_members: false,
+    change_roles: false,
+    sell_parts: true,
+  },
 };

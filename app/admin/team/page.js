@@ -13,12 +13,14 @@ const ROLE_LABELS = {
   technician: "ช่าง",
   assistant: "ผู้ช่วยช่าง",
   field_scanner: "พนักงานสแกนภาคสนาม (ชั่วคราว)",
+  admin: "แอดมิน (สำนักงาน)",
 };
 
-const INVITABLE_ROLES = ["manager", "supervisor", "technician", "assistant"];
+// การ์ด "Admin Role (7th role)" — เชิญผ่านอีเมลเหมือน manager/supervisor (staff สายสำนักงาน)
+const INVITABLE_ROLES = ["manager", "supervisor", "technician", "assistant", "admin"];
 // การ์ด "Field Scanner Role" — สร้างผ่าน username+PIN ได้เหมือน staff ทั่วไป (ไม่ผ่านอีเมล
 // เพราะเป็นบัญชีชั่วคราวที่ต้องสร้างเร็ว) แต่ไม่อยู่ใน INVITABLE_ROLES (เชิญผ่านอีเมล) ด้านบน
-const STAFF_ROLES = ["supervisor", "technician", "assistant", "field_scanner"];
+const STAFF_ROLES = ["supervisor", "technician", "assistant", "field_scanner", "admin"];
 
 function generateRandomPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";

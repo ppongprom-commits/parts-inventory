@@ -446,7 +446,7 @@ function CheckoutPageContent() {
 
 export default function CheckoutPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <Suspense fallback={<div className="container">กำลังโหลด...</div>}>
         <CheckoutPageContent />
       </Suspense>

@@ -144,7 +144,7 @@ function JobsPageContent() {
 
 export default function JobsPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "technician", "assistant", "admin"]}>
       <JobsPageContent />
     </RequireAuth>
   );
