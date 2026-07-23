@@ -9,18 +9,33 @@ import { useAuth } from "../../lib/AuthProvider";
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { session, loading } = useAuth();
+  const { session, loading, sessionError } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  // ลืมรหัสผ่าน — แทนที่การพึ่ง scripts/reset-owner-password.mjs รันมือถาวร
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState(null);
+
   useEffect(() => {
     if (searchParams.get("reason") === "idle") {
       setMsg({ type: "error", text: "ระบบออกจากระบบอัตโนมัติเนื่องจากไม่มีการใช้งาน" });
     }
   }, [searchParams]);
+
+  // แก้บั๊ก "silent session kick": sessionError ถูก set ไว้ใน AuthProvider ตอน login
+  // สำเร็จแต่ลงทะเบียน session ไม่ผ่าน (เช่น ชนกับ concurrent session limit ของ tier)
+  // แต่เดิมไม่เคยถูกเอามาแสดงเลย ผู้ใช้โดนเด้งกลับมาหน้านี้เฉยๆ โดยไม่รู้สาเหตุ
+  useEffect(() => {
+    if (sessionError) {
+      setMsg({ type: "error", text: sessionError });
+    }
+  }, [sessionError]);
 
   useEffect(() => {
     if (!loading && session) {
@@ -51,6 +66,28 @@ function LoginFormContent() {
     } else {
       router.replace("/");
     }
+  }
+
+  // ส่งอีเมลลิงก์รีเซ็ตรหัสผ่าน (ใช้ resetPasswordForEmail ของ Supabase) — ไม่บอกว่าอีเมลนี้
+  // มีในระบบไหม (กันเดา/สแกนอีเมลผู้ใช้) แสดงข้อความสำเร็จเหมือนกันทุกกรณี
+  async function handleForgotSubmit(e) {
+    e.preventDefault();
+    setForgotSubmitting(true);
+    setForgotMsg(null);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setForgotMsg({ type: "error", text: "ส่งลิงก์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" });
+    } else {
+      setForgotMsg({
+        type: "success",
+        text: "ถ้าอีเมลนี้มีอยู่ในระบบ เราได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้แล้ว — ตรวจสอบกล่องอีเมล (รวมถึง Junk/Spam)",
+      });
+    }
+    setForgotSubmitting(false);
   }
 
   return (
@@ -87,6 +124,52 @@ function LoginFormContent() {
           {submitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
         </button>
       </form>
+
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={() => {
+            setShowForgot((v) => !v);
+            setForgotMsg(null);
+          }}
+          style={{ background: "none", border: "none", color: "var(--link)", fontSize: 13, cursor: "pointer" }}
+        >
+          ลืมรหัสผ่าน?
+        </button>
+      </div>
+
+      {showForgot && (
+        <form
+          onSubmit={handleForgotSubmit}
+          style={{
+            marginTop: 8,
+            padding: 12,
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+          }}
+        >
+          <label style={{ fontSize: 13 }}>
+            กรอกอีเมลที่ใช้เข้าสู่ระบบ เราจะส่งลิงก์ตั้งรหัสผ่านใหม่ไปให้
+            <input
+              id="forgot_email"
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              required
+              autoComplete="email"
+              placeholder="name@example.com"
+            />
+          </label>
+          {forgotMsg && (
+            <div className={`msg ${forgotMsg.type}`} style={{ marginBottom: 8, fontSize: 13 }}>
+              {forgotMsg.text}
+            </div>
+          )}
+          <button type="submit" disabled={forgotSubmitting}>
+            {forgotSubmitting ? "กำลังส่ง..." : "ส่งลิงก์ตั้งรหัสผ่านใหม่"}
+          </button>
+        </form>
+      )}
 
       <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "var(--text-muted)" }}>
         ยังไม่มีบัญชี?{" "}

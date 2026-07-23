@@ -19,7 +19,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบ (member_id/new_pin)" }, { status: 400 });
     }
     if (!isValidPin(newPin)) {
-      return NextResponse.json({ error: "PIN/รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข ยาว 4-20 ตัว" }, { status: 400 });
+      return NextResponse.json({ error: "PIN/รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข ยาว 6-20 ตัว" }, { status: 400 });
     }
 
     // หาสมาชิกเป้าหมาย (ใช้ได้ทั้งบัญชี username+PIN และบัญชีอีเมล — updateUserById

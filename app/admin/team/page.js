@@ -401,8 +401,8 @@ function TeamPageContent() {
                   required
                 />
               </label>
-              <label>
-                PIN (ตัวอักษร/ตัวเลข 4-20 ตัว)
+              <div>
+                PIN (ตัวอักษร/ตัวเลข 6-20 ตัว)
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     type="text"
@@ -428,7 +428,7 @@ function TeamPageContent() {
                     🎲 สุ่มใหม่
                   </button>
                 </div>
-              </label>
+              </div>
               <label>
                 ชื่อ-นามสกุล
                 <input
@@ -521,7 +521,7 @@ function TeamPageContent() {
                   required
                 />
               </label>
-              <label>
+              <div>
                 รหัสผ่าน
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
@@ -548,7 +548,7 @@ function TeamPageContent() {
                     🎲 สุ่มใหม่
                   </button>
                 </div>
-              </label>
+              </div>
               <label>
                 บทบาท
                 <select value={directRole} onChange={(e) => setDirectRole(e.target.value)}>
