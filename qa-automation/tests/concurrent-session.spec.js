@@ -22,6 +22,28 @@ async function pollSessionCount(filter, expectedCount, { timeoutMs = 5000, inter
   return rows; // คืนค่าล่าสุดแม้ไม่ตรง — ให้ expect ด้านนอก fail แบบเห็น diff จริง ไม่ใช่ throw ที่นี่
 }
 
+// TC-302b (การ์ด "Concurrent session eviction ไม่ invalidate JWT จริง"): pollSessionCount เดิม
+// เช็คแค่ "จำนวนแถวตรงเป้าไหม" ใช้ตรวจ eviction ของ maxDevicesPerUser+1 ไม่ได้ตรงๆ เพราะจำนวนแถว
+// "ก่อน" กับ "หลัง" evict เท่ากันพอดี (evict 1 + insert 1 = จำนวนคงเดิม) ทำให้ poll คืนค่าทันที
+// ตั้งแต่ครั้งแรกที่เช็ค (จำนวนตรงเป้าอยู่แล้วตั้งแต่ก่อน registerSession() ของอุปกรณ์ใหม่จะรันเสร็จ
+// ด้วยซ้ำ) เจอบั๊กนี้จริงตอนเขียนเทสต์นี้ — ต้อง poll เช็ค "เนื้อหา" (แถวเก่าสุดหายไปจริง) ไม่ใช่แค่
+// จำนวนแถว ถึงจะมั่นใจได้ว่า eviction เกิดขึ้นจริงแล้ว ไม่ใช่แค่ยังไม่ทันเปลี่ยน
+async function pollUntilSessionEvicted(userId, evictedSessionId, expectedCount, { timeoutMs = 5000, intervalMs = 300 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let rows = [];
+  while (Date.now() < deadline) {
+    const { data } = await adminClient().from("user_sessions").select("session_id, user_id, last_seen_at").eq("user_id", userId);
+    rows = data || [];
+    // ต้องรอทั้ง 2 เงื่อนไขพร้อมกัน ไม่ใช่แค่ "แถวเก่าหายไป" เฉยๆ — delete (evict) กับ insert
+    // (session ใหม่) เป็นคนละ query แยกกันใน registerSession() ไม่ใช่ transaction เดียว มีช่วง
+    // สั้นๆ ที่แถวเก่าหายไปแล้วแต่แถวใหม่ยังไม่ทันถูก insert (เจอจริงตอนเขียนเทสต์นี้: ได้ 3 แถว
+    // ไม่ใช่ 4 เพราะ poll คืนค่าเร็วเกินไปตรงช่วงนี้พอดี)
+    if (!rows.some((r) => r.session_id === evictedSessionId) && rows.length === expectedCount) return rows;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return rows; // คืนค่าล่าสุดแม้ไม่ตรง — ให้ expect ด้านนอก fail แบบเห็น diff จริง ไม่ใช่ throw ที่นี่
+}
+
 // TC-302a/b ใช้ shop เดียวกัน ("QA Concurrent-Session Shop (auto)") ที่ตั้งใจ share
 // กันข้าม test ในไฟล์นี้ — ถ้ารันแบบ fullyParallel (workers>1) 2 test นี้อาจถูกส่งไปคนละ
 // worker แล้วรันพร้อมกันจริง ทำให้ session count ของ shop เดียวกันชนกันเอง (เจอจริง
@@ -136,7 +158,9 @@ test(`TC-302b user เดิม login เครื่องที่ ${GLOBAL_SE
     const oldestAccessToken = await getAccessToken(contexts[oldestContextIndex].page);
     const oldestSessionIdFromClient = await getStoredSessionId(contexts[oldestContextIndex].page);
     expect(oldestAccessToken).toBeTruthy();
-    expect(oldestSessionIdFromClient).toBe(oldestSessionId); // sanity check: DB กับ client ตรงกัน
+    // session_id เป็นคอลัมน์ตัวเลขใน DB แต่ sessionStorage เก็บได้แค่ string เสมอ — เทียบแบบ
+    // String() ทั้งคู่กันพลาดเรื่อง type mismatch (พบจริงตอนรันเทสต์นี้ครั้งแรก: 1512 !== "1512")
+    expect(String(oldestSessionIdFromClient)).toBe(String(oldestSessionId)); // sanity check: DB กับ client ตรงกัน
 
     // login "อุปกรณ์" ตัวที่ maxDevices+1 — คาดว่า "ไม่ถูกบล็อก" (ต่างจาก TC-302a ที่บล็อกที่ shop-level)
     const ctxExtra = await browser.newContext();
@@ -145,11 +169,12 @@ test(`TC-302b user เดิม login เครื่องที่ ${GLOBAL_SE
     await expectLoginSucceeded(pageExtra); // คาดว่าผ่าน ไม่ redirect กลับ /login
     contexts.push({ ctx: ctxExtra, page: pageExtra });
 
-    // ยืนยันว่า "จำนวนแถว" ยังคงเป็น maxDevices (ตัดของเก่าสุดทิ้งไปแล้ว ไม่ใช่เพิ่มขึ้น)
-    const afterEvict = await pollSessionCount({ user_id: authUser.id }, maxDevices);
-    expect(afterEvict?.length).toBe(maxDevices);
+    // ยืนยันว่าแถวเก่าสุดถูกลบไปแล้วจริง (poll เช็คเนื้อหา ไม่ใช่แค่จำนวนแถว — ดูคอมเมนต์ที่
+    // pollUntilSessionEvicted ด้านบนว่าทำไมเช็คแค่จำนวนถึงพลาดกรณีนี้ได้)
+    const afterEvict = await pollUntilSessionEvicted(authUser.id, oldestSessionId, maxDevices);
     const remainingIds = afterEvict.map((r) => r.session_id);
     expect(remainingIds).not.toContain(oldestSessionId); // แถวเก่าสุดถูกลบไปแล้วจริง
+    expect(afterEvict?.length).toBe(maxDevices); // จำนวนยังคงเป็น maxDevices (ตัดของเก่าสุดทิ้ง + เพิ่มของใหม่)
 
     // ⚠️ ข้อสังเกตสำคัญที่ 2 (ประวัติเดิมก่อน fix): การ "evict" นี้แค่ลบแถวใน user_sessions
     // (bookkeeping table) ไม่ได้เรียก supabase.auth.signOut() ให้อุปกรณ์เก่าสุดทันที — โทเค็น
