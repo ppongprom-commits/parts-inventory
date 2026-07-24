@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { getViewMode, setViewMode } from "../lib/viewModeStorage";
+import { getUiVersion } from "../lib/uiVersionStorage";
 import { useAuth } from "../lib/AuthProvider";
 import RequireAuth from "../components/RequireAuth";
 import { ROLE_PERMISSIONS } from "../config/rolePermissions";
 import { getDescendantIds, formatBreadcrumb, getSortedZoneList } from "../lib/zoneHelpers";
+import OwnerDashboardV2 from "../components/dashboard/OwnerDashboardV2";
+import UiVersionToggle from "../components/UiVersionToggle";
 
 const PAGE_SIZE = 50;
 
@@ -31,6 +34,7 @@ function HomePageContent() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [viewMode, setViewModeState] = useState("list");
+  const [uiVersion, setUiVersionState] = useState("v1");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -46,6 +50,10 @@ function HomePageContent() {
 
   useEffect(() => {
     setViewModeState(getViewMode());
+  }, []);
+
+  useEffect(() => {
+    setUiVersionState(getUiVersion());
   }, []);
 
   useEffect(() => {
@@ -78,6 +86,10 @@ function HomePageContent() {
   function handleViewModeChange(mode) {
     setViewModeState(mode);
     setViewMode(mode);
+  }
+
+  function handleUiVersionChange(version) {
+    setUiVersionState(version);
   }
 
   async function fetchZones() {
@@ -147,7 +159,21 @@ function HomePageContent() {
   const subStatus = currentShop?.subscription_status;
   const canViewPrice = ROLE_PERMISSIONS[currentRole]?.view_price ?? true;
 
+  // v0.2 Owner Business Dashboard — แยกจากหน้าสต็อกอะไหล่เดิม (v1) โดยสมบูรณ์ ให้เจ้าของ/ผู้จัดการ
+  // สลับไปมาได้ด้วย <UiVersionToggle> ระหว่างช่วงทดลองก่อนตัดสินใจย้ายมาใช้ v2 แทน v1 ถาวร
+  const canToggleUiVersion = currentRole === "owner" || currentRole === "manager";
+
+  if (canToggleUiVersion && uiVersion === "v2") {
+    return (
+      <>
+        <OwnerDashboardV2 />
+        <UiVersionToggle onChange={handleUiVersionChange} />
+      </>
+    );
+  }
+
   return (
+    <>
     <div className="container">
       <div className="header">
         <h1>📦 {currentShop?.shop_name || "สต็อกอะไหล่"}</h1>
@@ -462,6 +488,8 @@ function HomePageContent() {
         </button>
       )}
     </div>
+    {canToggleUiVersion && <UiVersionToggle onChange={handleUiVersionChange} />}
+    </>
   );
 }
 

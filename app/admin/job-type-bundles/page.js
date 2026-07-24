@@ -27,7 +27,7 @@ function JobTypeBundlesPageContent() {
     const { data, error: fetchError } = await supabase
       .from("job_type_bundle_templates")
       .select(
-        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, sort_order)), job_type_bundle_steps(step_id, step_name, sort_order)"
+        "template_id, job_type_name, estimated_duration_days, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, sort_order)), job_type_bundle_steps(step_id, step_name, sort_order)"
       )
       .eq("shop_id", currentShopId)
       .order("job_type_name");
@@ -41,13 +41,18 @@ function JobTypeBundlesPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
 
-  async function handleCreateOnly(jobTypeName, items, steps) {
+  async function handleCreateOnly(jobTypeName, items, steps, estimatedDurationDays) {
     setSavingNew(true);
     setError(null);
     try {
       const { data: template, error: templateError } = await supabase
         .from("job_type_bundle_templates")
-        .insert({ shop_id: currentShopId, job_type_name: jobTypeName, created_by: user.id })
+        .insert({
+          shop_id: currentShopId,
+          job_type_name: jobTypeName,
+          created_by: user.id,
+          estimated_duration_days: estimatedDurationDays,
+        })
         .select("template_id")
         .single();
       if (templateError) throw templateError;
@@ -110,6 +115,16 @@ function JobTypeBundlesPageContent() {
     if (!confirm("ลบเซตนี้ทั้งหมด? (รายการที่เคยใช้ไปแล้วในงานเก่าจะไม่หายไป แค่ไม่มีเซตนี้ให้เลือกอีกต่อไป)")) return;
     const { error: deleteError } = await supabase.from("job_type_bundle_templates").delete().eq("template_id", templateId);
     if (deleteError) setError(deleteError.message);
+    else loadTemplates();
+  }
+
+  // แก้ไขเวลาที่ใช้โดยประมาณ (วัน) ของเซต — บันทึกทันทีตอนออกจากช่อง (onBlur) เหมือนของเดิม
+  async function handleUpdateTemplateDuration(templateId, days) {
+    const { error: updateError } = await supabase
+      .from("job_type_bundle_templates")
+      .update({ estimated_duration_days: days })
+      .eq("template_id", templateId);
+    if (updateError) setError(updateError.message);
     else loadTemplates();
   }
 
@@ -233,6 +248,23 @@ function JobTypeBundlesPageContent() {
 
             {expandedId === t.template_id && (
               <div style={{ marginTop: 10 }}>
+                <label style={{ display: "block", fontSize: 13, marginBottom: 10 }}>
+                  เวลาที่ใช้โดยประมาณ (วัน)
+                  <input
+                    type="number"
+                    defaultValue={t.estimated_duration_days ?? ""}
+                    onBlur={(e) =>
+                      handleUpdateTemplateDuration(
+                        t.template_id,
+                        e.target.value !== "" ? Number(e.target.value) : null
+                      )
+                    }
+                    placeholder="เช่น 2"
+                    min="0"
+                    step="1"
+                    style={{ width: 80, marginLeft: 8 }}
+                  />
+                </label>
                 {(t.job_type_bundle_items || []).map((item) => {
                   const variants = item.job_type_bundle_item_variants || [];
                   const hasVariants = variants.length > 0;
