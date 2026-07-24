@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/AuthProvider";
 import RequireAuth from "../../components/RequireAuth";
+import { getApprovalRequirement } from "../../config/adminApprovalDefaults";
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "เงินสด" },
@@ -23,6 +24,21 @@ const PAYMENT_METHODS = [
 // Scope รอบนี้ (ดู db/cart_based_selling_flow_migration.sql หัวไฟล์สำหรับรายละเอียดเต็ม):
 // รองรับ walk-in (ส่งมอบหน้าร้านทันที) เป็นทางเดียวที่ทำ Confirm Pick จบในหน้าเดียว — ยังไม่ทำ
 // pack/ship แบบเต็มรูป, ยังไม่ทำ tax_invoice (แค่ receipt), ยังไม่ผูก Branch Transfer อัตโนมัติ
+//
+// การ์ด "ขายอะไหล่ที่ยังไม่ตีราคา + แก้ไขราคาต้นทุน/ขายตอน checkout (Approval Flow แบบ
+// configurable)" (24 ก.ค. 2026) เพิ่ม 2 อย่างเข้าหน้านี้:
+//   1. ช่อง "ราคาต้นทุน" (allocated_cost) แก้ไขได้ต่อชิ้น — แก้แล้วบันทึกผ่าน UPDATE parts ตรงๆ
+//      (audit trail มาจาก trg_audit_parts/fn_audit_row_change() ที่ครอบทุกคอลัมน์ของ parts อยู่
+//      แล้วโดยอัตโนมัติ — ไม่ต้องเขียน audit mechanism ใหม่ ดูหัวไฟล์
+//      db/unpriced_part_sale_approval_migration.sql) — เก็บเหตุผล (ไม่บังคับ) ไว้ที่
+//      parts.cost_override_reason ซึ่งติดไปกับ audit_log แถวเดียวกัน (เป็นส่วนหนึ่งของ row diff)
+//   2. รองรับขายอะไหล่ที่ price/allocated_cost เป็น null (ตรวจจากค่าที่โหลดมาตอนเข้าหน้า ก่อนแก้
+//      ไขใดๆ ในหน้านี้) — ถ้า shop เปิด Approval Flow (admin_action_approval_config action_type
+//      'sell_unpriced_part') แถว part_sales จะได้ approval_status='pending_approval' +
+//      สร้างแถวใน pending_admin_actions ให้เข้าคิว /admin/admin-approvals — การขายเองยังผ่านทันที
+//      เหมือนเดิมทุกประการ (ไม่ block, ไม่รอ), แค่ไม่นับเข้ารายงานจนกว่าจะอนุมัติ (ดู
+//      app/admin/reports/page.js) ร้านที่ไม่เคยเปิด toggle นี้ (default ปิดเสมอ) พฤติกรรมเดิม
+//      100% ไม่มีอะไรเปลี่ยน
 function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -35,15 +51,21 @@ function CheckoutPageContent() {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [rows, setRows] = useState([]); // { id, part_name, quantity, sellQty, sellPrice }
+  // { id, part_name, quantity, sellQty, sellPrice, originalPrice, originalAllocatedCost,
+  //   allocatedCost, costReason, isUnpriced }
+  const [rows, setRows] = useState([]);
 
   const [buyerName, setBuyerName] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
 
+  // Approval Flow config ของร้านนี้สำหรับ action_type 'sell_unpriced_part' — โหลดครั้งเดียวตอนเข้า
+  // หน้า (ไม่ผูก state เพิ่ม เพราะไม่ได้แก้ในหน้านี้ แค่ใช้อ่านตัดสินใจตอน submit)
+  const [approvalRequired, setApprovalRequired] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  // ผลลัพธ์ต่อชิ้นหลังกดยืนยันขาย: { [partId]: { success: bool, error?: string } }
+  // ผลลัพธ์ต่อชิ้นหลังกดยืนยันขาย: { [partId]: { success: bool, error?: string, pendingApproval?: bool } }
   const [results, setResults] = useState(null);
   const [order, setOrder] = useState(null); // { order_id }
   const [pickBusy, setPickBusy] = useState(false);
@@ -52,17 +74,29 @@ function CheckoutPageContent() {
   const [pickedIds, setPickedIds] = useState([]); // part_id ที่ pick เสร็จแล้ว (completed)
 
   useEffect(() => {
-    if (currentShopId && ids.length > 0) fetchParts();
-    else if (ids.length === 0) setLoading(false);
+    if (currentShopId && ids.length > 0) {
+      fetchParts();
+      loadApprovalConfig();
+    } else if (ids.length === 0) setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
+
+  async function loadApprovalConfig() {
+    const { data } = await supabase
+      .from("admin_action_approval_config")
+      .select("action_type, requires_approval, approver_role, approver_user_id")
+      .eq("shop_id", currentShopId)
+      .eq("action_type", "sell_unpriced_part");
+    const { requiresApproval } = getApprovalRequirement("sell_unpriced_part", data || []);
+    setApprovalRequired(requiresApproval);
+  }
 
   async function fetchParts() {
     setLoading(true);
     setLoadError("");
     const { data, error } = await supabase
       .from("parts")
-      .select("id, part_name, quantity, price")
+      .select("id, part_name, quantity, price, allocated_cost")
       .in("id", ids);
 
     if (error) {
@@ -79,6 +113,12 @@ function CheckoutPageContent() {
           quantity: Number(p.quantity) || 0,
           sellQty: String(Number(p.quantity) || 0),
           sellPrice: p.price != null ? String(p.price) : "",
+          originalPrice: p.price,
+          originalAllocatedCost: p.allocated_cost,
+          allocatedCost: p.allocated_cost != null ? String(p.allocated_cost) : "",
+          costReason: "",
+          // ตรวจจากค่าที่โหลดมา ณ ตอนเข้าหน้านี้เท่านั้น (ก่อนแก้ไขใดๆ ในหน้านี้)
+          isUnpriced: p.price == null || p.allocated_cost == null,
         }))
       );
       if (found.length < ids.length) {
@@ -105,11 +145,22 @@ function CheckoutPageContent() {
       if (qty > r.quantity) return `${r.part_name}: เหลือในสต็อกแค่ ${r.quantity} ชิ้น ขายเกินไม่ได้`;
       // ราคาขาย = 0 อนุญาต (ตัดสินใจแล้วในการ์ด) — บล็อกเฉพาะค่าว่าง/ติดลบ
       if (r.sellPrice === "" || Number(r.sellPrice) < 0) return `${r.part_name}: กรุณาระบุราคาขาย`;
+      // ราคาต้นทุน (allocated_cost) ไม่บังคับกรอก (ตัดสินใจแล้วในการ์ดนี้ — อนุญาตให้ขายอะไหล่ที่
+      // ยังไม่ตีราคาได้เสมอ) แต่ถ้ากรอกมาต้องไม่ติดลบ
+      if (r.allocatedCost !== "" && Number(r.allocatedCost) < 0) {
+        return `${r.part_name}: ราคาต้นทุนต้องไม่ติดลบ`;
+      }
     }
     return null;
   }
 
   const totalAmount = rows.reduce((sum, r) => sum + (Number(r.sellQty) || 0) * (Number(r.sellPrice) || 0), 0);
+
+  function isCostOverridden(r) {
+    const newVal = r.allocatedCost === "" ? null : Number(r.allocatedCost);
+    const oldVal = r.originalAllocatedCost == null ? null : Number(r.originalAllocatedCost);
+    return newVal !== oldVal;
+  }
 
   async function handleConfirmSellAll() {
     setSubmitError("");
@@ -163,24 +214,80 @@ function CheckoutPageContent() {
           });
           if (deductError) throw deductError;
 
-          const { error: saleError } = await supabase.from("part_sales").insert({
-            part_id: r.id,
-            shop_id: currentShopId,
-            quantity_sold: qty,
-            sale_price: price,
-            sold_to: soldTo,
-            sold_by: userData?.user?.id || null,
-            payment_method: paymentMethod,
-            order_id: orderRow.order_id,
-            item_status: "pending_pick",
-          });
+          // 1) override ราคาต้นทุน (ถ้ามีการแก้ไข) — เป็น point-in-time correction เฉพาะจุด
+          //    ไม่ reconcile กับ invariant Σ allocated_cost = purchase_price ของ Salvage cost
+          //    allocation (ตัดสินใจแล้วในการ์ดนี้ — invariant ใช้แค่ตอน allocate ครั้งแรก) —
+          //    ล้มเหลวไม่บล็อกการขาย (การขายสำคัญกว่า) แค่แจ้งใน perItemResults
+          let costOverrideError = null;
+          if (isCostOverridden(r)) {
+            const { error: costError } = await supabase
+              .from("parts")
+              .update({
+                allocated_cost: r.allocatedCost === "" ? null : Number(r.allocatedCost),
+                cost_override_reason: r.costReason || null,
+              })
+              .eq("id", r.id);
+            if (costError) costOverrideError = costError.message;
+          }
+
+          const pendingApproval = r.isUnpriced && approvalRequired;
+
+          const { data: saleRow, error: saleError } = await supabase
+            .from("part_sales")
+            .insert({
+              part_id: r.id,
+              shop_id: currentShopId,
+              quantity_sold: qty,
+              sale_price: price,
+              sold_to: soldTo,
+              sold_by: userData?.user?.id || null,
+              payment_method: paymentMethod,
+              order_id: orderRow.order_id,
+              item_status: "pending_pick",
+              approval_status: pendingApproval ? "pending_approval" : "not_required",
+            })
+            .select("sale_id")
+            .single();
           if (saleError) throw saleError;
+
+          if (pendingApproval) {
+            // เข้าคิว Maker-Checker เดิม (pending_admin_actions) — reuse ตาม pattern ของการ์ด
+            // "Admin Role (7th role)" ไม่สร้างคิวคู่ขนานใหม่ (ดูหัวไฟล์ migration)
+            const { error: pendingError } = await supabase.from("pending_admin_actions").insert({
+              shop_id: currentShopId,
+              action_type: "sell_unpriced_part",
+              performed_by: userData?.user?.id || null,
+              payload: {
+                sale_id: saleRow.sale_id,
+                part_id: r.id,
+                part_name: r.part_name,
+                quantity_sold: qty,
+                sale_price: price,
+              },
+            });
+            if (pendingError) {
+              // ไม่ block การขาย — แค่บันทึก error ไว้ให้เห็นว่าเข้าคิวไม่สำเร็จ (ต้องแก้ด้วยมือ)
+              perItemResults[r.id] = {
+                success: true,
+                pendingApproval: true,
+                warning: `ขายสำเร็จแต่เข้าคิวรออนุมัติไม่สำเร็จ: ${pendingError.message}`,
+              };
+            } else {
+              perItemResults[r.id] = { success: true, pendingApproval: true };
+            }
+          } else {
+            perItemResults[r.id] = { success: true };
+          }
+          if (costOverrideError) {
+            perItemResults[r.id] = {
+              ...perItemResults[r.id],
+              warning: `${perItemResults[r.id]?.warning ? perItemResults[r.id].warning + " / " : ""}บันทึกราคาต้นทุนใหม่ไม่สำเร็จ: ${costOverrideError}`,
+            };
+          }
 
           if (newQuantity <= 0) {
             await supabase.from("parts").update({ status: "sold", is_active: false }).eq("id", r.id);
           }
-
-          perItemResults[r.id] = { success: true };
         } catch (err) {
           perItemResults[r.id] = { success: false, error: err.message || "ขายไม่สำเร็จ" };
         }
@@ -305,9 +412,19 @@ function CheckoutPageContent() {
             <div className="empty">ไม่มีชิ้นในตะกร้าแล้ว</div>
           ) : (
             rows.map((r) => (
-              <div className="card" key={r.id} style={{ marginBottom: 8 }}>
+              <div className="card" key={r.id} style={{ marginBottom: 8 }} data-testid={`checkout-row-${r.id}`}>
                 <div className="card-body" style={{ width: "100%" }}>
-                  <div className="card-title">{r.part_name}</div>
+                  <div className="card-title">
+                    {r.part_name}{" "}
+                    {r.isUnpriced && (
+                      <span
+                        data-testid={`unpriced-badge-${r.id}`}
+                        style={{ fontSize: 12, color: "var(--text-muted)" }}
+                      >
+                        ⚠️ ยังไม่ตีราคา{approvalRequired ? " — จะเข้ารออนุมัติ" : ""}
+                      </span>
+                    )}
+                  </div>
                   <div className="card-sub">คงเหลือในสต็อก: {r.quantity} ชิ้น</div>
                   <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
                     <label>
@@ -328,6 +445,29 @@ function CheckoutPageContent() {
                         style={{ width: 110 }}
                       />
                     </label>
+                    <label>
+                      ราคาต้นทุน (allocated_cost)
+                      <input
+                        type="number"
+                        data-testid={`allocated-cost-${r.id}`}
+                        value={r.allocatedCost}
+                        placeholder={r.originalAllocatedCost == null ? "ยังไม่มีราคาต้นทุน" : ""}
+                        onChange={(e) => updateRow(r.id, { allocatedCost: e.target.value })}
+                        style={{ width: 130 }}
+                      />
+                    </label>
+                    {isCostOverridden(r) && (
+                      <label>
+                        เหตุผลที่แก้ (ไม่บังคับ)
+                        <input
+                          type="text"
+                          data-testid={`cost-reason-${r.id}`}
+                          value={r.costReason}
+                          onChange={(e) => updateRow(r.id, { costReason: e.target.value })}
+                          style={{ width: 180 }}
+                        />
+                      </label>
+                    )}
                     <button type="button" onClick={() => removeRow(r.id)} style={{ alignSelf: "flex-end" }}>
                       ✕ ลบออกจากตะกร้า
                     </button>
@@ -395,11 +535,21 @@ function CheckoutPageContent() {
               >
                 <div className="card-body" style={{ width: "100%" }}>
                   <div className="card-title">
-                    {r.part_name} {isPicked && "✅ pick แล้ว"} {isNotFound && "❌ หาไม่เจอ"}
+                    {r.part_name} {isPicked && "✅ pick แล้ว"} {isNotFound && "❌ หาไม่เจอ"}{" "}
+                    {res?.pendingApproval && (
+                      <span data-testid={`pending-approval-badge-${r.id}`} style={{ fontSize: 12 }}>
+                        ⏳ รออนุมัติ (ไม่รวมในรายงานจนกว่าจะอนุมัติ)
+                      </span>
+                    )}
                   </div>
                   <div className="card-sub">
                     จำนวน {r.sellQty} — ราคา {r.sellPrice} บาท/หน่วย
                   </div>
+                  {res?.warning && (
+                    <div className="msg error" style={{ marginTop: 6 }}>
+                      {res.warning}
+                    </div>
+                  )}
                   {res?.success ? (
                     !isPicked &&
                     !isNotFound && (

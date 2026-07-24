@@ -37,6 +37,8 @@ function ReportsPageContent() {
   const [loading, setLoading] = useState(true);
   const [partSales, setPartSales] = useState([]);
   const [billingDocs, setBillingDocs] = useState([]);
+  // จำนวนรายการขายอะไหล่ไม่มีราคาที่ยังรออนุมัติ (ไม่รวมในยอดข้างบนเลย) — แค่โชว์ให้รู้ว่ามีอยู่
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   useEffect(() => {
     if (currentShopId) fetchData();
@@ -54,13 +56,28 @@ function ReportsPageContent() {
     // แล้ว part_sales บางแถวจะมี item_status = 'not_found' (พนักงานหาของไม่เจอตอน pick แล้วคืน
     // สต็อกอัตโนมัติ — ดูการ์ด Cart-based selling flow) ซึ่ง**ไม่ควรนับเป็นยอดขายจริง** เพราะสต็อก
     // ถูกคืนแล้วไม่มีการส่งมอบเกิดขึ้นจริง แต่รายงานเดิมนับรวมไปด้วยเพราะไม่เคยกรอง — แก้แล้ว
+    //
+    // การ์ด "ขายอะไหล่ที่ยังไม่ตีราคา... (Approval Flow แบบ configurable)" (24 ก.ค. 2026 — ตัดสินใจ
+    // แล้ว): แถวที่ approval_status='pending_approval' (ขายอะไหล่ไม่มีราคา + shop เปิด approval
+    // flow) **ไม่นับเข้ารายงานนี้เลยจนกว่าจะอนุมัติ** — approved/rejected/not_required นับตามปกติ
+    // ทั้งหมด (rejected ยังนับเพราะมติการ์ดคือ "คงขายไว้" ไม่ reverse ใดๆ)
     let salesQuery = supabase
       .from("part_sales")
-      .select("sale_id, quantity_sold, sale_price, sold_to, sold_at, payment_method, item_status, part_id, parts(part_name)")
+      .select(
+        "sale_id, quantity_sold, sale_price, sold_to, sold_at, payment_method, item_status, approval_status, part_id, parts(part_name)"
+      )
       .eq("shop_id", currentShopId)
       .neq("item_status", "not_found")
+      .neq("approval_status", "pending_approval")
       .order("sold_at", { ascending: false });
     if (rangeStart) salesQuery = salesQuery.gte("sold_at", rangeStart.toISOString());
+
+    let pendingApprovalCountQuery = supabase
+      .from("part_sales")
+      .select("sale_id", { count: "exact", head: true })
+      .eq("shop_id", currentShopId)
+      .eq("approval_status", "pending_approval");
+    if (rangeStart) pendingApprovalCountQuery = pendingApprovalCountQuery.gte("sold_at", rangeStart.toISOString());
 
     let billingQuery = supabase
       .from("job_documents")
@@ -70,10 +87,15 @@ function ReportsPageContent() {
       .order("created_at", { ascending: false });
     if (rangeStart) billingQuery = billingQuery.gte("created_at", rangeStart.toISOString());
 
-    const [salesRes, billingRes] = await Promise.all([salesQuery, billingQuery]);
+    const [salesRes, billingRes, pendingCountRes] = await Promise.all([
+      salesQuery,
+      billingQuery,
+      pendingApprovalCountQuery,
+    ]);
 
     setPartSales(salesRes.data || []);
     setBillingDocs(billingRes.data || []);
+    setPendingApprovalCount(pendingCountRes.count || 0);
     setLoading(false);
   }
 
@@ -156,6 +178,13 @@ function ReportsPageContent() {
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{billingDocs.length} ใบ</div>
             </div>
           </div>
+
+          {pendingApprovalCount > 0 && (
+            <div className="msg" data-testid="pending-approval-note" style={{ marginBottom: 16 }}>
+              ⏳ ไม่รวม {pendingApprovalCount} รายการขายอะไหล่ที่ยังไม่ตีราคา รอการอนุมัติอยู่ (ดูที่
+              หน้า &quot;🕒 รออนุมัติ&quot; ใน /admin)
+            </div>
+          )}
 
           {/* กราฟแท่งรายวันแบบง่าย */}
           {dailyEntries.length > 0 && (

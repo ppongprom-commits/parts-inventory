@@ -23,6 +23,13 @@ export const ACTION_TYPE_LABELS = {
   resolve_discrepancy_writeoff: "ปิดรายการผลต่างด้วยการตัดบัญชี",
   view_reports: "ดูรายงาน",
   export_csv: "Export CSV",
+  // การ์ด "ขายอะไหล่ที่ยังไม่ตีราคา + แก้ไขราคาต้นทุน/ขายตอน checkout (Approval Flow แบบ
+  // configurable)" (24 ก.ค. 2026) — ใช้ตาราง/RPC เดิมของ Maker-Checker ทั้งหมด (ดูหัวไฟล์
+  // db/unpriced_part_sale_approval_migration.sql) แค่เพิ่ม action_type ใหม่นี้เข้ามา — ต่างจาก
+  // action_type อื่นข้างบนตรงที่ "ใครก็ตามที่ขายอะไหล่ได้" (ไม่ใช่แค่ Admin) เป็นคนสร้างรายการรอ
+  // อนุมัติได้ และร้านที่ไม่มี Admin เลยก็ต้องตั้งค่า/เห็นคิวนี้ได้ปกติ (ดู app/admin/page.js —
+  // การ์ดนี้มี nav link แยกที่ไม่ผูกกับ shopHasAdminMember)
+  sell_unpriced_part: "ขายอะไหล่ที่ยังไม่ตีราคา (ไม่มี allocated_cost/price)",
 };
 
 // ตารางค่าเริ่มต้น (ล็อกแล้ว ไม่ต้อง review เพิ่ม — การ์ด 23 ก.ค. 2026)
@@ -41,6 +48,9 @@ export const DEFAULT_ADMIN_APPROVAL_CONFIG = {
   resolve_discrepancy_writeoff: { requires_approval: true, approver_role: "manager" },
   view_reports: { requires_approval: false, approver_role: null },
   export_csv: { requires_approval: false, approver_role: null },
+  // Default OFF สำหรับทุกร้าน (รวมร้านเก่าที่มีอยู่แล้ว) ตามมติการ์ด — ไม่เปลี่ยนพฤติกรรมเดิมจนกว่า
+  // owner/manager จะเข้าไปเปิดเองที่ /admin/settings/admin-approvals
+  sell_unpriced_part: { requires_approval: false, approver_role: null },
 };
 
 /**

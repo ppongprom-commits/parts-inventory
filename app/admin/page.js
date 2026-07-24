@@ -466,6 +466,37 @@ function AdminHubPageContent() {
         </Link>
       )}
 
+      {/* การ์ด "ขายอะไหล่ที่ยังไม่ตีราคา... (Approval Flow แบบ configurable)" (24 ก.ค. 2026) —
+          reuse ตาราง/หน้าเดิมของ Maker-Checker (admin_action_approval_config/pending_admin_actions)
+          แต่ต่างจาก 2 การ์ดข้างบนตรงที่ **ไม่ผูกกับ shopHasAdminMember** เพราะการขายอะไหล่ที่ยังไม่
+          ตีราคาเกิดขึ้นได้จากทุก role ที่ทำ checkout (ไม่ใช่แค่ Admin) — ทุกร้านต้องตั้งค่า/เห็นคิวนี้
+          ได้เสมอ แม้ไม่เคย invite Admin เลย (ไปหน้าเดียวกับข้างบน แค่ nav link คนละจุด) */}
+      {canManage && (
+        <Link
+          href="/admin/settings/admin-approvals"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🧾 ตั้งค่า Approval Flow: ขายอะไหล่ยังไม่ตีราคา</div>
+            <div className="card-sub">เปิด/ปิด + เลือกผู้อนุมัติ (role หรือคนเฉพาะ) สำหรับขายของไม่มีราคา</div>
+          </div>
+        </Link>
+      )}
+
+      {canManageCustomers && (
+        <Link
+          href="/admin/admin-approvals"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🕒 รายการรอตรวจสอบ (ขาย/อนุมัติ)</div>
+            <div className="card-sub">คิวรออนุมัติ + รายการขายไม่มีราคาที่ถูกปฏิเสธต้องตรวจสอบ</div>
+          </div>
+        </Link>
+      )}
+
       {canManageCustomers && shopHasAdminMember && (
         <Link
           href="/admin/admin-approvals"
