@@ -96,6 +96,11 @@ export const SUBSCRIPTION_TIERS = {
       "multi_photo",
       "reports",
       "analytics",
+      // การ์ด "Accounting Module — ผังบัญชี + journal entries + intercompany" (scoped-down first
+      // pass, 24 ก.ค. 2026): gate เดียวกับ "reports"/"analytics" (pro+) — การ์ดเองไม่ได้ระบุ tier
+      // ตายตัว แต่เป็นฟีเจอร์ระดับ advanced เดียวกัน จึงเลือก threshold เดียวกัน enterprise ได้
+      // อยู่แล้วผ่าน "all" convention เดิมของไฟล์นี้ ไม่ต้องเพิ่มซ้ำ
+      "accounting_module",
     ],
   },
   enterprise: {

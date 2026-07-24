@@ -16,10 +16,13 @@ import RequireAuth from "../../../components/RequireAuth";
 
 // การ์ด "บันทึกวิธีชำระเงินแยกทุกช่องทาง (payment_method)" — ✅ ตัดสินใจแล้ว: แยกทุกช่องทาง
 // ไม่รวมเป็น category เดียว (ผูกกับบัญชีเงินสด/ธนาคารคนละบัญชีตามผังบัญชี)
+// การ์ด "Accounting Module" (24 ก.ค. 2026) เพิ่ม 'credit' (ขายเชื่อ) — ดู checkout/page.js หัวคอมเมนต์
+// เดียวกันสำหรับเหตุผลเต็ม
 const PAYMENT_METHOD_LABELS = {
   cash: "เงินสด",
   bank_transfer: "โอนเงิน",
   card: "บัตร",
+  credit: "ขายเชื่อ (เก็บเงินทีหลัง)",
   other: "อื่นๆ",
 };
 

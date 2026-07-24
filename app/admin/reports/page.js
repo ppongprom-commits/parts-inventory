@@ -95,7 +95,15 @@ function ReportsPageContent() {
   const partSalesQty = partSales.reduce((sum, s) => sum + Number(s.quantity_sold), 0);
 
   // แยกตามวิธีชำระเงิน (ตัดสินใจแล้วในการ์ด Accounting Module scope "Informal Report")
-  const PAYMENT_METHOD_LABELS = { cash: "เงินสด", bank_transfer: "โอนเงิน", card: "บัตร", other: "อื่นๆ" };
+  // เพิ่ม 'credit' (ขายเชื่อ) — การ์ด Accounting Module (24 ก.ค. 2026) — Informal report นี้ยังคง
+  // อ่านจาก part_sales ตัวเดียวกับที่ formal (journal entries) ใช้ ไม่มี drift (ตามมติการ์ด)
+  const PAYMENT_METHOD_LABELS = {
+    cash: "เงินสด",
+    bank_transfer: "โอนเงิน",
+    card: "บัตร",
+    credit: "ขายเชื่อ",
+    other: "อื่นๆ",
+  };
   const byPaymentMethod = {};
   partSales.forEach((s) => {
     const key = s.payment_method || "unspecified";

@@ -8,6 +8,7 @@ import { useAuth } from "../../lib/AuthProvider";
 import { supabase } from "../../lib/supabaseClient";
 import { SESSION_ID_HEADER, getStoredSessionId } from "../../lib/sessionTracking";
 import { getTierConfig } from "../../config/subscriptionTiers";
+import { hasAccountingModuleFeature } from "../../config/accountingConfig";
 
 function ChangePinCard() {
   const { currentShop } = useAuth();
@@ -338,6 +339,92 @@ function ZoneMoveSettingsCard() {
   );
 }
 
+// การ์ด "Accounting Module — ผังบัญชี + journal entries + intercompany" (scoped-down first pass,
+// 24 ก.ค. 2026) — enable/disable ต่อร้าน ผ่าน RPC set_accounting_module_enabled() (ไม่ใช่ UPDATE
+// shops ตรงๆ แบบ ZoneMoveSettingsCard เพราะเปิดครั้งแรกมี side effect: seed ผังบัญชีมาตรฐาน +
+// backfill journal entries ของงวดปัจจุบันที่ยังเปิดอยู่ ต้องผ่าน SECURITY DEFINER RPC ที่ตรวจสิทธิ์
+// owner/manager เองอีกชั้นด้วย — ดู db/accounting_module_migration.sql)
+// Tier gate: เหมือน canSeeStockSummaryReport ด้านล่าง (pro+/enterprise เท่านั้น — ดู
+// config/subscriptionTiers.js + config/accountingConfig.js)
+function AccountingModuleSettingsCard({ tierEligible }) {
+  const { currentShopId } = useAuth();
+  const [enabled, setEnabled] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    if (!currentShopId) return;
+    supabase
+      .from("shops")
+      .select("accounting_module_enabled")
+      .eq("shop_id", currentShopId)
+      .single()
+      .then(({ data }) => {
+        setEnabled(!!data?.accounting_module_enabled);
+        setLoaded(true);
+      });
+  }, [currentShopId]);
+
+  async function handleToggle() {
+    const next = !enabled;
+    setSaving(true);
+    setMsg(null);
+    const { data, error } = await supabase.rpc("set_accounting_module_enabled", {
+      p_shop_id: currentShopId,
+      p_enabled: next,
+    });
+    if (error) {
+      setMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + error.message });
+    } else {
+      setEnabled(next);
+      if (next && Number(data) > 0) {
+        setMsg({
+          type: "success",
+          text: `เปิดใช้งานแล้ว ✅ — backfill รายการขายในงวดปัจจุบัน ${data} รายการเข้า journal เรียบร้อย`,
+        });
+      } else {
+        setMsg({ type: "success", text: "บันทึกแล้ว ✅" });
+      }
+    }
+    setSaving(false);
+  }
+
+  if (!loaded) return null;
+
+  if (!tierEligible) {
+    return (
+      <div className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch", opacity: 0.7 }}>
+        <div className="card-body">
+          <div className="card-title">📒 โมดูลบัญชี (Accounting Module)</div>
+          <div className="card-sub">
+            🔒 ฟีเจอร์นี้อยู่ในแพ็กเกจ Pro ขึ้นไป — อัปเกรดแพ็กเกจเพื่อใช้งานผังบัญชี/journal entries
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch" }}>
+      <div className="card-body" style={{ marginBottom: 10 }}>
+        <div className="card-title">📒 โมดูลบัญชี (Accounting Module)</div>
+        <div className="card-sub">
+          เปิดแล้วระบบจะสร้าง journal entries อัตโนมัติทุกครั้งที่ขายอะไหล่สำเร็จ (นอกเหนือจาก
+          part_sales ที่บันทึกปกติอยู่แล้ว ไม่มีผลกระทบต่อการขายเดิม) — เปิดครั้งแรกจะ backfill
+          รายการขายของงวดบัญชีปัจจุบัน (เดือนนี้) ให้อัตโนมัติ งวดก่อนหน้าที่ปิดไปแล้วจะไม่ถูกแตะต้อง —
+          ดูผังบัญชี/journal ได้ที่{" "}
+          <Link href="/admin/accounting">หน้าโมดูลบัญชี</Link>
+        </div>
+      </div>
+      {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
+      <button type="button" data-testid="toggle-accounting-module" onClick={handleToggle} disabled={saving}>
+        {enabled ? "✅ เปิดอยู่ — กดเพื่อปิด" : "⬜ ปิดอยู่ — กดเพื่อเปิด"}
+      </button>
+    </div>
+  );
+}
+
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
   const { currentRole, currentShop, shopHasAdminMember } = useAuth();
@@ -361,6 +448,9 @@ function AdminHubPageContent() {
   const canSeeStockSummaryReport =
     canSeeSalesReportsGroup &&
     ((reportsTier.features || []).includes("reports") || (reportsTier.features || []).includes("all"));
+
+  // การ์ด "Accounting Module" — tier gate เดียวกับ getTierConfig ที่ประกาศไว้ข้างบนแล้ว
+  const accountingModuleTierEligible = hasAccountingModuleFeature(reportsTier);
 
   return (
     <div className="container">
@@ -401,6 +491,8 @@ function AdminHubPageContent() {
       {canManage && <ShopInfoCard />}
 
       {canManage && <ZoneMoveSettingsCard />}
+
+      {canManage && <AccountingModuleSettingsCard tierEligible={accountingModuleTierEligible} />}
 
       {canExport && <ExportCsvCard />}
 

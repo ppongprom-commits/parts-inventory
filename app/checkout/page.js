@@ -8,10 +8,15 @@ import { useAuth } from "../../lib/AuthProvider";
 import RequireAuth from "../../components/RequireAuth";
 import { getApprovalRequirement } from "../../config/adminApprovalDefaults";
 
+// การ์ด "Accounting Module" (24 ก.ค. 2026) เพิ่ม 'credit' (ขายเชื่อ) เข้า enum — เดิมการ์ด
+// payment_method ทิ้งไว้ให้การ์ดนี้ตัดสินใจ (ดู db/payment_method_migration.sql หัวไฟล์) เพราะ
+// journal ต้องแยก Dr เงินสด/ธนาคาร vs Dr ลูกหนี้การค้า ตาม payment_method ตัวนี้เป๊ะ (ดู
+// db/accounting_module_migration.sql fn_post_sale_journal_entry_body)
 const PAYMENT_METHODS = [
   { value: "cash", label: "เงินสด" },
   { value: "bank_transfer", label: "โอนเงิน" },
   { value: "card", label: "บัตร" },
+  { value: "credit", label: "ขายเชื่อ (เก็บเงินทีหลัง)" },
   { value: "other", label: "อื่นๆ" },
 ];
 
