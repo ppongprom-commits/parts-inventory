@@ -58,6 +58,10 @@ async function createShop({ name, plan = "pro", ownerUserId }) {
 }
 
 test.describe("SEC — P0-1: parts.estimated_value floor is RESTRICTIVE (cross-shop write bypass closed)", () => {
+  // fullyParallel:true ทั้ง config -- SEC-003/004 พึ่ง partIds ที่ SEC-001 push ไว้ ต้องรันตามลำดับ
+  // เหมือน describe block P0-2 ด้านล่างที่มี serial mode ไว้แล้ว (จุดนี้ตกหล่นตอนเขียนตอนแรก)
+  test.describe.configure({ mode: "serial" });
+
   let mainShopId;
   let foreignShopId; // "อู่คนอื่น" ที่ technician ของ mainShop ไม่ได้เป็นสมาชิกเลย
   const partIds = [];
