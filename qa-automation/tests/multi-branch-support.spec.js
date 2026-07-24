@@ -54,11 +54,28 @@ test.describe("TC-MB-1: Data migration integrity", () => {
     ]);
     expect(jobsOnDefault).toBe(totalJobs);
 
-    const [{ count: totalParts }, { count: partsOnDefault }] = await Promise.all([
-      adminClient().from("parts").select("id", { count: "exact", head: true }).eq("shop_id", shopId),
-      adminClient().from("parts").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("branch_id", defaultBranchId),
+    // parts: ต่างจาก shop_members/jobs (branch_id เป็น NOT NULL ระดับ DB ไปแล้ว) parts.branch_id
+    // ยัง nullable อยู่ (ตั้งใจ — รองรับ legacy shop_id=NULL rows เดิม ดู migration comment) และ
+    // shop นี้ ("QA Test Shop (auto)") เป็น fixture ที่ test suite อื่นๆ จำนวนมาก insert ข้อมูล
+    // ใหม่เข้ามาตลอดเวลาแบบ concurrent กับ suite นี้ (บางไฟล์ insert ตรงผ่าน service-role client
+    // โดยไม่รู้จัก branch_id เพราะเขียนไว้ก่อนฟีเจอร์นี้) — ดังนั้นแทนที่จะเทียบ "ทุกแถว ณ ตอนนี้"
+    // (ซึ่ง flaky จริงเพราะแข่งกับ insert ของ suite อื่นที่กำลังรันขนานอยู่) ให้เทียบเฉพาะแถวที่มี
+    // อยู่แล้ว "ก่อนหรือเท่ากับ" เวลาที่สาขา default ถูกสร้าง (= ตอน migration backfill รัน) ซึ่งคือ
+    // ขอบเขตจริงที่การ์ดขอให้ verify ("ร้านเดิมทั้งหมด... กลายเป็น 1 สาขา default โดยข้อมูล
+        // parts/jobs/members ครบทุกแถว") — แถวที่เกิดขึ้นทีหลังจาก concurrent test อื่นไม่ใช่ส่วนหนึ่ง
+    // ของ "ข้อมูลเดิมก่อน migration" ที่ต้อง verify ตรงนี้
+    const { data: defaultBranchRow } = await adminClient()
+      .from("branches")
+      .select("created_at")
+      .eq("branch_id", defaultBranchId)
+      .single();
+    const migrationCutoff = defaultBranchRow.created_at;
+
+    const [{ count: totalPartsPreMigration }, { count: partsOnDefaultPreMigration }] = await Promise.all([
+      adminClient().from("parts").select("id", { count: "exact", head: true }).eq("shop_id", shopId).lte("created_at", migrationCutoff),
+      adminClient().from("parts").select("id", { count: "exact", head: true }).eq("shop_id", shopId).eq("branch_id", defaultBranchId).lte("created_at", migrationCutoff),
     ]);
-    expect(partsOnDefault).toBe(totalParts);
+    expect(partsOnDefaultPreMigration).toBe(totalPartsPreMigration);
 
     // ไม่มีแถวไหนของร้านนี้ที่ branch_id เป็น NULL เลย (shop_members/jobs เป็น NOT NULL จาก DB
     // อยู่แล้วก็จริง แต่เช็คซ้ำตรงนี้เพื่อยืนยันเจตนาของ integration test ตามที่การ์ดขอ)
@@ -94,7 +111,7 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
   }
 
   test("Starter: สร้างสาขาเพิ่มไม่ได้เลย (400)", async ({ page, request, baseURL }) => {
-    const shopId = await getShopIdByName("QA Test Shop (auto) - Worker 2"); // worker 2 = starter
+    const shopId = await getShopIdByName("QA Tier Shop - starter");
     const token = await loginAsTierOwner(page, "starter");
 
     const res = await request.post(`${baseURL}/api/branches`, {
@@ -111,7 +128,7 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
   });
 
   test("Founder: สร้างสาขาเพิ่มไม่ได้เลย (400)", async ({ page, request, baseURL }) => {
-    const shopId = await getShopIdByName("QA Test Shop (auto) - Worker 3"); // worker 3 = founder
+    const shopId = await getShopIdByName("QA Tier Shop - founder");
     const token = await loginAsTierOwner(page, "founder");
 
     const res = await request.post(`${baseURL}/api/branches`, {
@@ -125,7 +142,7 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
   });
 
   test("Pro: สร้างสาขาที่ 2 ได้ / สาขาที่ 3 ถูก reject", async ({ page, request, baseURL }) => {
-    const shopId = await getShopIdByName("QA Test Shop (auto) - Worker 4"); // worker 4 = pro
+    const shopId = await getShopIdByName("QA Tier Shop - pro");
     const token = await loginAsTierOwner(page, "pro");
 
     // เผื่อรอบก่อนหน้าตกค้าง (test ล้มเหลวกลางทาง) — เคลียร์สาขา non-default ทิ้งก่อนเริ่มเสมอ
@@ -155,7 +172,7 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
   });
 
   test("Enterprise: สร้างสาขาเพิ่มได้ไม่จำกัด (ทดสอบ 3 สาขาติด)", async ({ page, request, baseURL }) => {
-    const shopId = await getShopIdByName("QA Test Shop (auto) - Worker 5"); // worker 5 = enterprise
+    const shopId = await getShopIdByName("QA Tier Shop - enterprise");
     const token = await loginAsTierOwner(page, "enterprise");
 
     for (const id of await createdBranchIds(shopId)) {
@@ -192,13 +209,24 @@ test.describe("TC-MB-3/4/5: isolation, per-branch role, downgrade", () => {
   const partBId_holder = {};
 
   test.beforeAll(async () => {
+    // shops.owner_user_id มี FK จริงไปที่ auth.users(id) (ตรวจพบตอนรัน suite นี้ครั้งแรก —
+    // ต่างจากคอมเมนต์ในดราฟต์ schema เดิม db/multi_tenant_schema_design.sql ที่บอกว่าไม่มี FK
+    // บังคับ) จึงต้องสร้าง auth user จริงก่อนเสมอ ไม่ใช้ placeholder UUID แล้วค่อย update ทีหลัง
+    const { data: ownerUser, error: ownerErr } = await adminClient().auth.admin.createUser({
+      email: ownerEmail,
+      password,
+      email_confirm: true,
+    });
+    expect(ownerErr).toBeNull();
+    ownerUserId = ownerUser.user.id;
+
     // สร้างร้านเองแบบ direct insert (admin client = service role, ข้าม RLS ได้อยู่แล้ว) —
     // ไม่ผ่าน RPC create_shop_with_owner เพราะ RPC ต้องมี auth.uid() context (ต้อง login จริง)
     const { data: shop, error: shopError } = await adminClient()
       .from("shops")
       .insert({
         shop_name: `QA MultiBranch Isolation ${RUN_ID}`,
-        owner_user_id: "00000000-0000-0000-0000-000000000000", // placeholder, แก้ทีหลังหลังสร้าง user จริง
+        owner_user_id: ownerUserId,
         subscription_plan: "enterprise", // enterprise = ไม่จำกัดสาขา ใช้ทดสอบ downgrade ได้ด้วย
         subscription_status: "active",
       })
@@ -223,14 +251,6 @@ test.describe("TC-MB-3/4/5: isolation, per-branch role, downgrade", () => {
     expect(branchBErr).toBeNull();
     branchBId = branchB.branch_id;
 
-    const { data: ownerUser, error: ownerErr } = await adminClient().auth.admin.createUser({
-      email: ownerEmail,
-      password,
-      email_confirm: true,
-    });
-    expect(ownerErr).toBeNull();
-    ownerUserId = ownerUser.user.id;
-    await adminClient().from("shops").update({ owner_user_id: ownerUserId }).eq("shop_id", shopId);
     await adminClient().from("shop_members").insert({
       shop_id: shopId,
       user_id: ownerUserId,

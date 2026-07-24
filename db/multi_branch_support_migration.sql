@@ -393,6 +393,31 @@ drop policy if exists "managers+ can update groups" on visibility_groups;
 create policy "managers+ can update groups" on visibility_groups
   for update using (is_shop_member(shop_id, array['owner','manager']));
 
+-- ------------------------------------------------------------
+-- 9) Fix: Postgres RLS permissive policies are OR'd together, not AND'd.
+--    parts had 2 extra policies ("estimated_value floor on insert/update")
+--    that only check role, never branch_id — found via
+--    qa-automation/tests/multi-branch-support.spec.js TC-MB-5 (owner could
+--    still insert/update parts on a read-only branch, because that policy's
+--    condition — estimated_value IS NULL — was independently true and
+--    silently bypassed the read-only gate in "eligible roles can
+--    insert/update parts"). Add the same branch-writable condition here so
+--    the read-only gate always applies no matter which policy is satisfied.
+-- ------------------------------------------------------------
+drop policy if exists "estimated_value floor on insert" on parts;
+create policy "estimated_value floor on insert" on parts
+  for insert with check (
+    ((estimated_value is null) or is_shop_member(shop_id, array['owner','manager','supervisor','admin']))
+    and (branch_id is null or is_branch_writable(branch_id))
+  );
+
+drop policy if exists "estimated_value floor on update" on parts;
+create policy "estimated_value floor on update" on parts
+  for update with check (
+    ((estimated_value is null) or is_shop_member(shop_id, array['owner','manager','supervisor','admin']))
+    and (branch_id is null or is_branch_writable(branch_id))
+  );
+
 -- ============================================================
 -- Deliberately NOT branch-scoped (card decisions, do not "fix" this later
 -- without re-reading the card):

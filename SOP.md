@@ -459,6 +459,86 @@ view/RPC ที่เช็ค role จาก `auth.uid()` เองถึงจ
 
 ---
 
+## 15. สาขา (Branches — Multi-branch support) — ✅ ใช้งานได้จริง (เพิ่มใหม่ 24 ก.ค. 2026)
+
+**การ์ด:** Notion `3a1f39f45649810cb1fffbfa5da1d799` ("Multi-branch support, Pro=2 สาขา,
+Enterprise=ไม่จำกัด")
+
+**⚠️ อ่านก่อนแก้อะไรที่เกี่ยวกับ "สาขา"/"อู่ในเครือ" — 2 concept นี้เป็นคนละเรื่องกันโดยสิ้นเชิง:**
+- **"สาขา" (Branches, การ์ดนี้)** = หลายที่ตั้งทางกายภาพของ **ร้าน/เจ้าของเดียวกัน** (`shop_id`
+  เดียว, subscription เดียว, เลขผู้เสียภาษี 13 หลักเดียวกัน) ต่างกันแค่รหัสสาขากรมสรรพากร 5 หลัก
+  ต่อท้าย (00000=สำนักงานใหญ่/สาขาหลัก, 00001, 00002, ...) — นี่คือความหมายจริงของ "สาขา" ตาม
+  กฎหมายภาษีไทย
+- **"อู่ในเครือ" / shop_groups** = ร้านคนละ`shop_id`/คนละเจ้าของ/**คนละเลขผู้เสียภาษี** ที่ไม่เป็น
+  ทางการ (informal) แต่รวมกันเพื่อดูรายงานภาพรวม — ใช้โดย Accounting Module (การ์ด intercompany/
+  consolidation scope) เท่านั้น **ยังไม่ได้ออกแบบ ยังไม่มีโค้ดใดๆ เลย** ณ วันที่เขียน section นี้
+  (24 ก.ค. 2026) — การสร้างฟีเจอร์สาขาในการ์ดนี้ **ไม่ได้ปลดบล็อก** Accounting Module's
+  intercompany scope แต่อย่างใด เป็นกลไกคนละอันที่ต้องออกแบบแยกต่างหาก
+- หัวข้อ 8 ด้านบน ("การจัดการอู่ในเครือ / จัดการทีม") ใช้คำว่า "อู่ในเครือ" หลวมๆ ในชื่อหัวข้อ
+  (หมายถึงแค่ "จัดการทีม/สมาชิกของร้านตัวเอง" ธรรมดา) **ไม่ใช่** shop_groups ที่พูดถึงข้างบน — เป็น
+  ความบังเอิญของการใช้คำ ไม่ใช่ฟีเจอร์เดียวกัน ระวังสับสน
+
+**สถาปัตยกรรม (Approach A ตามที่การ์ดตัดสินใจ):** `branches` เป็น child table ของ `shops` — 1
+shop_id ครอบทุกสาขา, subscription เดียวกันหมด (`db/multi_branch_support_migration.sql`)
+
+- **`branches`**: `branch_id`, `shop_id` (FK), `branch_code` (5 หลัก, unique ต่อ shop),
+  `branch_name`, `is_default` (สาขาแรก/สาขาหลักของร้าน — ห้ามลบ/ปิด/ตั้ง read-only เด็ดขาด),
+  `is_active` (ปิดสาขาถาวร), `is_read_only` (เกิดจาก downgrade — ดูข้อมูลได้ แก้ไข/ขาย/สร้างงาน
+  ใหม่ไม่ได้)
+- **Role ต่อสาขา:** `shop_members` เพิ่ม `branch_id` (NOT NULL) + unique constraint เปลี่ยนจาก
+  `(shop_id, user_id)` เป็น **`(shop_id, user_id, branch_id)`** — คนเดียวกันเป็น Manager ที่สาขา 1
+  และ Technician ที่สาขา 2 ได้พร้อมกัน (หลายแถวต่อ user ต่อ shop)
+- **branch_id ถูกเพิ่มบน:** `parts`, `jobs`, `zones`, `visibility_groups`, `shop_invites` (nullable
+  บนตารางที่มี legacy shop_id=NULL เดิม, NOT NULL บนที่เหลือ)
+- **RLS ใหม่:** `is_branch_member(branch_id, roles)` (แทนที่ `is_shop_member` บนตารางที่ scope ตาม
+  สาขา) — **owner/manager เห็น/ทำงานข้ามทุกสาขาของร้านตัวเองได้เสมอ** (judgment call ของงานนี้ ไม่ได้
+  ระบุตรงๆ ในการ์ด แต่สอดคล้องกับ `can_view_job()` เดิมที่ owner/manager ข้าม visibility group อยู่
+  แล้ว), role อื่นถูกจำกัดเฉพาะสาขาที่มีแถว `shop_members` อยู่จริง — `is_branch_writable(branch_id)`
+  เช็คเพิ่มว่าสาขานั้น active+ไม่ read-only+shop ยัง active ก่อนอนุญาต insert/update
+  - **⚠️ บทเรียนจากการ debug งานนี้จริง (24 ก.ค. 2026):** RLS permissive policies หลายอันบนตาราง
+    เดียวกันถูก **OR รวมกัน ไม่ใช่ AND** — `parts` มีโพลิซี "estimated_value floor on
+    insert/update" แยกจาก policy หลัก ซึ่งไม่เคยเช็ค `branch_id` เลย ทำให้ owner ยัง insert/update
+    อะไหล่ในสาขา read-only ได้ผ่าน policy นี้ (เพราะเงื่อนไขของมันเองผ่านอิสระ) ทั้งที่ policy
+    หลักบล็อกไปแล้ว — เจอจาก `qa-automation/tests/multi-branch-support.spec.js` TC-MB-5 แก้แล้วโดย
+    เพิ่มเงื่อนไข branch-writable เข้าไปในทุก permissive policy ของตารางเดียวกัน **ถ้าเพิ่มตาราง/
+    policy ใหม่ที่ scope ตามสาขาทีหลัง ต้องเช็คว่าไม่มี policy อื่นของตารางเดียวกันที่ลืมใส่เงื่อนไข
+    เดียวกันไว้ ไม่งั้นจะรั่วแบบเดียวกันอีก**
+- **Tier limit:** Starter/Founder/Trial = 1 สาขา (สร้างเพิ่มไม่ได้เลย), Pro = 2, Enterprise =
+  ไม่จำกัด — enforce ทั้ง UI (`app/admin/branches/page.js` ซ่อนปุ่มสร้างเมื่อถึง limit), API
+  (`app/api/branches` POST, `lib/teamAuth.js` `checkBranchLimit`) และ DB (trigger
+  `trg_branches_tier_limit`) — ตัวเลขซ้ำอยู่ 2 ที่ (`config/subscriptionTiers.js` `maxBranches` +
+  SQL `fn_tier_max_branches`) ตาม pattern เดียวกับ Stock Value Cap Engine เดิม
+- **Downgrade Enterprise→Pro ขณะมีสาขาเกิน limit:** ยอมให้ downgrade เสมอ ไม่บล็อก — เจ้าของร้าน
+  เลือกเองผ่าน `/admin/branches` ว่าจะตั้งสาขาไหนเป็น `is_read_only` (สาขา default ตั้ง read-only
+  ไม่ได้เด็ดขาด — กันร้านใช้งานไม่ได้เลย)
+- **Stock Value Cap Engine / concurrent-session limit ยังคงนับรวมทั้งร้าน** (ไม่ใช่แยกต่อสาขา) —
+  `shops.current_stock_value`/`stock_cap_status`/`user_sessions` ไม่มีการเปลี่ยนแปลงจากงานนี้เลย
+  เพราะเป็น subscription เดียวครอบทุกสาขาตามที่การ์ดตัดสินใจ
+- **Data migration (สำคัญสุดตามการ์ด):** backfill สร้าง 1 สาขา default ต่อร้านเดิมทุกร้าน +
+  ผูกทุกแถว (`shop_members`/`parts`/`jobs`/`zones`/`visibility_groups`) เข้าสาขานั้น — idempotent
+  (verify แล้วว่า re-run ซ้ำไม่สร้างสาขาซ้ำ/ไม่พังอะไร) ตรวจสอบจริงกับ staging (qmqabtrrubqcmafietsr)
+  แล้วว่า row count ตรงกันทุกตารางก่อน/หลัง
+- **Branch Transfer (โอนอะไหล่ข้ามสาขา)** เป็นการ์ดแยกต่างหาก (Notion `3a2f39f4564981829c4dc50a2d92decf`)
+  **ยังไม่ได้สร้างในงานนี้** — schema ของงานนี้ (`parts.branch_id`) ออกแบบให้รองรับการ์ดนั้นได้ตรงๆ
+  (เพิ่ม `part_transfers`/`transfer_line_items` แยกต่างหากทีหลัง ไม่ต้องแก้ shape ของ `parts` เพิ่ม)
+- **UI:** branch switcher ใน `components/AppShell.js` (mirror pattern เดียวกับ shop switcher เดิม
+  — ซ่อนถ้าร้านมีสาขาเดียว), `app/admin/branches/page.js` (สร้างสาขา/toggle read-only, เฉพาะ
+  owner/manager), assign role ต่อสาขาผ่าน `/admin/team` เดิม (extend ให้ส่ง `branch_id` ได้ ถ้าไม่ส่ง
+  fallback ไปสาขา default ของร้านอัตโนมัติ — ร้านสาขาเดียวไม่ต้องแก้อะไรเลย)
+- **Backward compatibility:** ร้านสาขาเดียว (ส่วนใหญ่ >99% ของร้านตอนนี้) ไม่เห็นการเปลี่ยนแปลงใดๆ
+  เลย — helper ทุกตัว (`getCallerShopRole`, `verifyShopManager`, ฯลฯ) fallback ไปที่สาขาเดียวที่มี
+  อัตโนมัติแบบโปร่งใส ไม่ต้องส่ง `branch_id` เพิ่มจากทุก call site เดิม
+
+**Test:** `qa-automation/tests/multi-branch-support.spec.js` (TC-MB-1..6) — data migration
+integrity, tier limits (API layer), branch-scoped isolation, per-branch role, downgrade
+read-only, stock-cap whole-shop
+
+**Known residual risk (ยังไม่ปิดสนิท):** cross-branch visibility rule (owner/manager เห็นข้าม
+สาขา, role อื่นไม่เห็น) เป็น judgment call ของทีมงานนี้ ไม่ใช่มติที่การ์ดระบุไว้ตรงๆ ทุกกรณี —
+ควรให้ product owner review ก่อนถือว่าปิดงานสนิท 100%
+
+---
+
 ## 🔒 กระบวนการกัน Schema Drift (เพิ่มใหม่ 20 ก.ค. 2026)
 
 **ปัญหาที่เจอจริงคืนนี้:** พบ 2 จุดที่ schema/ข้อมูลบน DB จริง (staging) นำหน้าไฟล์ใน git ไปมาก —
