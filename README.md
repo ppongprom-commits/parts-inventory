@@ -931,3 +931,37 @@ convention) โค้ดทั้งหมดอยู่ใน local git ขอ
 **โค้ด:** `components/JobTypeBundleConfirmModal.js` (`getReuseSuggestions()` + ปุ่ม suggestion ในบล็อก sub-variant) — เฉพาะ modal สร้าง/ผูกเซตใหม่เท่านั้น (ใช้ร่วมกันทั้งจากหน้างานและปุ่ม "+ สร้างเซตใหม่" ใน `/admin/job-type-bundles`) หน้าแก้ไขเซตเดิมแบบ inline expand ใน `/admin/job-type-bundles` ยังไม่มีช่องค้นหาจากสต็อกอยู่แล้วตั้งแต่ต้น จึงไม่มี selection handler ให้ reuse ในจุดนั้น (นอกสโคปงานนี้ — ต้องเพิ่มการค้นหาจากสต็อกที่นั่นก่อนถึงจะทำ suggestion ได้)
 
 **Test:** เพิ่ม BUNDLE-08 (รายการแรกไม่เห็น suggestion) และ BUNDLE-09 (รายการที่สองเห็น suggestion จากอะไหล่ที่ผูกไว้กับรายการแรก, เลือกแล้วได้ part_id/description/ราคาตรงกับค้นหาด้วยมือทุกประการ) ใน `qa-automation/tests/job-type-bundle-search-and-apply.spec.js`
+
+---
+
+---
+
+### 23. คืนวันที่ 24 ก.ค. 2026 — รายงานสรุปสต็อก (Stock Summary Report) — Pro+
+
+**การ์ด:** Notion `3a1f39f4564981d1a15ed167dcd8031b` — ต่อยอด Stock Value Cap Engine + Salvage
+Vehicle cost allocation ตามที่การ์ดออกแบบไว้ (v2 — ครอบคลุม salvage vehicle)
+
+**สิ่งที่สร้าง:**
+- `db/stock_summary_report_migration.sql` — SQL functions (`fn_shop_stock_parts_detail`,
+  `fn_shop_parts_stock_value`, `fn_shop_vehicle_remaining_detail`, `fn_shop_stock_summary_totals`,
+  `fn_shop_salvage_vehicle_summary`) — **ข้อ 1 ของรายงาน reuse สูตรของ Stock Value Cap Engine
+  ตรงๆ** (คัดลอก expression `coalesce(allocated_cost, price, 0) * quantity` มาแทนที่จะคิดสูตรใหม่
+  เอง — invariant ข้ามฟีเจอร์นี้คือจุดที่การ์ดเตือนไว้เองว่าห้ามขัดกัน มี test ยืนยันแล้ว)
+- `app/api/reports/stock-summary/route.js` — tier gate (Pro ขึ้นไป) + role gate (owner/manager)
+  ตาม pattern เดียวกับ `app/api/sales/export-csv/route.js`
+- `app/admin/stock-summary-report/page.js` — หน้ารายงาน 5 ส่วน ลิงก์จาก `/admin`
+- `config/reportingThresholds.js` — ค่าคงที่ 2 ตัวที่ **ยังเป็นเลขชั่วคราว** (ดูหัวข้อถัดไป)
+- `qa-automation/tests/stock-summary-report.spec.js` — 11 test รวม cross-feature invariant test
+  (section 1 ต้องเท่ากับ `shops.current_stock_value` เป๊ะ), เคส "ถอด 10 ขาย 4" ต่อคันซาก, tier gate
+  ทั้ง UI+API, multi-tenant isolation, ร้านไม่มีซากรถเลย
+
+**เลขชั่วคราว 2 ตัวที่ยังไม่เคาะจริง (คุณอั้มยังไม่ตอบ ต้องกลับมาคุยทีหลัง):**
+- เกณฑ์ "ค้างสต็อกนาน" (ข้อ 4) = **90 วัน** — ค่า default ชั่วคราว ซ้ำประเด็นเดียวกับ NRV check ใน
+  การ์ด Salvage cost allocation ที่ก็ยังไม่เคาะเลขนี้เหมือนกัน ควรใช้เลขเดียวกันทั้งคู่
+- หน้าต่าง Top 10 (ข้อ 5) = **30 วัน** — ค่า default ชั่วคราว, API รับ `?days=` override ได้แล้ว
+  (เผื่อทำ "เลือกได้" ทีหลังไม่ต้องแก้ backend เพิ่ม)
+
+**ขอบเขตที่ตั้งใจไม่ทำรอบนี้:** month-end/point-in-time snapshot (real-time only เหมือน Stock
+Value Cap Engine เอง — เป็น known gap ที่การ์ดเองก็ยังไม่ตัดสินใจ), breakdown มูลค่าซากรถค้างถอด
+แยกตามยี่ห้อ (schema `salvage_vehicles` ไม่มีคอลัมน์ยี่ห้อตรงๆ ต้อง join 3 ชั้น — breakdown ตามโซน
+เท่านั้นในรอบนี้)

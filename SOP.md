@@ -87,11 +87,14 @@ parent_id ข้ามร้าน (ช่องโหว่ multi-tenant ที
 Pack/Ship แบบเต็มรูป (ออเดอร์จัดส่งที่ไม่ใช่ walk-in), ใบกำกับภาษีเต็มรูป (ตอนนี้ออกได้แค่ใบเสร็จ),
 โอนอะไหล่ข้ามสาขาอัตโนมัติตอน confirm pick (รอ Multi-branch support ที่ยังไม่เริ่ม)
 
-**ขายของที่ยังไม่ตีราคา + แก้ราคาต้นทุน/ขายตอน checkout:** 🔜 กำลังพัฒนา (เพิ่มใหม่ 24 ก.ค. 2026)
-ยังไม่เริ่ม — **แก้ไข 23 ก.ค. 2026:** Approval Flow ที่การ์ดนี้เคยรอ ตอนนี้สร้างเสร็จแล้วเป็นระบบ
-maker-checker กลาง (ดูข้อ 10) ไม่ใช่ blocker อีกต่อไป เหลือแค่ตัวฟีเจอร์ขายของยังไม่ตีราคาเองที่ยังไม่ทำ
+**ขายของที่ยังไม่ตีราคา + แก้ราคาต้นทุน/ขายตอน checkout:** ✅ ใช้งานได้จริงแล้ว (เสร็จ 24 ก.ค. 2026)
 
-**✅ ตัดสินใจครบแล้ว 24 ก.ค. 2026 (คุณอั้มตอบคำถามที่ค้างในการ์ดทั้งหมด, กำลัง implement อยู่):**
+นำ Maker-Checker กลาง (ข้อ 10) มาขยาย action_type ใหม่ `sell_unpriced_part` แทนสร้างระบบคู่ขนาน —
+ที่หน้า `/checkout` แก้ `allocated_cost` ต่อชิ้นได้ (บันทึกลง audit_log ทั่วไปอัตโนมัติ ไม่ต้องมี
+กลไกแยก) และขายของที่ยังไม่มีราคาได้เสมอ (ตัดสต็อกทันที) — ถ้าร้านเปิด Approval Flow ไว้
+(ปิด default) ธุรกรรมจะเข้าคิว `pending_approval` ไม่นับเข้ารายงาน/Stock Value Cap จนกว่าจะอนุมัติ
+
+**✅ ตัดสินใจครบแล้ว 24 ก.ค. 2026 (คุณอั้มตอบคำถามที่ค้างในการ์ดทั้งหมด — implement เสร็จแล้ว ตรง 100% ตามที่ตัดสินใจ):**
 - ระหว่างรออนุมัติ (pending_approval) **ไม่นับเข้า Stock Value Cap / Stock Summary Report จนกว่าจะอนุมัติผ่าน**
 - ถ้าผู้อนุมัติกด **"ปฏิเสธ"** — **คงสถานะขายไว้ตามเดิม ไม่คืนสต็อก** แค่แจ้งเตือนเจ้าของร้านให้ไปดู
 - แก้ allocated_cost ตอน checkout ถือเป็น **correction เฉพาะจุด** ไม่ต้อง reconcile ให้ผลรวมเท่า
@@ -297,6 +300,43 @@ Supervisor = สายหน้างาน (ปฏิบัติการ), Ad
 **สิ่งที่ต้องทำก่อนปิดงานนี้:** commit `lib/featureGating.js` + หน้า `/admin/*` ที่แก้ไปพร้อมกัน
 เข้า git ที่ staging repo, รัน QA suite เต็มรอบยืนยัน TIER-1xx ถึง TIER-5xx ผ่านทั้งหมด แล้วค่อยพอร์ตเข้า
 `main` ตามขั้นตอนปกติ (ดู README หัวข้อ deploy)
+
+---
+
+## 13. รายงานสรุปสต็อก (Stock Summary Report) — Pro+ — ✅ ใช้งานได้จริงแล้ว (เพิ่มใหม่ 24 ก.ค. 2026)
+
+**การ์ด:** Notion `3a1f39f4564981d1a15ed167dcd8031b` — ต่อยอดจาก Stock Value Cap Engine (ข้อ 12
+ไม่เกี่ยว — นี่คนละระบบ เป็น gate เฉพาะหน้ารายงานนี้เอง ไม่ใช่ `lib/featureGating.js` ที่ยังค้างอยู่)
+
+**เข้าที่ไหน:** `/admin/stock-summary-report` (ลิงก์จากหน้า `/admin` — การ์ด "📦 รายงานสรุปสต็อก" —
+แสดงเฉพาะ owner/manager ของร้าน Pro ขึ้นไปเท่านั้น) เนื้อหา 5 ส่วนตามการ์ด:
+
+1. **มูลค่าสต็อกขึ้นงบจริง (on-balance):** ซื้อตรง (`price`) + ถอดจากซาก (`allocated_cost`) +
+   ซากที่ยังถอดไม่หมด (`purchase_price` − Σ `allocated_cost` ที่จัดสรรไปแล้ว) เฉพาะของที่
+   `effective_owner_type = 'own'` — **reuse สูตรเดียวกับ Stock Value Cap Engine เป๊ะ** (ดู
+   `db/stock_summary_report_migration.sql` หัวไฟล์ — คัดลอก expression `coalesce(allocated_cost,
+   price, 0) * quantity` มาจาก `fn_update_shop_stock_value()` ตรงๆ ไม่ derive ใหม่ — มี test
+   ยืนยัน invariant นี้ใน `qa-automation/tests/stock-summary-report.spec.js` SSR-001)
+2. **มูลค่าฝากขาย (off-balance, memo):** `effective_owner_type` = `consignment`/`investor` (จาก
+   `zones.owner_type` + `parts.owner_type_override` — ค่าจริงที่ schema อนุญาต 3 ค่า ไม่ใช่แค่
+   own/consignment ตามที่การ์ดเขียนไว้เฉยๆ) — ไม่รวมในข้อ 1 เด็ดขาด
+3. **สถานะซากรถต่อคัน:** purchase_price, ยอดขายสะสม, ต้นทุนที่รับรู้แล้ว (เฉพาะชิ้นที่**ขายแล้ว**
+   ไม่ใช่แค่ถอดแล้ว), กำไรสะสม
+4. **ค้างสต็อกนาน:** เกณฑ์ **90 วัน (ชั่วคราว — ยังไม่เคาะเลขจริงจากคุณอั้ม)** อยู่ที่
+   `config/reportingThresholds.js`
+5. **Top 10 ขายดี/ขายช้า:** หน้าต่าง **30 วัน (ชั่วคราว)** เป็นค่าเริ่มต้น แต่ API รับ `?days=`
+   override ได้เสมอ (เผื่อทำ "เลือกได้" ทีหลังไม่ต้องแก้ backend)
+
+**Backend:** SQL functions ใน `db/stock_summary_report_migration.sql` (เรียกผ่าน
+`app/api/reports/stock-summary/route.js` ด้วย `supabaseAdmin.rpc()`) — role gate (owner/manager)
++ tier gate (Pro ขึ้นไป, เช็ค `subscription_plan` ผ่าน `getTierConfig()`) ทั้งที่ UI (ซ่อนลิงก์) และ
+API (403) ตาม convention เดียวกับ `app/api/sales/export-csv/route.js`
+
+**Real-time only:** เหมือน Stock Value Cap Engine เอง — **ยังไม่รองรับดูย้อนหลัง ณ สิ้นเดือนที่
+ผ่านมา (snapshot)** ตั้งใจเลื่อนไว้ตามขอบเขตงาน ไม่ใช่ของหลุดมือ
+
+**เลขชั่วคราว 2 ตัวที่ยังไม่เคาะจริง (ต้องกลับมาคุยกับคุณอั้ม):** เกณฑ์ค้างสต็อก 90 วัน และหน้าต่าง
+Top 10 30 วัน — ดูคอมเมนต์เต็มใน `config/reportingThresholds.js`
 
 ---
 

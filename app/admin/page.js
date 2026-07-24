@@ -7,6 +7,7 @@ import { useTheme } from "../../lib/ThemeProvider";
 import { useAuth } from "../../lib/AuthProvider";
 import { supabase } from "../../lib/supabaseClient";
 import { SESSION_ID_HEADER, getStoredSessionId } from "../../lib/sessionTracking";
+import { getTierConfig } from "../../config/subscriptionTiers";
 
 function ChangePinCard() {
   const { currentShop } = useAuth();
@@ -339,13 +340,19 @@ function ZoneMoveSettingsCard() {
 
 function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
-  const { currentRole, shopHasAdminMember } = useAuth();
+  const { currentRole, currentShop, shopHasAdminMember } = useAuth();
   const canManage = currentRole === "owner" || currentRole === "manager";
   const canExport = ["owner", "manager", "supervisor"].includes(currentRole);
   // การ์ด "Admin Role (7th role)" item (3): Admin เข้าร่วม Owner/Manager สำหรับจัดการลูกค้า
   // (import/แก้ไข) — เฉพาะการ์ดนี้เท่านั้น ไม่ขยาย canManage รวม (zone/car-data/shop-info ยังคง
   // owner/manager เท่านั้นตามเดิม ไม่อยู่ใน scope ของ Admin Role)
   const canManageCustomers = canManage || currentRole === "admin";
+
+  // การ์ด "รายงานสรุปสต็อก (Stock Summary Report) — Pro+" — UI-hide layer (API เองก็เช็คซ้ำอีกชั้น
+  // ที่ app/api/reports/stock-summary/route.js ตาม convention "เช็คทั้ง UI และ API เสมอ" ของโปรเจกต์นี้)
+  const reportsTier = getTierConfig(currentShop?.subscription_plan);
+  const canSeeStockSummaryReport =
+    canManage && ((reportsTier.features || []).includes("reports") || (reportsTier.features || []).includes("all"));
 
   return (
     <div className="container">
@@ -410,6 +417,20 @@ function AdminHubPageContent() {
           <div className="card-sub">เชิญสมาชิก กำหนด/เปลี่ยนสิทธิ์ ปิดการใช้งาน</div>
         </div>
       </Link>
+
+      {canSeeStockSummaryReport && (
+        <Link
+          href="/admin/stock-summary-report"
+          className="card"
+          data-testid="stock-summary-report-link"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">📦 รายงานสรุปสต็อก</div>
+            <div className="card-sub">มูลค่าสต็อกขึ้นงบ / ฝากขาย / สถานะซากรถ / ค้างสต็อก / Top 10 — Pro ขึ้นไป</div>
+          </div>
+        </Link>
+      )}
 
       {canManage && (
         <Link
