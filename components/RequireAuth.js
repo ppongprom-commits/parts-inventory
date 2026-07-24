@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../lib/AuthProvider";
 import { supabase } from "../lib/supabaseClient";
 import IdleSessionGuard from "./IdleSessionGuard";
@@ -10,12 +10,21 @@ import TosConsentGate from "./TosConsentGate";
 
 export default function RequireAuth({ children, allowedRoles }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { loading, session, memberships, currentRole, signOut, isDisabledAccount, isExpiredAccount } = useAuth();
 
   useEffect(() => {
     if (loading) return;
     if (!session) {
-      router.replace("/login");
+      // ⚠️ ห้าม replace("/login") ทับถ้าอยู่หน้า /login อยู่แล้ว — caller ที่สั่ง signOut() เอง
+      // (เช่น IdleSessionGuard's onTimeout ใน RequireAuth เองด้านล่าง หรือ AppShell's sign-out
+      // button) อาจกำลัง replace ไป "/login?reason=..." พร้อมกันอยู่ effect นี้ก็ re-run ตาม session
+      // ที่เพิ่งว่างลง (คนละรอบ render กัน ลำดับไม่แน่นอน) ถ้า replace("/login") เฉยๆ ทับซ้อนเข้าไป
+      // อาจชนะแล้วเหลือ query string หาย ผู้ใช้เลยไม่เห็นเหตุผลที่ถูก logout (เจอกับ TC-301 —
+      // idle timeout ควร redirect ไป /login?reason=idle แต่บางรอบไปจบที่ /login เฉยๆ)
+      if (pathname !== "/login") {
+        router.replace("/login");
+      }
       return;
     }
     // ⚠️ ต้องเช็ค isDisabledAccount/isExpiredAccount ก่อนเสมอ — คนที่เคยมีอู่แต่ถูกปิดใช้งาน
@@ -23,7 +32,7 @@ export default function RequireAuth({ children, allowedRoles }) {
     if (memberships.length === 0 && !isDisabledAccount && !isExpiredAccount) {
       router.replace("/signup"); // login แล้วแต่ไม่เคยมีอู่มาก่อนเลยจริงๆ ให้ไปสร้างอู่แรก
     }
-  }, [loading, session, memberships, isDisabledAccount, isExpiredAccount, router]);
+  }, [loading, session, memberships, isDisabledAccount, isExpiredAccount, router, pathname]);
 
   // ⚠️ กันเคส sign out แล้วกด back ของ browser กลับมาหน้านี้ — browser อาจคืนหน้าจาก
   // back/forward cache (bfcache) ทั้งอันโดยไม่รัน effect ข้างบนใหม่ ทำให้เห็นเนื้อหาเดิมค้างไว้
