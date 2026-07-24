@@ -28,6 +28,8 @@ function emptyVariant() {
 // preset ที่มีอยู่แล้วเสมอ ไม่มีปุ่ม "สร้างชุดใหม่")
 export default function JobTypeBundleConfirmModal({ initialJobTypeName, shopId, onCancel, onSave, saving }) {
   const [jobTypeName, setJobTypeName] = useState(initialJobTypeName || "");
+  // เวลาที่ใช้โดยประมาณ (วัน) — เก็บไว้ที่ระดับเซต ใช้เป็นค่าเริ่มต้นตอนประมาณวันที่งานเสร็จ
+  const [estimatedDurationDays, setEstimatedDurationDays] = useState("");
   const [items, setItems] = useState([emptyItem()]);
   // preset ขั้นตอนการทำงาน — เก็บแค่ชื่อ+ลำดับ ไม่มี assigned_to เด็ดขาด (ตัดสินใจแล้ว) ตอนนำเซตไป
   // ใช้จริงจะ insert เข้า job_workflow_steps แบบยังไม่มอบหมายใครเสมอ
@@ -169,6 +171,18 @@ export default function JobTypeBundleConfirmModal({ initialJobTypeName, shopId, 
             value={jobTypeName}
             onChange={(e) => setJobTypeName(e.target.value)}
             placeholder="เช่น เปลี่ยนถ่ายน้ำมันเครื่อง"
+          />
+        </label>
+
+        <label style={{ display: "block", marginTop: 12 }}>
+          เวลาที่ใช้โดยประมาณ (วัน)
+          <input
+            type="number"
+            value={estimatedDurationDays}
+            onChange={(e) => setEstimatedDurationDays(e.target.value)}
+            placeholder="เช่น 2"
+            min="0"
+            step="1"
           />
         </label>
 
@@ -456,7 +470,8 @@ export default function JobTypeBundleConfirmModal({ initialJobTypeName, shopId, 
               onSave(
                 jobTypeName.trim(),
                 items,
-                steps.map((s) => s.step_name.trim()).filter(Boolean)
+                steps.map((s) => s.step_name.trim()).filter(Boolean),
+                estimatedDurationDays !== "" ? Number(estimatedDurationDays) : null
               )
             }
             disabled={!canSave || saving}

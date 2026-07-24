@@ -27,6 +27,13 @@ const DOC_TYPE_LABELS = {
   billing: "ใบแจ้งหนี้",
 };
 
+// วันนี้ + จำนวนวัน -> "YYYY-MM-DD" (สำหรับเสนอ/บันทึกวันที่คาดว่าจะเสร็จจาก estimated_duration_days ของเซต)
+function addDaysISO(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + Number(days));
+  return d.toISOString().slice(0, 10);
+}
+
 function JobDetailPageContent() {
   const params = useParams();
   const router = useRouter();
@@ -47,6 +54,9 @@ function JobDetailPageContent() {
   const [bundleResults, setBundleResults] = useState([]);
   const [selectedBundleTemplate, setSelectedBundleTemplate] = useState(null);
   const [bundleVariantChoices, setBundleVariantChoices] = useState({}); // { [item_id]: variant_id }
+  // เสนอ "วันที่คาดว่าจะเสร็จ" อัตโนมัติจาก estimated_duration_days ของเซตที่เลือก (วันนี้ + จำนวนวัน)
+  // แค่เตรียมค่าไว้ตอนเลือกเซต — จะเขียนลง jobs จริงตอน "ใช้เซตนี้"/สร้างเซตใหม่แล้วใช้ทันที เท่านั้น
+  const [suggestedCompletionDate, setSuggestedCompletionDate] = useState(null);
   const [showNewBundleModal, setShowNewBundleModal] = useState(false);
   const [savingBundle, setSavingBundle] = useState(false);
   const [documents, setDocuments] = useState([]);
@@ -319,7 +329,7 @@ function JobDetailPageContent() {
     const { data } = await supabase
       .from("job_type_bundle_templates")
       .select(
-        "template_id, job_type_name, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, part_id, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, part_id, sort_order)), job_type_bundle_steps(step_id, step_name, sort_order)"
+        "template_id, job_type_name, estimated_duration_days, job_type_bundle_items(item_id, category, item_group_label, description, default_amount, default_quantity, is_price_locked, part_id, sort_order, job_type_bundle_item_variants(variant_id, variant_label, description, default_amount, default_quantity, part_id, sort_order)), job_type_bundle_steps(step_id, step_name, sort_order)"
       )
       .eq("shop_id", currentShopId)
       .ilike("job_type_name", `%${query.trim()}%`)
@@ -339,6 +349,11 @@ function JobDetailPageContent() {
     setBundleVariantChoices(defaults);
     clearSearchState();
     setNewCostItem((f) => ({ ...f, description: "" })); // เลือกเซตแล้ว เคลียร์ query ทิ้ง ไม่ใช่ค่ารายละเอียดจริง
+    // เตรียม "วันที่คาดว่าจะเสร็จ" ที่จะเสนอ (วันนี้ + จำนวนวันของเซต) — ยังไม่เขียนลง DB ตรงนี้
+    // จะเขียนจริงตอนกด "ใช้เซตนี้" (handleApplyBundle) เท่านั้น
+    setSuggestedCompletionDate(
+      typeof template.estimated_duration_days === "number" ? addDaysISO(template.estimated_duration_days) : null
+    );
   }
 
   // นำเซตที่เลือก (จากค้นหา หรือเพิ่งสร้างใหม่) ไปใส่เป็น job_cost_items หลายแถวพร้อมกัน
@@ -390,6 +405,18 @@ function JobDetailPageContent() {
     }
   }
 
+  // เขียน "วันที่คาดว่าจะเสร็จ" ลง jobs จริง — เรียกเฉพาะตอนที่งานยังไม่มีวันที่ตั้งไว้เอง (เช็คที่ผู้เรียก
+  // เสมอ) กันไม่ให้ auto-calc จากเซตไปทับค่าที่พนักงานตั้งไว้ด้วยมือแบบเงียบๆ
+  async function applySuggestedCompletionDate(dateStr) {
+    const { error } = await supabase
+      .from("jobs")
+      .update({ estimated_completion_date: dateStr })
+      .eq("job_id", jobId);
+    if (!error) {
+      setJob((j) => ({ ...j, estimated_completion_date: dateStr }));
+    }
+  }
+
   function handleApplyBundle() {
     const items = selectedBundleTemplate?.job_type_bundle_items || [];
     const rows = items.map((item) => {
@@ -419,18 +446,28 @@ function JobDetailPageContent() {
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
       .map((s) => s.step_name);
     applyBundleSteps(stepNames);
+    // ตั้งวันที่คาดว่าจะเสร็จอัตโนมัติจากเซต เฉพาะตอนที่งานนี้ยังไม่มีวันที่ตั้งไว้เอง — ไม่ทับของเดิม
+    if (suggestedCompletionDate && !job?.estimated_completion_date) {
+      applySuggestedCompletionDate(suggestedCompletionDate);
+    }
     setSelectedBundleTemplate(null);
     setBundleVariantChoices({});
+    setSuggestedCompletionDate(null);
   }
 
   // Owner/Manager/Admin เท่านั้นที่เห็นปุ่มนี้ (การ์ด) — สร้างเซตใหม่ inline จากหน้างานเลย ไม่ต้อง
   // ไปหน้าตั้งค่าแยก แล้วนำมาใช้กับงานปัจจุบันทันที
-  async function handleCreateAndApplyBundle(jobTypeName, items, steps) {
+  async function handleCreateAndApplyBundle(jobTypeName, items, steps, estimatedDurationDays) {
     setSavingBundle(true);
     try {
       const { data: template, error: templateError } = await supabase
         .from("job_type_bundle_templates")
-        .insert({ shop_id: currentShopId, job_type_name: jobTypeName, created_by: user.id })
+        .insert({
+          shop_id: currentShopId,
+          job_type_name: jobTypeName,
+          created_by: user.id,
+          estimated_duration_days: estimatedDurationDays,
+        })
         .select("template_id")
         .single();
       if (templateError) throw templateError;
@@ -512,6 +549,12 @@ function JobDetailPageContent() {
         const { error: stepsError } = await supabase.from("job_type_bundle_steps").insert(stepsToInsert);
         if (stepsError) throw stepsError;
         await applyBundleSteps(steps);
+      }
+
+      // ตั้งวันที่คาดว่าจะเสร็จอัตโนมัติจากจำนวนวันที่กรอกไว้ตอนสร้างเซตใหม่ — เฉพาะตอนที่งานนี้ยังไม่มี
+      // วันที่ตั้งไว้เอง (ไม่ทับของเดิม) เหมือน handleApplyBundle
+      if (typeof estimatedDurationDays === "number" && !job?.estimated_completion_date) {
+        await applySuggestedCompletionDate(addDaysISO(estimatedDurationDays));
       }
 
       setShowNewBundleModal(false);
@@ -634,6 +677,14 @@ function JobDetailPageContent() {
     const vatType = e.target.value;
     setJob((j) => ({ ...j, vat_type: vatType }));
     await supabase.from("jobs").update({ vat_type: vatType }).eq("job_id", jobId);
+  }
+
+  // แก้วันที่คาดว่าจะเสร็จด้วยมือ — บันทึกทันทีที่เปลี่ยน แยกอิสระจากค่าที่คำนวณอัตโนมัติจากเซต
+  // (พนักงานทับ/ล้างค่าเองได้เสมอ ไม่ต้องกดปุ่ม "บันทึกการแก้ไข" ของฟอร์มหลัก)
+  async function handleEstimatedCompletionDateChange(e) {
+    const value = e.target.value || null;
+    setJob((j) => ({ ...j, estimated_completion_date: value }));
+    await supabase.from("jobs").update({ estimated_completion_date: value }).eq("job_id", jobId);
   }
 
   async function handleCreateDocument(docType) {
@@ -1010,6 +1061,16 @@ function JobDetailPageContent() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label>
+          วันที่คาดว่าจะเสร็จ
+          <input
+            type="date"
+            name="estimated_completion_date"
+            value={job.estimated_completion_date || ""}
+            onChange={handleEstimatedCompletionDateChange}
+          />
         </label>
 
         <label>
