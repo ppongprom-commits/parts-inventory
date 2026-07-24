@@ -40,9 +40,26 @@ async function createShop({ name, plan, ownerUserId }) {
     .select("shop_id")
     .single();
   if (error) throw new Error(`สร้างร้าน ${name} ไม่สำเร็จ: ${error.message}`);
+
+  // shop_members.branch_id เป็น NOT NULL (schema ใหม่จากงาน Multi-branch ที่กำลังทำขนานอยู่ตอนนี้
+  // — ยังไม่มีไฟล์ migration ใน db/ ให้อ้างอิงตอนเขียนเทสต์นี้ พบตอนรันจริงว่า insert
+  // shop_members ธรรมดาพังเพราะ constraint นี้) — ต้องสร้าง branch หลักของร้านทดสอบก่อนเสมอ
+  const { data: branch, error: branchError } = await adminClient()
+    .from("branches")
+    .insert({ shop_id: data.shop_id, branch_code: "00000", branch_name: "สาขาหลัก (QA)", is_default: true })
+    .select("branch_id")
+    .single();
+  if (branchError) throw new Error(`สร้างสาขาหลักไม่สำเร็จ: ${branchError.message}`);
+
   const { error: memberError } = await adminClient()
     .from("shop_members")
-    .insert({ shop_id: data.shop_id, user_id: ownerUserId, role: "owner", status: "active" });
+    .insert({
+      shop_id: data.shop_id,
+      user_id: ownerUserId,
+      role: "owner",
+      status: "active",
+      branch_id: branch.branch_id,
+    });
   if (memberError) throw new Error(`เพิ่ม owner membership ไม่สำเร็จ: ${memberError.message}`);
   return data.shop_id;
 }
