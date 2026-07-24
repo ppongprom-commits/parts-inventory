@@ -41,7 +41,22 @@ export default function AppShell({ children, title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { currentShop, currentShopId, memberships, switchShop, currentRole, signOut, user } = useAuth();
+  const {
+    currentShop,
+    currentShopId,
+    memberships,
+    switchShop,
+    currentRole,
+    signOut,
+    user,
+    // การ์ด "Multi-branch support" — เหมือน pattern shop switcher เดิมข้างบนทุกประการ แต่สำหรับ
+    // สาขาภายในร้านเดียวกัน (ดู lib/AuthProvider.js) ร้านสาขาเดียว (ส่วนใหญ่ตอนนี้)
+    // branchMemberships จะมีแค่ 1 รายการเสมอ -> switcher นี้ไม่โผล่เลย พฤติกรรมเดิมทุกประการ
+    branchMemberships,
+    currentBranchId,
+    currentBranch,
+    switchBranch,
+  } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   // การ์ด "Field Visibility Whitelist กลาง (role × field group)" — nav visibility ตรงกับ field
@@ -51,6 +66,7 @@ export default function AppShell({ children, title }) {
   const canSeeReports = ["owner", "manager", "supervisor", "admin"].includes(currentRole);
   const navItems = canSeeReports ? [...NAV_ITEMS, REPORTS_ITEM] : NAV_ITEMS;
   const hasMultipleShops = memberships.length > 1;
+  const hasMultipleBranches = branchMemberships.length > 1;
 
   // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
   // (ดู TC-303 — ไม่งั้นผู้ใช้ค้างอยู่หน้าเดิมชั่วขณะหลังกด "ออกจากระบบ") ปุ่มนี้เป็นปุ่ม sign out
@@ -117,6 +133,34 @@ export default function AppShell({ children, title }) {
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* การ์ด "Multi-branch support" — สลับสาขาภายในร้านเดียวกัน (ดีไซน์ตาม shop switcher
+            ข้างบน) แสดงเฉพาะร้านที่มีมากกว่า 1 สาขาเท่านั้น (ส่วนใหญ่ 99%+ ของร้านตอนนี้มีแค่ 1
+            สาขา — ไม่เห็น switcher นี้เลย พฤติกรรมเดิมทุกประการ) */}
+        {hasMultipleBranches && (
+          <div style={{ padding: "4px 12px 8px" }}>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+              🏬 กำลังดูสาขา
+            </label>
+            <select
+              value={currentBranchId || ""}
+              onChange={(e) => switchBranch(Number(e.target.value))}
+              style={{ width: "100%", fontSize: 13, padding: "6px 8px" }}
+            >
+              {branchMemberships.map((b) => (
+                <option key={b.branch_id} value={b.branch_id}>
+                  {b.branch_name || `สาขา #${b.branch_id}`}
+                  {b.is_read_only ? " (read-only)" : ""}
+                </option>
+              ))}
+            </select>
+            {currentBranch?.is_read_only && (
+              <div style={{ fontSize: 11, color: "var(--danger, #c0392b)", marginTop: 4 }}>
+                ⚠️ สาขานี้เป็น read-only (เกิน limit ของแพ็กเกจหลัง downgrade) — ดูข้อมูลได้ แก้ไข/ขาย/สร้างงานใหม่ไม่ได้
+              </div>
+            )}
           </div>
         )}
 

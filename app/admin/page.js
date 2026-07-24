@@ -518,6 +518,22 @@ function AdminHubPageContent() {
         </div>
       </Link>
 
+      {/* การ์ด "Multi-branch support (Pro=2 สาขา, Enterprise=ไม่จำกัด)" — เฉพาะ owner/manager
+          เท่านั้นที่จัดการสาขาได้ (เหมือนหน้าจัดการทีมข้างบน) */}
+      {canManage && (
+        <Link
+          href="/admin/branches"
+          className="card"
+          data-testid="branches-link"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🏬 จัดการสาขา</div>
+            <div className="card-sub">สร้างสาขาเพิ่ม (ตาม limit ของแพ็กเกจ) ดูรายชื่อสาขาทั้งหมด</div>
+          </div>
+        </Link>
+      )}
+
       {canSeeStockSummaryReport && (
         <Link
           href="/admin/stock-summary-report"

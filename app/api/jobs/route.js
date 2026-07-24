@@ -20,24 +20,42 @@ export async function GET(request) {
       return NextResponse.json({ error: "ไม่พบ shop_id" }, { status: 400 });
     }
 
-    const { data: callerMember } = await supabaseAdmin
+    // การ์ด "Multi-branch support" — 1 user อาจมีหลายแถวใน shop_members ของ shop เดียวกันได้แล้ว
+    // (คนละสาขา คนละ role) — ดึงทุกแถวแทน .maybeSingle() เดิม (ซึ่งจะ throw ถ้าเจอมากกว่า 1 แถว)
+    // แล้วเลือก role สูงสุดไว้ทำ field-visibility masking + ตัดสินใจว่าต้อง scope ตาม branch_id ไหม
+    const { data: memberRows } = await supabaseAdmin
       .from("shop_members")
-      .select("role")
+      .select("role, branch_id")
       .eq("shop_id", shopId)
       .eq("user_id", authResult.userId)
-      .eq("status", "active")
-      .maybeSingle();
+      .eq("status", "active");
 
-    if (!callerMember) {
+    if (!memberRows || memberRows.length === 0) {
       return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงอู่นี้" }, { status: 403 });
     }
 
-    const { data: jobs, error: jobsError } = await supabaseAdmin
+    const isCrossBranch = memberRows.some((m) => ["owner", "manager"].includes(m.role));
+    const callerMember = {
+      role: memberRows.find((m) => ["owner", "manager"].includes(m.role))?.role || memberRows[0].role,
+    };
+    // Judgment call (ไม่ได้ระบุตรงๆ ในการ์ด multi-branch): owner/manager เห็นงานข้ามทุกสาขาของ
+    // ร้านตัวเองเสมอ role อื่นเห็นเฉพาะสาขาที่ตัวเองมีแถว shop_members อยู่จริง — เดิม endpoint
+    // นี้ (ผ่าน supabaseAdmin, service role) ข้าม RLS โดยตั้งใจ จึงต้องกรอง branch เองตรงนี้ด้วย
+    // ไม่งั้นข้อมูลสาขา A จะรั่วไปสาขา B ผ่าน endpoint นี้ทั้งที่ RLS (สำหรับ browser client อื่นๆ)
+    // ถูกแก้ให้ปลอดภัยแล้ว
+    const branchIds = [...new Set(memberRows.map((m) => m.branch_id).filter((b) => b != null))];
+
+    let jobsQuery = supabaseAdmin
       .from("jobs")
       .select("*")
       .eq("shop_id", shopId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
+    if (!isCrossBranch && branchIds.length > 0) {
+      jobsQuery = jobsQuery.in("branch_id", branchIds);
+    }
+
+    const { data: jobs, error: jobsError } = await jobsQuery;
     if (jobsError) throw jobsError;
 
     const { data: overrides } = await supabaseAdmin

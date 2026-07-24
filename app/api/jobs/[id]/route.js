@@ -29,25 +29,38 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "ไม่พบ shop_id" }, { status: 400 });
     }
 
-    const { data: callerMember } = await supabaseAdmin
+    // การ์ด "Multi-branch support" — 1 user อาจมีหลายแถวใน shop_members ของ shop เดียวกันได้แล้ว
+    // (คนละสาขา คนละ role) — ดึงทุกแถวแทน .maybeSingle() เดิม (throw ถ้าเจอมากกว่า 1 แถว)
+    const { data: memberRows } = await supabaseAdmin
       .from("shop_members")
-      .select("role")
+      .select("role, branch_id")
       .eq("shop_id", shopId)
       .eq("user_id", authResult.userId)
-      .eq("status", "active")
-      .maybeSingle();
+      .eq("status", "active");
 
-    if (!callerMember) {
+    if (!memberRows || memberRows.length === 0) {
       return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงอู่นี้" }, { status: 403 });
     }
 
-    const { data: job, error: jobError } = await supabaseAdmin
+    const isCrossBranch = memberRows.some((m) => ["owner", "manager"].includes(m.role));
+    const callerMember = {
+      role: memberRows.find((m) => ["owner", "manager"].includes(m.role))?.role || memberRows[0].role,
+    };
+    const branchIds = [...new Set(memberRows.map((m) => m.branch_id).filter((b) => b != null))];
+
+    let jobQuery = supabaseAdmin
       .from("jobs")
       .select("*")
       .eq("job_id", jobId)
       .eq("shop_id", shopId)
-      .is("deleted_at", null)
-      .maybeSingle();
+      .is("deleted_at", null);
+    // ป้องกันงานสาขา B รั่วมาสาขา A ผ่าน endpoint นี้ (bypass RLS ด้วย supabaseAdmin โดยตั้งใจ
+    // อยู่แล้ว จึงต้องกรอง branch เองตรงนี้ — เหมือน app/api/jobs/route.js) owner/manager ข้ามได้
+    if (!isCrossBranch && branchIds.length > 0) {
+      jobQuery = jobQuery.in("branch_id", branchIds);
+    }
+
+    const { data: job, error: jobError } = await jobQuery.maybeSingle();
     if (jobError) throw jobError;
     if (!job) {
       return NextResponse.json({ error: "ไม่พบงานนี้" }, { status: 404 });
