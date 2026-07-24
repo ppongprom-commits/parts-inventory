@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/AuthProvider";
 import RequireAuth from "../../components/RequireAuth";
 import { JOB_STATUS_STYLE } from "../../lib/jobStatusLabels";
+import { SESSION_ID_HEADER, getStoredSessionId } from "../../lib/sessionTracking";
 
 const TABS = [
   { key: "all", label: "ทั้งหมด", icon: "📋" },
@@ -30,15 +31,25 @@ function JobsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId]);
 
+  // การ์ด "Field Visibility Whitelist กลาง (role × field group)" — retrofit: ดึงผ่าน
+  // app/api/jobs/route.js แทนการ query ตรงจาก client — server mask customer_name/customer_phone
+  // ตาม role ก่อนส่งกลับเสมอ (ไม่ใช่ query ตรงแล้วซ่อนที่ client ตามกติกาข้อ 1 ของการ์ด)
   async function fetchJobs() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("shop_id", currentShopId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-    if (!error) setJobs(data || []);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const res = await fetch(`/api/jobs?shop_id=${currentShopId}`, {
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`,
+        [SESSION_ID_HEADER]: getStoredSessionId() || "",
+      },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      setJobs(json.jobs || []);
+    }
     setLoading(false);
   }
 

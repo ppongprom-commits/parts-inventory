@@ -342,7 +342,9 @@ function AdminHubPageContent() {
   const { theme, setTheme } = useTheme();
   const { currentRole, currentShop, shopHasAdminMember } = useAuth();
   const canManage = currentRole === "owner" || currentRole === "manager";
-  const canExport = ["owner", "manager", "supervisor"].includes(currentRole);
+  // การ์ด "Admin Role (7th role)" (21 ก.ค. 2026): Admin เข้าถึง Export CSV (parts/jobs) ได้ด้วย —
+  // ตรงกับ config/fieldVisibility.js DEFAULT_FIELD_VISIBILITY.admin.export_csv_parts/jobs = true
+  const canExport = ["owner", "manager", "supervisor", "admin"].includes(currentRole);
   // การ์ด "Admin Role (7th role)" item (3): Admin เข้าร่วม Owner/Manager สำหรับจัดการลูกค้า
   // (import/แก้ไข) — เฉพาะการ์ดนี้เท่านั้น ไม่ขยาย canManage รวม (zone/car-data/shop-info ยังคง
   // owner/manager เท่านั้นตามเดิม ไม่อยู่ใน scope ของ Admin Role)
@@ -350,9 +352,15 @@ function AdminHubPageContent() {
 
   // การ์ด "รายงานสรุปสต็อก (Stock Summary Report) — Pro+" — UI-hide layer (API เองก็เช็คซ้ำอีกชั้น
   // ที่ app/api/reports/stock-summary/route.js ตาม convention "เช็คทั้ง UI และ API เสมอ" ของโปรเจกต์นี้)
+  // การ์ด "Field Visibility Whitelist กลาง" — role ที่เห็นการ์ดนี้ต้องตรงกับ field group
+  // "sales_reports" (default: owner/manager/supervisor/admin ✅) แทน canManage (owner/manager
+  // เท่านั้น) เดิม — ยังคงเป็นแค่ UI-hide layer เท่านั้น ตัวบังคับจริงอยู่ที่ canSeeField() ใน
+  // route.js
   const reportsTier = getTierConfig(currentShop?.subscription_plan);
+  const canSeeSalesReportsGroup = ["owner", "manager", "supervisor", "admin"].includes(currentRole);
   const canSeeStockSummaryReport =
-    canManage && ((reportsTier.features || []).includes("reports") || (reportsTier.features || []).includes("all"));
+    canSeeSalesReportsGroup &&
+    ((reportsTier.features || []).includes("reports") || (reportsTier.features || []).includes("all"));
 
   return (
     <div className="container">
@@ -454,6 +462,21 @@ function AdminHubPageContent() {
           <div className="card-body">
             <div className="card-title">📥 นำเข้าข้อมูลลูกค้าเดิม</div>
             <div className="card-sub">อัปโหลด CSV รายชื่อลูกค้าจากระบบ/ไฟล์เก่า</div>
+          </div>
+        </Link>
+      )}
+
+      {/* การ์ด "Field Visibility Whitelist กลาง (role × field group)" — เฉพาะเจ้าของร้านปรับ
+          override ได้ (RLS เขียนได้เฉพาะ owner อยู่แล้ว เมนูนี้จึงแสดงเฉพาะ owner ด้วย) */}
+      {currentRole === "owner" && (
+        <Link
+          href="/admin/settings/field-visibility"
+          className="card"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <div className="card-body">
+            <div className="card-title">🔐 Field Visibility — สิทธิ์เห็นข้อมูลตาม role</div>
+            <div className="card-sub">ปรับว่า role ไหนเห็นราคา/ข้อมูลลูกค้า/export ได้บ้าง (default กลาง + override ต่อร้าน)</div>
           </div>
         </Link>
       )}

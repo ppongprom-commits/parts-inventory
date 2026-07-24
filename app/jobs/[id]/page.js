@@ -10,6 +10,7 @@ import { JOB_STATUSES, JOB_STATUS_STYLE, JOB_SOURCE_TYPES } from "../../../lib/j
 import CarDamageDiagram from "../../../components/CarDamageDiagram";
 import JobTypeBundleConfirmModal from "../../../components/JobTypeBundleConfirmModal";
 import CarAutocomplete from "../../../components/CarAutocomplete";
+import { SESSION_ID_HEADER, getStoredSessionId } from "../../../lib/sessionTracking";
 
 const ROLE_LABELS = {
   owner: "เจ้าของ",
@@ -892,12 +893,26 @@ function JobDetailPageContent() {
     setMsg({ type: "success", text: "คัดลอกลิงก์แล้ว ✅ (ส่งให้ลูกค้าได้เลย)" });
   }
 
+  // การ์ด "Field Visibility Whitelist กลาง (role × field group)" — retrofit: ดึงผ่าน
+  // app/api/jobs/[id]/route.js แทนการ query ตรงจาก client — server mask customer_name/
+  // customer_phone ตาม role ก่อนส่งกลับเสมอ (Field Scanner เห็นไม่ได้เด็ดขาดตาม floor rule)
   async function fetchJob() {
     setLoading(true);
-    const { data, error } = await supabase.from("jobs").select("*").eq("job_id", jobId).single();
-    if (error) {
-      setMsg({ type: "error", text: "โหลดข้อมูลไม่สำเร็จ: " + error.message });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const res = await fetch(`/api/jobs/${jobId}?shop_id=${currentShopId}`, {
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`,
+        [SESSION_ID_HEADER]: getStoredSessionId() || "",
+      },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg({ type: "error", text: "โหลดข้อมูลไม่สำเร็จ: " + (json.error || res.statusText) });
     } else {
+      const data = json.job;
       setJob(data);
       if (data.car_year_display) {
         let trimName = null;

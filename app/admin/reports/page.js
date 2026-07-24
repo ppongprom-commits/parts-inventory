@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/AuthProvider";
 import RequireAuth from "../../../components/RequireAuth";
+import { SESSION_ID_HEADER, getStoredSessionId } from "../../../lib/sessionTracking";
 
 const RANGES = [
   { key: "today", label: "วันนี้" },
@@ -39,63 +40,54 @@ function ReportsPageContent() {
   const [billingDocs, setBillingDocs] = useState([]);
   // จำนวนรายการขายอะไหล่ไม่มีราคาที่ยังรออนุมัติ (ไม่รวมในยอดข้างบนเลย) — แค่โชว์ให้รู้ว่ามีอยู่
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     if (currentShopId) fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId, range]);
 
+  // การ์ด "Field Visibility Whitelist กลาง (role × field group)" — retrofit: ดึงผ่าน
+  // app/api/reports/sales/route.js แทนการ query ตรงจาก client — server เช็ค
+  // canSeeField(role, "sales_reports") จาก matrix กลาง (แทน hardcode RequireAuth allowedRoles
+  // เดิมที่ไม่ตรงกับ default matrix ของการ์ดนี้ — supervisor/admin ควรเห็นได้ default) และ mask
+  // ชื่อลูกค้าตาม field group "customer_name" ก่อนส่งกลับเสมอ (ไม่ใช่ query ตรงแล้วซ่อนที่ client)
+  //
+  // เนื้อหาการรวม/กรอง item_status='not_found' และ approval_status='pending_approval' (บั๊กที่
+  // เคยแก้ + การ์ด Approval Flow แบบ configurable) ย้ายไปอยู่ใน route นั้นแทน ตรรกะเดิมไม่เปลี่ยน
   async function fetchData() {
     setLoading(true);
+    setForbidden(false);
     const rangeStart = getRangeStart(range);
 
-    // ✅ ตัดสินใจแล้วในการ์ด Accounting Module — scope "Informal Report": แยกตามวิธีชำระเงินด้วย
-    // (payment_method มีอยู่แล้วจาก card เดิม + ตอนนี้ผูกกับ Cart-based selling flow เต็มรูปแล้ว)
-    //
-    // บั๊กที่แก้คืนนี้: query เดิมไม่กรอง item_status เลย — พอ Cart-based selling flow เริ่มใช้จริง
-    // แล้ว part_sales บางแถวจะมี item_status = 'not_found' (พนักงานหาของไม่เจอตอน pick แล้วคืน
-    // สต็อกอัตโนมัติ — ดูการ์ด Cart-based selling flow) ซึ่ง**ไม่ควรนับเป็นยอดขายจริง** เพราะสต็อก
-    // ถูกคืนแล้วไม่มีการส่งมอบเกิดขึ้นจริง แต่รายงานเดิมนับรวมไปด้วยเพราะไม่เคยกรอง — แก้แล้ว
-    //
-    // การ์ด "ขายอะไหล่ที่ยังไม่ตีราคา... (Approval Flow แบบ configurable)" (24 ก.ค. 2026 — ตัดสินใจ
-    // แล้ว): แถวที่ approval_status='pending_approval' (ขายอะไหล่ไม่มีราคา + shop เปิด approval
-    // flow) **ไม่นับเข้ารายงานนี้เลยจนกว่าจะอนุมัติ** — approved/rejected/not_required นับตามปกติ
-    // ทั้งหมด (rejected ยังนับเพราะมติการ์ดคือ "คงขายไว้" ไม่ reverse ใดๆ)
-    let salesQuery = supabase
-      .from("part_sales")
-      .select(
-        "sale_id, quantity_sold, sale_price, sold_to, sold_at, payment_method, item_status, approval_status, part_id, parts(part_name)"
-      )
-      .eq("shop_id", currentShopId)
-      .neq("item_status", "not_found")
-      .neq("approval_status", "pending_approval")
-      .order("sold_at", { ascending: false });
-    if (rangeStart) salesQuery = salesQuery.gte("sold_at", rangeStart.toISOString());
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    let pendingApprovalCountQuery = supabase
-      .from("part_sales")
-      .select("sale_id", { count: "exact", head: true })
-      .eq("shop_id", currentShopId)
-      .eq("approval_status", "pending_approval");
-    if (rangeStart) pendingApprovalCountQuery = pendingApprovalCountQuery.gte("sold_at", rangeStart.toISOString());
+    const url = new URL("/api/reports/sales", window.location.origin);
+    url.searchParams.set("shop_id", currentShopId);
+    if (rangeStart) url.searchParams.set("range_start", rangeStart.toISOString());
 
-    let billingQuery = supabase
-      .from("job_documents")
-      .select("document_id, doc_number, snapshot, created_at, job_id")
-      .eq("shop_id", currentShopId)
-      .eq("doc_type", "billing")
-      .order("created_at", { ascending: false });
-    if (rangeStart) billingQuery = billingQuery.gte("created_at", rangeStart.toISOString());
+    const res = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`,
+        [SESSION_ID_HEADER]: getStoredSessionId() || "",
+      },
+    });
 
-    const [salesRes, billingRes, pendingCountRes] = await Promise.all([
-      salesQuery,
-      billingQuery,
-      pendingApprovalCountQuery,
-    ]);
+    if (res.status === 403) {
+      setForbidden(true);
+      setPartSales([]);
+      setBillingDocs([]);
+      setPendingApprovalCount(0);
+      setLoading(false);
+      return;
+    }
 
-    setPartSales(salesRes.data || []);
-    setBillingDocs(billingRes.data || []);
-    setPendingApprovalCount(pendingCountRes.count || 0);
+    const json = await res.json().catch(() => ({}));
+    setPartSales(json.partSales || []);
+    setBillingDocs(json.billingDocs || []);
+    setPendingApprovalCount(json.pendingApprovalCount || 0);
     setLoading(false);
   }
 
@@ -150,7 +142,11 @@ function ReportsPageContent() {
         ))}
       </div>
 
-      {loading ? (
+      {forbidden ? (
+        <div className="empty" data-testid="reports-forbidden">
+          🔒 ไม่มีสิทธิ์ดูรายงานยอดขาย (ติดต่อเจ้าของร้านถ้าคิดว่าควรเห็นได้)
+        </div>
+      ) : loading ? (
         <div className="empty">กำลังโหลด...</div>
       ) : (
         <>
@@ -299,9 +295,15 @@ function ReportsPageContent() {
   );
 }
 
+// การ์ด "Field Visibility Whitelist กลาง (role × field group)" — ก่อนหน้านี้ hardcode
+// allowedRoles={["owner","manager"]} ตรงนี้ ซึ่งไม่ตรงกับ default matrix กลาง (supervisor/admin
+// ควรเห็นรายงานได้ default) — ย้าย gate จริงไปที่ canSeeField("sales_reports") ฝั่ง server
+// (app/api/reports/sales/route.js) แทน หน้านี้เปิดให้ทุก role ที่ล็อกอินเข้ามาดูได้ (ไม่รวม
+// field_scanner ที่ไม่มีสิทธิ์ทำรายการขาย/ดูอะไรเกี่ยวกับ jobs เลยตามการ์ดของ role นั้น) แล้วให้
+// server ตัดสินว่าเห็นข้อมูลจริงได้ไหม (ขึ้นกับ default + override ต่อร้าน)
 export default function ReportsPage() {
   return (
-    <RequireAuth allowedRoles={["owner", "manager"]}>
+    <RequireAuth allowedRoles={["owner", "manager", "supervisor", "admin"]}>
       <ReportsPageContent />
     </RequireAuth>
   );

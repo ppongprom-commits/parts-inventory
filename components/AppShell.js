@@ -44,7 +44,11 @@ export default function AppShell({ children, title }) {
   const { currentShop, currentShopId, memberships, switchShop, currentRole, signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const canSeeReports = currentRole === "owner" || currentRole === "manager";
+  // การ์ด "Field Visibility Whitelist กลาง (role × field group)" — nav visibility ตรงกับ field
+  // group "sales_reports" (default: owner/manager/supervisor/admin ✅) แทน owner/manager เดิม —
+  // ยังเป็นแค่ UI-hide layer เท่านั้น ตัวบังคับจริงอยู่ที่ canSeeField() ฝั่ง server
+  // (app/api/reports/sales/route.js)
+  const canSeeReports = ["owner", "manager", "supervisor", "admin"].includes(currentRole);
   const navItems = canSeeReports ? [...NAV_ITEMS, REPORTS_ITEM] : NAV_ITEMS;
   const hasMultipleShops = memberships.length > 1;
 
