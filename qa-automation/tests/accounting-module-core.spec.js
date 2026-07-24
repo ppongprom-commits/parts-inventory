@@ -25,6 +25,27 @@ async function getOwnerClient(email, password) {
   return { client, userId: data.user.id };
 }
 
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026) เปลี่ยน set_accounting_module_enabled
+// ให้ต้องเป็น platform_admins.role='super_admin' เท่านั้นถึงจะเรียกได้ (เดิม owner/manager เรียก
+// RPC ตรงๆ ได้ -- ตอนนี้ต้องผ่าน POST /api/platform/shops/[shopId]/accounting-module) ไฟล์นี้จึง
+// ต้องยืมสิทธิ์ super_admin จาก accounts.ownerPlatformAdmin (fixture เดียวกับที่
+// platform-controlled-shop-features.spec.js ใช้) แทน ownerClient เดิมเฉพาะจุดที่เปิด/ปิด module
+async function setAccountingModuleEnabled(request, baseURL, shopId, enabled) {
+  const { client: superAdminClient } = await getOwnerClient(
+    accounts.ownerPlatformAdmin.email,
+    accounts.ownerPlatformAdmin.password
+  );
+  const {
+    data: { session },
+  } = await superAdminClient.auth.getSession();
+  const res = await request.post(`${baseURL}/api/platform/shops/${shopId}/accounting-module`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+    data: { enabled },
+  });
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status(), json };
+}
+
 // mirror ของ createShop() ใน stock-summary-report.spec.js
 async function createShop({ name, plan, ownerUserId }) {
   const { data, error } = await adminClient()
@@ -119,13 +140,10 @@ test.describe("Accounting Module — core (scoped-down first pass)", () => {
     }
   });
 
-  test("ACC-001 เปิด module สำเร็จบน shop tier Pro — seed ผังบัญชีมาตรฐานอัตโนมัติ", async () => {
-    const { data, error } = await ownerClient.rpc("set_accounting_module_enabled", {
-      p_shop_id: proShopId,
-      p_enabled: true,
-    });
-    expect(error, error?.message).toBeNull();
-    expect(data).toBe(0); // ไม่มี sale ค้างให้ backfill ตอนนี้
+  test("ACC-001 เปิด module สำเร็จบน shop tier Pro — seed ผังบัญชีมาตรฐานอัตโนมัติ", async ({ request, baseURL }) => {
+    const { status, json } = await setAccountingModuleEnabled(request, baseURL, proShopId, true);
+    expect(status, JSON.stringify(json)).toBe(200);
+    expect(json.data.backfilled_count).toBe(0); // ไม่มี sale ค้างให้ backfill ตอนนี้
 
     const { data: shopRow } = await adminClient()
       .from("shops")
@@ -308,8 +326,9 @@ test.describe("Accounting Module — core (scoped-down first pass)", () => {
     expect(Number(consignorRow.ar_payable_balance)).toBeCloseTo(1600, 2);
   });
 
-  test("ACC-007 module OFF -> ไม่สร้าง journal entry เลย แต่ part_sales ยังบันทึกปกติ", async () => {
-    await ownerClient.rpc("set_accounting_module_enabled", { p_shop_id: proShopId, p_enabled: false });
+  test("ACC-007 module OFF -> ไม่สร้าง journal entry เลย แต่ part_sales ยังบันทึกปกติ", async ({ request, baseURL }) => {
+    const { status: offStatus } = await setAccountingModuleEnabled(request, baseURL, proShopId, false);
+    expect(offStatus).toBe(200); // downstream (entries.length===0) พึ่งว่าปิดสำเร็จจริง
 
     const partId = await makePart(proShopId, { price: 300 });
     partIds.push(partId);
@@ -335,14 +354,11 @@ test.describe("Accounting Module — core (scoped-down first pass)", () => {
     expect(entries.length).toBe(0);
   });
 
-  test("ACC-008 backfill-on-enable — เปิด module เจอ sale ที่ค้างในงวดปัจจุบัน -> backfill ให้อัตโนมัติ", async () => {
+  test("ACC-008 backfill-on-enable — เปิด module เจอ sale ที่ค้างในงวดปัจจุบัน -> backfill ให้อัตโนมัติ", async ({ request, baseURL }) => {
     // sale จาก ACC-007 (module ปิดตอนขาย) ยังไม่มี journal entry — เปิด module อีกครั้งต้อง backfill ให้
-    const { data: backfillCount, error } = await ownerClient.rpc("set_accounting_module_enabled", {
-      p_shop_id: proShopId,
-      p_enabled: true,
-    });
-    expect(error, error?.message).toBeNull();
-    expect(Number(backfillCount)).toBeGreaterThanOrEqual(1);
+    const { status, json } = await setAccountingModuleEnabled(request, baseURL, proShopId, true);
+    expect(status, JSON.stringify(json)).toBe(200);
+    expect(Number(json.data.backfilled_count)).toBeGreaterThanOrEqual(1);
 
     const lastSaleId = saleIds[saleIds.length - 1];
     const { entries } = await journalLinesFor(lastSaleId);
@@ -380,9 +396,9 @@ test.describe("Accounting Module — core (scoped-down first pass)", () => {
     expect(doubleCloseError, "ปิดงวดที่ปิดไปแล้วซ้ำต้อง error").not.toBeNull();
   });
 
-  test("ACC-010 tier gate — ปฏิเสธเปิด module บน shop tier ที่ไม่ผ่าน (trial)", async () => {
+  test("ACC-010 tier gate — ปฏิเสธเปิด module บน shop tier ที่ไม่ผ่าน (trial)", async ({ request, baseURL }) => {
     const trialOwner = getTierShopOwner("trial");
-    const { client: trialClient, userId: trialUserId } = await getOwnerClient(trialOwner.email, trialOwner.password);
+    const { userId: trialUserId } = await getOwnerClient(trialOwner.email, trialOwner.password);
 
     const { data: memberRow } = await adminClient()
       .from("shop_members")
@@ -394,12 +410,11 @@ test.describe("Accounting Module — core (scoped-down first pass)", () => {
       .single();
     const trialShopId = memberRow.shop_id;
 
-    const { error } = await trialClient.rpc("set_accounting_module_enabled", {
-      p_shop_id: trialShopId,
-      p_enabled: true,
-    });
-    expect(error, "shop tier trial ต้องถูกปฏิเสธไม่ให้เปิดโมดูลบัญชี").not.toBeNull();
-    expect(error.message).toMatch(/แพ็กเกจ/);
+    // เรียกผ่าน super_admin (สิทธิ์เรียกผ่าน) เพื่อให้เหลือแค่ tier check ข้างในเป็นตัวบล็อก -- ถ้าเรียกด้วย
+    // trialClient เดิมจะโดน 403 จากชั้น auth ก่อนถึงจะมีโอกาสเจอ tier check เลย
+    const { status, json } = await setAccountingModuleEnabled(request, baseURL, trialShopId, true);
+    expect(status, "shop tier trial ต้องถูกปฏิเสธไม่ให้เปิดโมดูลบัญชี").toBe(500);
+    expect(json.error).toMatch(/แพ็กเกจ/);
 
     const { data: shopRow } = await adminClient()
       .from("shops")
