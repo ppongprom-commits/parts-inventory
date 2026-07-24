@@ -360,7 +360,9 @@ Supervisor = สายหน้างาน (ปฏิบัติการ), Ad
    override ได้เสมอ (เผื่อทำ "เลือกได้" ทีหลังไม่ต้องแก้ backend)
 
 **Backend:** SQL functions ใน `db/stock_summary_report_migration.sql` (เรียกผ่าน
-`app/api/reports/stock-summary/route.js` ด้วย `supabaseAdmin.rpc()`) — role gate (owner/manager)
+`app/api/reports/stock-summary/route.js` ด้วย `supabaseAdmin.rpc()`) — role gate (เดิม hardcode
+owner/manager, **retrofit 24 ก.ค. 2026 ให้อ้าง `canSeeField(role, "sales_reports")` จาก
+`config/fieldVisibility.js` แทน — ดูข้อ 14** — default ให้ผลเหมือนเดิมบวก supervisor/admin)
 + tier gate (Pro ขึ้นไป, เช็ค `subscription_plan` ผ่าน `getTierConfig()`) ทั้งที่ UI (ซ่อนลิงก์) และ
 API (403) ตาม convention เดียวกับ `app/api/sales/export-csv/route.js`
 
@@ -369,6 +371,47 @@ API (403) ตาม convention เดียวกับ `app/api/sales/export-cs
 
 **เลขชั่วคราว 2 ตัวที่ยังไม่เคาะจริง (ต้องกลับมาคุยกับคุณอั้ม):** เกณฑ์ค้างสต็อก 90 วัน และหน้าต่าง
 Top 10 30 วัน — ดูคอมเมนต์เต็มใน `config/reportingThresholds.js`
+
+---
+
+## 14. Field Visibility Whitelist กลาง (role × field group) — ✅ ใช้งานได้จริงครบ 4 การ์ด (เพิ่มใหม่ 24 ก.ค. 2026)
+
+**การ์ด:** Notion `3a1f39f4564981f1b544ca7ab0b00973` — เกิดจาก gap review ที่พบว่ากติกา "role ไหน
+เห็นข้อมูลอ่อนไหวอะไร" โผล่ซ้ำแยกกันใน 4 การ์ด (Export CSV, Custom Report Builder, API พื้นฐาน,
+Field Scanner Role) โดยไม่มีที่กำหนดกลาง
+
+**Config กลาง:** `config/fieldVisibility.js` — export `DEFAULT_FIELD_VISIBILITY` (matrix role ×
+field group, ตัดสินใจแล้วในการ์ด), `FLOOR_RULES` (คู่ role+field group ที่ปรับสูงกว่านี้ไม่ได้เด็ดขาด
+ไม่ว่าเจ้าของร้านจะตั้งยังไง — Field Scanner เห็นชื่อ/เบอร์ลูกค้าไม่ได้, จัดการ API key สงวน
+owner/manager เท่านั้น), และ `canSeeField(role, fieldGroup, overrides)` — เช็ค floor ก่อนเสมอ ตามด้วย
+override ต่อร้าน (ถ้ามี) แล้วค่อย fallback ไป default matrix
+
+**Override ต่อร้าน:** ตาราง `shop_field_visibility_overrides` (`db/field_visibility_overrides_migration.sql`
++ แก้เพิ่ม role `admin` ทีหลังใน `db/field_visibility_admin_role_fix_migration.sql`) — Owner ปรับได้
+ที่หน้า `/admin/settings/field-visibility` (mirror pattern เดียวกับ
+`/admin/settings/admin-approvals`) floor rule บังคับซ้ำที่ DB layer ด้วย trigger
+`fn_enforce_field_visibility_floor` (defense in depth — ปฏิเสธแม้เขียนตรงเข้าตารางข้าม UI ทั้งหมด)
+
+**Wire เข้าครบทั้ง 4 การ์ดที่ควรใช้ matrix นี้แล้ว (ก่อนหน้านี้มีแค่ Export CSV):**
+1. **Export CSV** (parts/jobs/sales) — `app/api/{parts,jobs,sales}/export-csv/route.js`
+2. **Field Scanner Role** — `app/api/jobs/route.js` + `app/api/jobs/[id]/route.js` ใหม่ mask
+   `customer_name`/`customer_phone` ฝั่ง server (ก่อนหน้านี้ `/jobs`, `/jobs/[id]` query ตรงจาก
+   client โดยไม่กรองคอลัมน์ตาม role เลย — floor rule ของการ์ดนี้ไม่เคย enforce จริงมาก่อน)
+3. **Reports** — `/admin/reports` (ผ่าน `app/api/reports/sales/route.js` ใหม่) และ
+   `/admin/stock-summary-report` (retrofit role gate เดิม) ทั้งคู่เช็ค
+   `canSeeField(role, "sales_reports")` จาก matrix กลางแทน hardcode role list
+4. **API พื้นฐาน (Pro+)** — ยังไม่มีโค้ดเลย (การ์ดของตัวเอง deferred แยกต่างหาก) — N/A ตอนนี้ config
+   พร้อม plug-in ได้ทันทีที่ฟีเจอร์นี้เริ่มสร้างจริง
+
+**Known gap ที่ตั้งใจไม่แก้ (นอกขอบเขตการ์ดนี้):** user ที่ login ด้วย role ของตัวเองยัง query
+supabase-js ตรงๆ ข้าม Next.js API layer ได้ (ข้าม mask ที่ route ทำไว้) เพราะ RLS ของโปรเจกต์นี้ scope
+แค่ `shop_id` ไม่เคย scope คอลัมน์ต่อ role แอปเลย — เหมือน limitation เดิมของ `view_price`
+(`config/rolePermissions.js`) ที่ซ่อนแค่ฝั่ง client ที่ `app/page.js` ต้องแก้ผ่าน Postgres
+view/RPC ที่เช็ค role จาก `auth.uid()` เองถึงจะปิดช่องนี้ได้จริงทุกจุด
+
+**Test:** `qa-automation/tests/field-visibility-whitelist.spec.js` — assert ว่า field ต้องห้ามหายไป
+จาก response body จริง (ไม่ใช่แค่ DOM) ครบทุก role × channel ที่ระบุในการ์ด + floor override ถูก
+ปฏิเสธเสมอแม้ยิงตรงเข้า DB ข้าม UI
 
 ---
 
