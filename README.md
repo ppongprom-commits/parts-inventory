@@ -1123,3 +1123,18 @@ debit=credit invariant, own sale (cash/credit), consignment sale (no COGS), modu
 period close reject, tier gate (RPC + UI), informal vs formal ไม่ drift. Regression: 
 `card-payment-method.spec.js` (3), `stock-summary-report.spec.js` (11), `unpriced-part-sale-approval.spec.js`
 (7) — ผ่านทั้งหมด ไม่มี regression จากการเพิ่ม trigger ใหม่บน `part_sales`.
+
+### 27. คืนวันที่ 24 ก.ค. 2026 — อัปเดต `USER_MANUAL.md` ให้ตรงกับสถานะแอปปัจจุบัน
+
+Notion card "User Manual — Parts Inventory (draft)" — เอกสารเดิมหยุดอัปเดตไว้ที่ 20-21 ก.ค. 2026
+(5 บทบาท, idle timeout เขียนผิดเป็น 15 นาที) ตรวจกับ `SOP.md` (13 หัวข้อ) ทีละหัวข้อ + อ่านโค้ด
+UI จริง (ไม่ใช่แค่ paraphrase SOP.md) แล้วเขียนใหม่ทั้งไฟล์ โครงสร้างจัดตามบทบาทก่อน (7 บทบาทตอนนี้
+รวม Admin ที่ 7 และ Field Scanner ที่ 6) แล้วค่อยแยกฟีเจอร์ในมุมมองของบทบาทนั้น — เพิ่มเนื้อหาที่
+ขาดของฟีเจอร์ที่ทำเสร็จช่วง 20-24 ก.ค.: ระบบตะกร้าขาย, ขายของไม่ตีราคา + Approval Flow, เบิกอะไหล่
+เข้างาน (`job_parts_used`), Job Type Bundle reuse-from-context suggestion, Salvage vehicle ใบงาน
+ถอด/ค่าแรง, Admin role + Maker-Checker queue, Field Visibility settings UI, Stock Summary Report,
+โมดูลบัญชี (scoped-down first pass) — และ **Multi-branch support** ซึ่งขึ้น staging พร้อม UI จริง
+(`/admin/branches`, branch switcher) ระหว่างที่กำลังเขียนเอกสารนี้พอดี (เห็นตอน `git log` รอบสุดท้าย
+ก่อนปิดงาน จึงตรวจโค้ดเพิ่มแล้วเขียนสรุปสั้นๆ เข้าไปด้วย) แก้ไขตัวเลข idle timeout ให้ตรงกับ
+`config/subscriptionTiers.js` จริง (360 นาที ไม่ใช่ 15) ปรับปรุงหัวข้อ "ยังขาด" ท้ายเอกสารใหม่ตาม
+สถานะ ✅/🔜/❌ ล่าสุดของ `SOP.md` (ไม่ใช่คัดลอกลิสต์เดิม)
