@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { getViewMode, setViewMode } from "../lib/viewModeStorage";
 import { useAuth } from "../lib/AuthProvider";
@@ -13,16 +13,8 @@ import { getDescendantIds, formatBreadcrumb, getSortedZoneList } from "../lib/zo
 const PAGE_SIZE = 50;
 
 function HomePageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentShopId, currentShop, currentRole, signOut } = useAuth();
-
-  // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
-  // (ดู TC-303 — ไม่งั้นผู้ใช้ค้างอยู่หน้าเดิมชั่วขณะหลังกด "ออกจากระบบ")
-  async function handleSignOut() {
-    await signOut();
-    router.replace("/login");
-  }
+  const { currentShopId, currentShop, currentRole } = useAuth();
 
   const [parts, setParts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -167,15 +159,8 @@ function HomePageContent() {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, fontSize: 12, color: "var(--text-muted)" }}>
+      <div style={{ marginBottom: 12, fontSize: 12, color: "var(--text-muted)" }}>
         <span>บทบาทของคุณ: {currentRole}</span>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          style={{ background: "none", border: "none", color: "var(--link)", cursor: "pointer", fontSize: 12 }}
-        >
-          ออกจากระบบ
-        </button>
       </div>
 
       {subStatus === "past_due" && (

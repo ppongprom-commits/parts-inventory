@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../lib/AuthProvider";
 import { useTheme } from "../lib/ThemeProvider";
 
@@ -40,12 +40,21 @@ function isActive(pathname, href) {
 export default function AppShell({ children, title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { currentShop, currentShopId, memberships, switchShop, currentRole, signOut, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const canSeeReports = currentRole === "owner" || currentRole === "manager";
   const navItems = canSeeReports ? [...NAV_ITEMS, REPORTS_ITEM] : NAV_ITEMS;
   const hasMultipleShops = memberships.length > 1;
+
+  // ⚠️ router.replace("/login") เอง อย่าพึ่งแค่ RequireAuth คอยจับ session ว่างแล้วค่อย redirect
+  // (ดู TC-303 — ไม่งั้นผู้ใช้ค้างอยู่หน้าเดิมชั่วขณะหลังกด "ออกจากระบบ") ปุ่มนี้เป็นปุ่ม sign out
+  // เดียวของทั้งแอป (เดิมมีอีกปุ่มซ้ำใน app/page.js ที่ทำ redirect แบบนี้อยู่แล้ว รวมเข้าที่นี่ที่เดียว)
+  async function handleSignOut() {
+    await signOut();
+    router.replace("/login");
+  }
 
   return (
     <div className="app-shell">
@@ -141,7 +150,7 @@ export default function AppShell({ children, title }) {
               <br />
               {currentShop?.contact_name || currentShop?.login_username || user?.email || "-"}
             </div>
-            <button type="button" className="app-sidebar-signout" onClick={signOut}>
+            <button type="button" className="app-sidebar-signout" onClick={handleSignOut}>
               ออกจากระบบ
             </button>
           </div>
