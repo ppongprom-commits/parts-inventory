@@ -19,12 +19,10 @@ export async function POST(request) {
     const body = await request.json();
     const { shop_id, email, password, role, contact_name } = body;
 
-    if (!shop_id || !email || !password || !role) {
-      return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
-    }
-
     // เช็คว่าคนเรียกเป็น owner/manager ของอู่นี้จริง (ข้าม RLS เพราะใช้ service role
-    // จึงต้องเช็คสิทธิ์เองตรงนี้แทน แทนที่ RLS ปกติ)
+    // จึงต้องเช็คสิทธิ์เองตรงนี้แทน แทนที่ RLS ปกติ) — ทำก่อน validation อื่นๆ ทั้งหมด
+    // (bug fix: เดิมเช็ค field completeness ก่อน ทำให้ caller ที่ไม่มีสิทธิ์เห็น 400 "ข้อมูลไม่ครบ"
+    // แทนที่จะเจอ 403 ทันที)
     const { data: callerMembership } = await supabaseAdmin
       .from("shop_members")
       .select("role")
@@ -35,6 +33,12 @@ export async function POST(request) {
 
     if (!callerMembership || !["owner", "manager"].includes(callerMembership.role)) {
       return NextResponse.json({ error: "ไม่มีสิทธิ์สร้างสมาชิกในอู่นี้" }, { status: 403 });
+    }
+
+    // bug fix: เดิมใช้ !shop_id (falsy check) — shop_id: 0 จะโดนเด้ง 400 ก่อนถึง authz check ด้านบน
+    // เปลี่ยนมาเช็ค null/undefined ตรงๆ แทน
+    if (shop_id == null || !email || !password || !role) {
+      return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
     }
 
     if (role === "owner") {

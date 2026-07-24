@@ -12,11 +12,10 @@ export async function POST(request) {
 
     const body = await request.json();
     const shopId = body.shop_id;
-    if (!shopId) {
-      return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
-    }
 
-    // ตรวจสิทธิ์: ต้องเป็นสมาชิก active ของอู่นี้เท่านั้น (ทุกบทบาทดูรายชื่อได้ แค่แก้ไม่ได้)
+    // ตรวจสิทธิ์ก่อน validation อื่นๆ (bug fix: เดิมเช็ค field completeness ก่อน ทำให้ caller
+    // ที่ไม่มีสิทธิ์เห็น 400 "ข้อมูลไม่ครบ" แทนที่จะเจอ 403 ทันที): ต้องเป็นสมาชิก active ของอู่นี้
+    // เท่านั้น (ทุกบทบาทดูรายชื่อได้ แค่แก้ไม่ได้)
     const { data: callerMembership } = await supabaseAdmin
       .from("shop_members")
       .select("member_id")
@@ -27,6 +26,12 @@ export async function POST(request) {
 
     if (!callerMembership) {
       return NextResponse.json({ error: "ไม่มีสิทธิ์ดูรายชื่อทีมของอู่นี้" }, { status: 403 });
+    }
+
+    // bug fix: เดิมใช้ !shopId (falsy check) — shop_id: 0 จะโดนเด้ง 400 ก่อนถึง authz check ด้านบน
+    // เปลี่ยนมาเช็ค null/undefined ตรงๆ แทน
+    if (shopId == null) {
+      return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
     }
 
     const { data: members, error } = await supabaseAdmin

@@ -19,7 +19,16 @@ export async function POST(request) {
     const email = (body.email || "").trim().toLowerCase();
     const role = body.role;
 
-    if (!shopId || !email || !role) {
+    // ตรวจสิทธิ์ก่อน validation อื่นๆ ทั้งหมด (bug fix: เดิมเช็ค field completeness ก่อน
+    // ทำให้ caller ที่ไม่มีสิทธิ์เห็น 400 "ข้อมูลไม่ครบ" แทนที่จะเจอ 403 ทันที)
+    const managerCheck = await verifyShopManager(shopId, userId);
+    if (managerCheck.error) {
+      return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });
+    }
+
+    // bug fix: เดิมใช้ !shopId (falsy check) — shop_id: 0 จะโดนเด้ง 400 ก่อนถึง authz check ด้านบน
+    // เปลี่ยนมาเช็ค null/undefined ตรงๆ แทน
+    if (shopId == null || !email || !role) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบ (shop_id/email/role)" }, { status: 400 });
     }
     if (!EMAIL_INVITE_ROLES.includes(role)) {
@@ -27,11 +36,6 @@ export async function POST(request) {
         { error: "บทบาทนี้ไม่ได้เชิญผ่านอีเมล ใช้ระบบ username+PIN แทน" },
         { status: 400 }
       );
-    }
-
-    const managerCheck = await verifyShopManager(shopId, userId);
-    if (managerCheck.error) {
-      return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });
     }
 
     const seatCheck = await checkSeatLimit(shopId, email);

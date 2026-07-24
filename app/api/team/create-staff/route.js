@@ -32,7 +32,20 @@ export async function POST(request) {
     // Mode (Day 0 รุมเก็บข้อมูล) ไม่ใช่บัญชี field_scanner ถาวรทั่วไป
     const isBurstModeAccount = role === "field_scanner" && !!expiresAt;
 
-    if (!shopId || !role || !username || !pin || !contactName || !contactPhone) {
+    // 1) ตรวจสิทธิ์: owner/manager ของอู่นี้เท่านั้น — ต้องเช็คก่อน validation อื่นๆ ทั้งหมด
+    // (bug fix: เดิมเช็ค field completeness ก่อน ทำให้ caller ที่ไม่มีสิทธิ์เห็น error "ข้อมูลไม่ครบ"
+    // (400) แทนที่จะเจอ 403 ทันที — เป็นการรั่วข้อมูลเล็กน้อยว่า request ของเขาถูก parse ไปถึงจุดไหน
+    // ก่อนจะโดนบล็อก จึงย้าย verifyShopManager มาไว้ก่อนสุด ทันทีหลัง verifyCaller)
+    const managerCheck = await verifyShopManager(shopId, userId);
+    if (managerCheck.error) {
+      return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });
+    }
+
+    // bug fix: เดิมใช้ !shopId ซึ่งเป็น falsy check — shop_id: 0 ก็เข้าเงื่อนไขนี้ (falsy-zero)
+    // ทำให้ request ที่ส่ง shop_id: 0 โดนเด้ง 400 "ข้อมูลไม่ครบ" ทั้งที่ควรจะผ่านมาถึงตรงนี้ไม่ได้อยู่แล้ว
+    // (เพราะ verifyShopManager ด้านบนจะดักด้วย 403 ก่อน) แต่เพื่อความถูกต้องของ validation เอง
+    // เปลี่ยนมาเช็ค null/undefined ตรงๆ แทน ไม่ใช้ !shopId
+    if (shopId == null || !role || !username || !pin || !contactName || !contactPhone) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
     }
     if (!STAFF_ROLES.includes(role)) {
@@ -49,12 +62,6 @@ export async function POST(request) {
     }
     if (!isValidPin(pin)) {
       return NextResponse.json({ error: "PIN/รหัสผ่านต้องเป็นตัวอักษรหรือตัวเลข ยาว 6-20 ตัว" }, { status: 400 });
-    }
-
-    // 1) ตรวจสิทธิ์: owner/manager ของอู่นี้เท่านั้น
-    const managerCheck = await verifyShopManager(shopId, userId);
-    if (managerCheck.error) {
-      return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });
     }
 
     // 2) ตรวจ tier limit — บัญชี Burst Mode (field_scanner ชั่วคราว) ไม่นับรวมกับที่นั่งปกติ
