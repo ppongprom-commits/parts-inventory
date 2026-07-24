@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/AuthProvider";
 import { SUBSCRIPTION_TIERS, getTierConfig } from "../../config/subscriptionTiers";
+import { hasAccountingModuleFeature } from "../../config/accountingConfig";
 import IdleSessionGuard from "../../components/IdleSessionGuard";
 import { SESSION_ID_HEADER, getStoredSessionId } from "../../lib/sessionTracking";
 
@@ -52,7 +53,14 @@ async function authedFetch(path, options = {}) {
   return json.data;
 }
 
-function ShopDetailPanel({ shop, onClose, onSaved }) {
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026) — label ของแต่ละ feature flag ที่
+// toggle ได้จากแผงนี้ (ตรงกับ allow-list ของ RPC platform_set_shop_feature() ฝั่ง DB)
+const FEATURE_LABELS = {
+  force_zone_scan_confirmation: "📍 บังคับสแกน QR ยืนยันตำแหน่ง",
+  branches_feature_enabled: "🏬 เปิดใช้ Multi-branch (จัดการสาขา)",
+};
+
+function ShopDetailPanel({ shop, onClose, onSaved, myPlatformRole }) {
   const [status, setStatus] = useState(shop.subscription_status);
   const [plan, setPlan] = useState(shop.subscription_plan);
   const [trialEndsAt, setTrialEndsAt] = useState(
@@ -67,6 +75,32 @@ function ShopDetailPanel({ shop, onClose, onSaved }) {
   const [members, setMembers] = useState(null);
   const [membersLoading, setMembersLoading] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+
+  // การ์ด "Platform-controlled shop features" (24 ก.ค. 2026) — feature flag (force-QR-scan,
+  // branches_feature_enabled) + accounting module toggle ทั้ง 3 เป็น entitlement ของร้าน
+  // (billing-adjacent) เหมือน BILLING_ROLES ของ app/api/platform/shops/route.js — super_admin
+  // เท่านั้นที่กดได้จริง (support/analyst เห็นแค่สถานะ read-only)
+  const canManageFeatures = myPlatformRole === "super_admin";
+  // จัดการสาขาจริง (สร้าง/เปลี่ยนชื่อ/read-only) เป็นงาน routine support เหมือน join-as-support —
+  // super_admin + support ทำได้ (analyst read-only เท่านั้น)
+  const canManageBranches = myPlatformRole === "super_admin" || myPlatformRole === "support";
+
+  const [featureSavingKey, setFeatureSavingKey] = useState(null);
+  const [featureMsg, setFeatureMsg] = useState(null);
+  const [showFeatures, setShowFeatures] = useState(false);
+
+  const [accountingSaving, setAccountingSaving] = useState(false);
+  const [accountingMsg, setAccountingMsg] = useState(null);
+  const accountingTierEligible = hasAccountingModuleFeature(getTierConfig(shop.subscription_plan));
+
+  const [branches, setBranches] = useState(null);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [showBranches, setShowBranches] = useState(false);
+  const [branchBusy, setBranchBusy] = useState(false);
+  const [branchMsg, setBranchMsg] = useState(null);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [editingBranchId, setEditingBranchId] = useState(null);
+  const [editingBranchName, setEditingBranchName] = useState("");
 
   async function handleSave() {
     setSaving(true);
@@ -107,6 +141,142 @@ function ShopDetailPanel({ shop, onClose, onSaved }) {
       } finally {
         setMembersLoading(false);
       }
+    }
+  }
+
+  // การ์ด "Platform-controlled shop features" — toggle feature flag ระดับร้าน (super_admin
+  // เท่านั้น — ปุ่มจะไม่ถูก render เลยถ้า !canManageFeatures ดู JSX ด้านล่าง แต่ API เองก็เช็คซ้ำ
+  // อีกชั้นอยู่แล้วตาม convention "ไม่ซ่อน UI ตาม role อย่างเดียว" ของหน้านี้)
+  async function handleToggleFeature(feature) {
+    setFeatureSavingKey(feature);
+    setFeatureMsg(null);
+    try {
+      const nextEnabled = !shop[feature];
+      await authedFetch(`/api/platform/shops/${shop.shop_id}/features`, {
+        method: "PATCH",
+        body: JSON.stringify({ feature, enabled: nextEnabled }),
+      });
+      setFeatureMsg({ type: "success", text: "บันทึกแล้ว ✅" });
+      onSaved();
+    } catch (err) {
+      setFeatureMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + err.message });
+    } finally {
+      setFeatureSavingKey(null);
+    }
+  }
+
+  // การ์ด "Platform-controlled shop features" — เปิด/ปิดโมดูลบัญชี (super_admin เท่านั้น) — side
+  // effect เดิม (seed ผังบัญชี + backfill งวดปัจจุบัน) ยังเกิดเหมือนเดิมทุกประการ ผ่าน RPC
+  // set_accounting_module_enabled() เดียวกัน แค่เรียกผ่าน server แทน browser แล้ว
+  async function handleToggleAccounting() {
+    setAccountingSaving(true);
+    setAccountingMsg(null);
+    try {
+      const nextEnabled = !shop.accounting_module_enabled;
+      const data = await authedFetch(`/api/platform/shops/${shop.shop_id}/accounting-module`, {
+        method: "POST",
+        body: JSON.stringify({ enabled: nextEnabled }),
+      });
+      if (nextEnabled && Number(data.backfilled_count) > 0) {
+        setAccountingMsg({
+          type: "success",
+          text: `เปิดใช้งานแล้ว ✅ — backfill รายการขายในงวดปัจจุบัน ${data.backfilled_count} รายการเข้า journal เรียบร้อย`,
+        });
+      } else {
+        setAccountingMsg({ type: "success", text: "บันทึกแล้ว ✅" });
+      }
+      onSaved();
+    } catch (err) {
+      setAccountingMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + err.message });
+    } finally {
+      setAccountingSaving(false);
+    }
+  }
+
+  // การ์ด "Platform-controlled shop features" — sub-panel "🏬 จัดการสาขา" ย้ายมาจาก
+  // app/admin/branches/page.js เดิม (ลบไฟล์นั้นทิ้งแล้ว) endpoint GET แยกต่างหาก
+  // (/api/platform/shops/[shopId]/branches) ไม่ผูกกับ shop_members ของ platform admin เอง —
+  // เห็นสาขาได้แม้ไม่เคย join-as-support เข้าร้านนั้น
+  async function loadBranches() {
+    setBranchesLoading(true);
+    try {
+      const data = await authedFetch(`/api/platform/shops/${shop.shop_id}/branches`);
+      setBranches(data);
+    } catch (err) {
+      setBranchMsg({ type: "error", text: "โหลดรายชื่อสาขาไม่สำเร็จ: " + err.message });
+    } finally {
+      setBranchesLoading(false);
+    }
+  }
+
+  async function toggleBranches() {
+    if (showBranches) {
+      setShowBranches(false);
+      return;
+    }
+    setShowBranches(true);
+    if (branches === null) await loadBranches();
+  }
+
+  async function handleCreateBranch(e) {
+    e.preventDefault();
+    if (!newBranchName.trim()) return;
+    setBranchBusy(true);
+    setBranchMsg(null);
+    try {
+      await authedFetch("/api/branches", {
+        method: "POST",
+        body: JSON.stringify({ shop_id: shop.shop_id, branch_name: newBranchName.trim() }),
+      });
+      setNewBranchName("");
+      setBranchMsg({ type: "success", text: "สร้างสาขาสำเร็จ ✅" });
+      await loadBranches();
+    } catch (err) {
+      setBranchMsg({ type: "error", text: err.message });
+    } finally {
+      setBranchBusy(false);
+    }
+  }
+
+  function startEditBranchName(branch) {
+    setEditingBranchId(branch.branch_id);
+    setEditingBranchName(branch.branch_name);
+  }
+
+  async function handleSaveBranchName(branch) {
+    if (!editingBranchName.trim() || editingBranchName.trim() === branch.branch_name) {
+      setEditingBranchId(null);
+      return;
+    }
+    setBranchBusy(true);
+    setBranchMsg(null);
+    try {
+      await authedFetch(`/api/branches/${branch.branch_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ branch_name: editingBranchName.trim() }),
+      });
+      setEditingBranchId(null);
+      await loadBranches();
+    } catch (err) {
+      setBranchMsg({ type: "error", text: err.message });
+    } finally {
+      setBranchBusy(false);
+    }
+  }
+
+  async function handleToggleBranchReadOnly(branch) {
+    setBranchBusy(true);
+    setBranchMsg(null);
+    try {
+      await authedFetch(`/api/branches/${branch.branch_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_read_only: !branch.is_read_only }),
+      });
+      await loadBranches();
+    } catch (err) {
+      setBranchMsg({ type: "error", text: err.message });
+    } finally {
+      setBranchBusy(false);
     }
   }
 
@@ -194,6 +364,21 @@ function ShopDetailPanel({ shop, onClose, onSaved }) {
         </button>
         <button
           type="button"
+          onClick={() => setShowFeatures((v) => !v)}
+          data-testid="toggle-features-panel"
+          style={{
+            padding: "0 16px",
+            borderRadius: 8,
+            border: "1px solid var(--border-strong)",
+            background: "transparent",
+            color: "var(--link)",
+            cursor: "pointer",
+          }}
+        >
+          🎛️ {showFeatures ? "ซ่อน Feature" : "Feature ของอู่นี้"}
+        </button>
+        <button
+          type="button"
           onClick={onClose}
           style={{
             padding: "0 16px",
@@ -233,6 +418,247 @@ function ShopDetailPanel({ shop, onClose, onSaved }) {
           ))}
         </div>
       )}
+
+      {/* การ์ด "Platform-controlled shop features" (24 ก.ค. 2026) — 3 อย่างที่เดิมเป็น self-serve
+          toggle ของ shop owner/manager ที่ /admin ย้ายมาที่นี่ทั้งหมด: force-QR-scan,
+          branches_feature_enabled (ทั้งคู่ผ่าน platform_set_shop_feature RPC) + accounting module
+          (ผ่าน set_accounting_module_enabled RPC เดิม) ทั้ง 3 อย่างเป็น entitlement ของร้าน —
+          super_admin เท่านั้นที่กดได้จริง (support/analyst เห็นสถานะ read-only ตาม convention
+          "ไม่ซ่อน UI ตาม role" ของหน้านี้ — ปุ่มยังโชว์แต่ไม่ clickable) */}
+      {showFeatures && (
+        <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+          {featureMsg && (
+            <div className={`msg ${featureMsg.type}`} style={{ marginBottom: 8 }}>
+              {featureMsg.text}
+            </div>
+          )}
+
+          {Object.entries(FEATURE_LABELS).map(([feature, label]) => {
+            const enabled = !!shop[feature];
+            return (
+              <div
+                key={feature}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: 13,
+                  padding: "6px 0",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <span>{label}</span>
+                {canManageFeatures ? (
+                  <button
+                    type="button"
+                    data-testid={`toggle-feature-${feature}`}
+                    onClick={() => handleToggleFeature(feature)}
+                    disabled={featureSavingKey !== null}
+                    style={{
+                      fontSize: 12,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "1px solid var(--border-strong)",
+                      background: "transparent",
+                      color: enabled ? "var(--success, #2e7d32)" : "var(--text-muted)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {featureSavingKey === feature
+                      ? "กำลังบันทึก..."
+                      : enabled
+                        ? "✅ เปิดอยู่ — กดเพื่อปิด"
+                        : "⬜ ปิดอยู่ — กดเพื่อเปิด"}
+                  </button>
+                ) : (
+                  <span data-testid={`feature-status-${feature}`} style={{ color: "var(--text-muted)" }}>
+                    {enabled ? "✅ เปิดอยู่" : "⬜ ปิดอยู่"} (super_admin เท่านั้นที่แก้ได้)
+                  </span>
+                )}
+              </div>
+            );
+          })}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: 13,
+              padding: "6px 0",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <span>
+              📒 เปิดใช้โมดูลบัญชี
+              {!accountingTierEligible && (
+                <span style={{ color: "var(--text-muted)" }}> (ต้องแพ็กเกจ Pro ขึ้นไป)</span>
+              )}
+            </span>
+            {canManageFeatures ? (
+              <button
+                type="button"
+                data-testid="toggle-feature-accounting_module_enabled"
+                onClick={handleToggleAccounting}
+                disabled={accountingSaving || (!shop.accounting_module_enabled && !accountingTierEligible)}
+                style={{
+                  fontSize: 12,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "1px solid var(--border-strong)",
+                  background: "transparent",
+                  color: shop.accounting_module_enabled ? "var(--success, #2e7d32)" : "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                {accountingSaving
+                  ? "กำลังบันทึก..."
+                  : shop.accounting_module_enabled
+                    ? "✅ เปิดอยู่ — กดเพื่อปิด"
+                    : "⬜ ปิดอยู่ — กดเพื่อเปิด"}
+              </button>
+            ) : (
+              <span data-testid="feature-status-accounting_module_enabled" style={{ color: "var(--text-muted)" }}>
+                {shop.accounting_module_enabled ? "✅ เปิดอยู่" : "⬜ ปิดอยู่"} (super_admin เท่านั้นที่แก้ได้)
+              </span>
+            )}
+          </div>
+          {accountingMsg && (
+            <div className={`msg ${accountingMsg.type}`} style={{ marginTop: 8 }}>
+              {accountingMsg.text}
+            </div>
+          )}
+
+          {/* Sub-panel "🏬 จัดการสาขา" — เห็นรายชื่อได้ทั้ง 3 role (analyst รวมด้วย, ตรงกับ GET
+              /api/platform/shops/[shopId]/branches ที่ยอม analyst) แต่ปุ่มสร้าง/แก้ไข/read-only
+              แสดงเฉพาะ super_admin + support (canManageBranches) เท่านั้น */}
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={toggleBranches}
+              data-testid="toggle-branches-panel"
+              style={{
+                fontSize: 13,
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--border-strong)",
+                background: "transparent",
+                color: "var(--link)",
+                cursor: "pointer",
+              }}
+            >
+              🏬 {showBranches ? "ซ่อนจัดการสาขา" : "จัดการสาขา"}
+            </button>
+
+            {showBranches && (
+              <div style={{ marginTop: 10, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                {branchMsg && (
+                  <div className={`msg ${branchMsg.type}`} style={{ marginBottom: 8 }}>
+                    {branchMsg.text}
+                  </div>
+                )}
+                {branchesLoading && (
+                  <div style={{ fontSize: 13, color: "var(--text-muted)" }}>กำลังโหลด...</div>
+                )}
+                {branches?.length === 0 && (
+                  <div style={{ fontSize: 13, color: "var(--text-muted)" }}>ยังไม่มีสาขา</div>
+                )}
+                {branches?.map((b) => (
+                  <div
+                    key={b.branch_id}
+                    data-testid={`platform-branch-row-${b.branch_id}`}
+                    style={{
+                      fontSize: 13,
+                      padding: "6px 0",
+                      borderBottom: "1px solid var(--border)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    {editingBranchId === b.branch_id ? (
+                      <input
+                        type="text"
+                        value={editingBranchName}
+                        onChange={(e) => setEditingBranchName(e.target.value)}
+                        style={{ flex: 1 }}
+                        data-testid={`platform-branch-name-input-${b.branch_id}`}
+                      />
+                    ) : (
+                      <span>
+                        {b.branch_name}
+                        {b.is_default && " (สาขาหลัก)"} · {b.branch_code}
+                      </span>
+                    )}
+                    <span style={{ color: b.is_read_only ? "var(--danger, #c0392b)" : "var(--text-muted)" }}>
+                      {b.is_read_only ? "⚠️ read-only" : "ใช้งานได้"}
+                    </span>
+                    {canManageBranches && (
+                      <span style={{ display: "flex", gap: 6 }}>
+                        {editingBranchId === b.branch_id ? (
+                          <button
+                            type="button"
+                            disabled={branchBusy}
+                            onClick={() => handleSaveBranchName(b)}
+                            data-testid={`platform-branch-save-${b.branch_id}`}
+                          >
+                            บันทึก
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={branchBusy}
+                            onClick={() => startEditBranchName(b)}
+                            data-testid={`platform-branch-rename-${b.branch_id}`}
+                          >
+                            เปลี่ยนชื่อ
+                          </button>
+                        )}
+                        {!b.is_default && (
+                          <button
+                            type="button"
+                            disabled={branchBusy}
+                            onClick={() => handleToggleBranchReadOnly(b)}
+                            data-testid={`platform-branch-toggle-readonly-${b.branch_id}`}
+                          >
+                            {b.is_read_only ? "เปิดใช้งานกลับ" : "ตั้งเป็น read-only"}
+                          </button>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                {canManageBranches && (
+                  <div style={{ marginTop: 10 }}>
+                    {shop.branches_feature_enabled ? (
+                      <form onSubmit={handleCreateBranch} style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="ชื่อสาขาใหม่ เช่น สาขาบางนา"
+                          value={newBranchName}
+                          onChange={(e) => setNewBranchName(e.target.value)}
+                          data-testid="platform-new-branch-name-input"
+                          style={{ flex: 1 }}
+                        />
+                        <button type="submit" disabled={branchBusy} data-testid="platform-create-branch-submit">
+                          สร้างสาขา
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="msg error" data-testid="platform-branches-feature-disabled-note">
+                        ฟีเจอร์สาขายังไม่ได้เปิดใช้งานสำหรับร้านนี้ — เปิดที่ toggle
+                        &quot;{FEATURE_LABELS.branches_feature_enabled}&quot; ด้านบนก่อนถึงจะสร้างสาขาเพิ่มได้
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -244,6 +670,8 @@ const AUDIT_ACTION_LABELS = {
   change_platform_admin_role: "เปลี่ยน role platform admin",
   remove_platform_admin: "ลบ platform admin",
   revenue_journal_entry_created: "บันทึกรายการบัญชี Platform Revenue",
+  set_feature: "เปลี่ยน feature flag ของอู่",
+  accounting_module_toggled: "เปิด/ปิดโมดูลบัญชี",
 };
 
 function ActivityLogTab() {
@@ -579,6 +1007,12 @@ export default function PlatformAdminPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [expandedShopId, setExpandedShopId] = useState(null);
+  // การ์ด "Platform-controlled shop features" (24 ก.ค. 2026) — หน้านี้ไม่เคยรู้ role ของ platform
+  // admin ที่ login อยู่เองมาก่อนเลย (ทุก route เดิมที่มีอยู่ เช่น GET /api/platform/admins จำกัดแค่
+  // super_admin เรียกได้ ใช้แทนกันไม่ได้) เพิ่ม endpoint เบาๆ /api/platform/me สำหรับจุดประสงค์นี้
+  // โดยเฉพาะ — ใช้ gate ปุ่ม toggle feature flag/accounting module ใน ShopDetailPanel ว่าควร
+  // clickable หรือแค่ read-only
+  const [myPlatformRole, setMyPlatformRole] = useState(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -587,6 +1021,9 @@ export default function PlatformAdminPage() {
       return;
     }
     fetchShops();
+    authedFetch("/api/platform/me")
+      .then((data) => setMyPlatformRole(data.role))
+      .catch(() => setMyPlatformRole(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, session]);
 
@@ -842,6 +1279,7 @@ export default function PlatformAdminPage() {
               shop={shop}
               onClose={() => setExpandedShopId(null)}
               onSaved={fetchShops}
+              myPlatformRole={myPlatformRole}
             />
           )}
         </div>

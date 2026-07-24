@@ -207,6 +207,11 @@ function ShopInfoCard() {
 // การ์ด "Export CSV (Starter+)" — เดิมมีแค่ Parts เพราะตอนนั้น payment_method/cart flow ยังไม่มี
 // (ดูหมายเหตุใน app/api/parts/export-csv/route.js) — เพิ่ม Jobs/Sales ตาม field spec ที่การ์ด
 // ออกแบบไว้แล้ว (19 ก.ค. 2026) คืนนี้ — ใช้ endpoint คนละตัว ปุ่มคนละอันในการ์ดเดียวกัน
+//
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): แปลงจาก "1 ปุ่มต่อ 1 ประเภท" มาเป็น
+// dropdown เลือกประเภท + ปุ่มเดียว — เหตุผลจริงที่ขอ: จะมี export type เพิ่มอีกในอนาคต ถ้ายังเป็น
+// ปุ่มแยกจะรกขึ้นเรื่อยๆ ทุกครั้งที่เพิ่ม — EXPORT_TARGETS ยังเป็น single source of truth เดิม
+// ทุกประการ เพิ่มประเภทใหม่ = เพิ่ม entry ในนี้ที่เดียว ไม่ต้องแตะ UI ด้านล่างเลย
 const EXPORT_TARGETS = [
   { key: "parts", label: "อะไหล่", endpoint: "/api/parts/export-csv", filenamePrefix: "parts-export" },
   { key: "jobs", label: "งานซ่อม", endpoint: "/api/jobs/export-csv", filenamePrefix: "jobs-export" },
@@ -215,11 +220,15 @@ const EXPORT_TARGETS = [
 
 function ExportCsvCard() {
   const { currentShopId } = useAuth();
-  const [exportingKey, setExportingKey] = useState(null);
+  const [selectedKey, setSelectedKey] = useState(EXPORT_TARGETS[0].key);
+  const [exporting, setExporting] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  async function handleExport(target) {
-    setExportingKey(target.key);
+  async function handleExport() {
+    const target = EXPORT_TARGETS.find((t) => t.key === selectedKey);
+    if (!target) return;
+
+    setExporting(true);
     setMsg(null);
     try {
       const {
@@ -250,7 +259,7 @@ function ExportCsvCard() {
     } catch (err) {
       setMsg({ type: "error", text: err.message });
     } finally {
-      setExportingKey(null);
+      setExporting(false);
     }
   }
 
@@ -263,32 +272,45 @@ function ExportCsvCard() {
         </div>
       </div>
       {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {EXPORT_TARGETS.map((target) => (
-          <button
-            key={target.key}
-            type="button"
-            onClick={() => handleExport(target)}
-            disabled={exportingKey !== null}
-          >
-            {exportingKey === target.key ? "กำลังสร้างไฟล์..." : `📤 ดาวน์โหลด CSV (${target.label})`}
-          </button>
-        ))}
+      <div style={{ display: "flex", gap: 8 }}>
+        <select
+          value={selectedKey}
+          onChange={(e) => setSelectedKey(e.target.value)}
+          data-testid="export-csv-select"
+          style={{ flex: 1 }}
+        >
+          {EXPORT_TARGETS.map((target) => (
+            <option key={target.key} value={target.key}>
+              {target.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          data-testid="export-csv-download"
+        >
+          {exporting ? "กำลังสร้างไฟล์..." : "📤 ดาวน์โหลด CSV"}
+        </button>
       </div>
     </div>
   );
 }
 
 // การ์ด "ย้ายอะไหล่ระหว่าง Zone" — checklist ตอน setup: "บังคับสแกน QR ยืนยันตำแหน่งอะไหล่ไหม?"
-// ✅ ตัดสินใจแล้วในการ์ด (19 ก.ค. 2026): default ปิด — เปิดได้ที่นี่ ตั้งค่าระดับร้าน (owner/manager)
-// เมื่อเปิด: หน้า /add และ action "ย้าย Zone" (/move-part/[id]) จะบังคับให้สแกน QR โซนเท่านั้น
-// เลือกจาก dropdown ตรงๆ ไม่ได้อีกต่อไป
+// ✅ ตัดสินใจแล้วในการ์ด (19 ก.ค. 2026): default ปิด — เมื่อเปิด: หน้า /add และ action "ย้าย Zone"
+// (/move-part/[id]) จะบังคับให้สแกน QR โซนเท่านั้น เลือกจาก dropdown ตรงๆ ไม่ได้อีกต่อไป
+//
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): ย้ายการ "เปิด/ปิด" ไปเป็น
+// platform-admin เท่านั้น (super_admin) จัดการจาก /platform-admin — หน้านี้เหลือแค่แสดงสถานะ
+// ปัจจุบัน (read-only) เท่านั้น ไม่มีปุ่มกดเปลี่ยนอีกต่อไป (เดิม UPDATE shops ตรงๆ จาก browser ก็
+// silently fail อยู่แล้วเพราะ authenticated ไม่เคยมี UPDATE grant บนคอลัมน์นี้จริง — ย้ายมาเป็น
+// RPC ผ่าน platform-admin แก้ปัญหานี้ไปด้วยในตัว)
 function ZoneMoveSettingsCard() {
   const { currentShopId } = useAuth();
   const [enabled, setEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
 
   useEffect(() => {
     if (!currentShopId) return;
@@ -303,55 +325,39 @@ function ZoneMoveSettingsCard() {
       });
   }, [currentShopId]);
 
-  async function handleToggle() {
-    const next = !enabled;
-    setSaving(true);
-    setMsg(null);
-    const { error } = await supabase
-      .from("shops")
-      .update({ force_zone_scan_confirmation: next })
-      .eq("shop_id", currentShopId);
-    if (error) {
-      setMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + error.message });
-    } else {
-      setEnabled(next);
-      setMsg({ type: "success", text: "บันทึกแล้ว ✅" });
-    }
-    setSaving(false);
-  }
-
   if (!loaded) return null;
 
   return (
     <div className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch" }}>
-      <div className="card-body" style={{ marginBottom: 10 }}>
+      <div className="card-body">
         <div className="card-title">📍 บังคับสแกน QR ยืนยันตำแหน่ง</div>
         <div className="card-sub">
           เปิดแล้วตอนย้าย Zone (และเพิ่มอะไหล่ใหม่ที่ /add) จะต้องสแกน QR โซนปลายทางเท่านั้น
           เลือกจากช่องค้นหาตรงๆ ไม่ได้ — กันเลือกโซนมั่วโดยไม่ได้อยู่ที่จุดจริง
         </div>
+        <div data-testid="force-scan-status" style={{ marginTop: 8, fontWeight: 600 }}>
+          {enabled ? "✅ เปิดอยู่ (ควบคุมโดยทีมงาน)" : "⬜ ปิดอยู่ (ควบคุมโดยทีมงาน — ติดต่อทีมงานหากต้องการเปิดใช้)"}
+        </div>
       </div>
-      {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
-      <button type="button" data-testid="toggle-force-scan" onClick={handleToggle} disabled={saving}>
-        {enabled ? "✅ เปิดอยู่ — กดเพื่อปิด" : "⬜ ปิดอยู่ — กดเพื่อเปิด"}
-      </button>
     </div>
   );
 }
 
 // การ์ด "Accounting Module — ผังบัญชี + journal entries + intercompany" (scoped-down first pass,
-// 24 ก.ค. 2026) — enable/disable ต่อร้าน ผ่าน RPC set_accounting_module_enabled() (ไม่ใช่ UPDATE
-// shops ตรงๆ แบบ ZoneMoveSettingsCard เพราะเปิดครั้งแรกมี side effect: seed ผังบัญชีมาตรฐาน +
-// backfill journal entries ของงวดปัจจุบันที่ยังเปิดอยู่ ต้องผ่าน SECURITY DEFINER RPC ที่ตรวจสิทธิ์
-// owner/manager เองอีกชั้นด้วย — ดู db/accounting_module_migration.sql)
+// 24 ก.ค. 2026) — enable/disable ผ่าน RPC set_accounting_module_enabled() (side effect: seed
+// ผังบัญชีมาตรฐาน + backfill journal entries ของงวดปัจจุบันที่ยังเปิดอยู่ — ดู
+// db/accounting_module_migration.sql)
+//
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): ย้ายการ "เปิด/ปิด" ไปเป็น
+// platform-admin เท่านั้น (super_admin) จัดการจาก /platform-admin — หน้านี้เหลือแค่แสดงสถานะ
+// ปัจจุบัน (read-only) + ลิงก์ไปหน้าโมดูลบัญชี (ถ้าเปิดอยู่) ปิดงวด/ดู journal ยังทำเองที่
+// /admin/accounting เหมือนเดิม มีแค่ "เปิด/ปิด" เท่านั้นที่ย้าย
 // Tier gate: เหมือน canSeeStockSummaryReport ด้านล่าง (pro+/enterprise เท่านั้น — ดู
 // config/subscriptionTiers.js + config/accountingConfig.js)
 function AccountingModuleSettingsCard({ tierEligible }) {
   const { currentShopId } = useAuth();
   const [enabled, setEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
 
   useEffect(() => {
     if (!currentShopId) return;
@@ -365,30 +371,6 @@ function AccountingModuleSettingsCard({ tierEligible }) {
         setLoaded(true);
       });
   }, [currentShopId]);
-
-  async function handleToggle() {
-    const next = !enabled;
-    setSaving(true);
-    setMsg(null);
-    const { data, error } = await supabase.rpc("set_accounting_module_enabled", {
-      p_shop_id: currentShopId,
-      p_enabled: next,
-    });
-    if (error) {
-      setMsg({ type: "error", text: "บันทึกไม่สำเร็จ: " + error.message });
-    } else {
-      setEnabled(next);
-      if (next && Number(data) > 0) {
-        setMsg({
-          type: "success",
-          text: `เปิดใช้งานแล้ว ✅ — backfill รายการขายในงวดปัจจุบัน ${data} รายการเข้า journal เรียบร้อย`,
-        });
-      } else {
-        setMsg({ type: "success", text: "บันทึกแล้ว ✅" });
-      }
-    }
-    setSaving(false);
-  }
 
   if (!loaded) return null;
 
@@ -407,20 +389,24 @@ function AccountingModuleSettingsCard({ tierEligible }) {
 
   return (
     <div className="card" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch" }}>
-      <div className="card-body" style={{ marginBottom: 10 }}>
+      <div className="card-body">
         <div className="card-title">📒 โมดูลบัญชี (Accounting Module)</div>
         <div className="card-sub">
           เปิดแล้วระบบจะสร้าง journal entries อัตโนมัติทุกครั้งที่ขายอะไหล่สำเร็จ (นอกเหนือจาก
           part_sales ที่บันทึกปกติอยู่แล้ว ไม่มีผลกระทบต่อการขายเดิม) — เปิดครั้งแรกจะ backfill
-          รายการขายของงวดบัญชีปัจจุบัน (เดือนนี้) ให้อัตโนมัติ งวดก่อนหน้าที่ปิดไปแล้วจะไม่ถูกแตะต้อง —
-          ดูผังบัญชี/journal ได้ที่{" "}
-          <Link href="/admin/accounting">หน้าโมดูลบัญชี</Link>
+          รายการขายของงวดบัญชีปัจจุบัน (เดือนนี้) ให้อัตโนมัติ งวดก่อนหน้าที่ปิดไปแล้วจะไม่ถูกแตะต้อง
+        </div>
+        <div data-testid="accounting-module-status" style={{ marginTop: 8, fontWeight: 600 }}>
+          {enabled ? (
+            <>
+              ✅ เปิดอยู่ (ควบคุมโดยทีมงาน) — ดูผังบัญชี/journal ได้ที่{" "}
+              <Link href="/admin/accounting">หน้าโมดูลบัญชี</Link>
+            </>
+          ) : (
+            "⬜ ปิดอยู่ (ควบคุมโดยทีมงาน — ติดต่อทีมงานเพื่อเปิดใช้งาน)"
+          )}
         </div>
       </div>
-      {msg && <div className={`msg ${msg.type}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
-      <button type="button" data-testid="toggle-accounting-module" onClick={handleToggle} disabled={saving}>
-        {enabled ? "✅ เปิดอยู่ — กดเพื่อปิด" : "⬜ ปิดอยู่ — กดเพื่อเปิด"}
-      </button>
     </div>
   );
 }
@@ -518,21 +504,9 @@ function AdminHubPageContent() {
         </div>
       </Link>
 
-      {/* การ์ด "Multi-branch support (Pro=2 สาขา, Enterprise=ไม่จำกัด)" — เฉพาะ owner/manager
-          เท่านั้นที่จัดการสาขาได้ (เหมือนหน้าจัดการทีมข้างบน) */}
-      {canManage && (
-        <Link
-          href="/admin/branches"
-          className="card"
-          data-testid="branches-link"
-          style={{ textDecoration: "none", color: "inherit" }}
-        >
-          <div className="card-body">
-            <div className="card-title">🏬 จัดการสาขา</div>
-            <div className="card-sub">สร้างสาขาเพิ่ม (ตาม limit ของแพ็กเกจ) ดูรายชื่อสาขาทั้งหมด</div>
-          </div>
-        </Link>
-      )}
+      {/* การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): "จัดการสาขา" ย้ายทั้งหมดไปเป็น
+          platform-admin only (จัดการจาก /platform-admin แทน) — shop owner/manager ไม่เห็นเมนูนี้
+          อีกต่อไป ไม่มี /admin/branches แล้ว (ลบไฟล์หน้านั้นทิ้ง) */}
 
       {canSeeStockSummaryReport && (
         <Link
