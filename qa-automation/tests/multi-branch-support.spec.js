@@ -11,13 +11,35 @@
 //  - Role ต่างกันได้คนละสาขาของร้านเดียวกัน (คนเดียวกัน)
 //  - Downgrade Enterprise→Pro ขณะมีสาขาเกิน limit → สาขาส่วนเกิน (ที่เจ้าของเลือก) เป็น read-only
 //  - Stock Value Cap นับรวมทั้งร้าน ไม่ใช่ต่อสาขา (schema-level assertion)
+//
+// แก้ไข 24 ก.ค. 2026 (การ์ด "Platform-controlled shop features"): จัดการสาขา (สร้าง/เปลี่ยนชื่อ/
+// read-only) ย้ายจาก shop owner/manager ไปเป็น platform-admin เท่านั้น (super_admin/support) —
+// เดิมไฟล์นี้ไม่เคยมี test ที่ drive ผ่าน UI ของ app/admin/branches/page.js ตรงๆ อยู่แล้ว (ยิง
+// /api/branches ตรงๆ ทั้งหมด) จึงแค่เปลี่ยน token ที่ใช้เรียก API จาก owner เป็น platform admin
+// (loginAsPlatformAdmin ด้านล่าง) coverage ของ RBAC matrix เต็มรูป (analyst/support/super_admin,
+// feature-flag AND-gate ฯลฯ) ย้ายไปไฟล์ใหม่ platform-controlled-shop-features.spec.js แทน — ไฟล์
+// นี้คงไว้แค่ tier-limit + isolation/downgrade ตามขอบเขตเดิมของการ์ด multi-branch
 import { test, expect } from "@playwright/test";
 import { loginWithEmail, expectLoginSucceeded } from "../fixtures/auth-helpers.js";
 import { getAccessToken } from "../fixtures/api-helpers.js";
 import { adminClient, getShopIdByName, signInEmail } from "../fixtures/db-client.js";
-import { currentShopName, getTierShopOwner } from "../fixtures/test-data.js";
+import { currentShopName, accounts } from "../fixtures/test-data.js";
 
 const RUN_ID = Date.now();
+
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026) — จัดการสาขา (สร้าง/เปลี่ยนชื่อ/
+// read-only) ย้ายจาก shop owner/manager ไปเป็น platform-admin เท่านั้น (super_admin/support)
+// ตั้งแต่การ์ดนี้ — POST /api/branches และ PATCH /api/branches/[id] จึงเรียกด้วย token ของ
+// platform admin แทน token ของ shop owner ทั่วทั้งไฟล์นี้ (เดิมใช้ owner token ได้ตรงๆ ก่อนการ์ดนี้)
+// ใช้ accounts.ownerPlatformAdmin (super_admin จริง — ยืนยันแล้วผ่าน SQL บน staging) ซึ่งมีอยู่แล้ว
+// ใน test fixture เดิม ไม่ต้องสร้างบัญชีใหม่
+async function loginAsPlatformAdmin(page) {
+  await loginWithEmail(page, accounts.ownerPlatformAdmin.email, accounts.ownerPlatformAdmin.password);
+  await expectLoginSucceeded(page);
+  const token = await getAccessToken(page);
+  expect(token).toBeTruthy();
+  return token;
+}
 
 // ------------------------------------------------------------
 // TC-MB-1: Data migration — "สำคัญสุด" ตามการ์ด
@@ -90,29 +112,31 @@ test.describe("TC-MB-1: Data migration integrity", () => {
 
 // ------------------------------------------------------------
 // TC-MB-2: Tier limit — Starter/Founder ไม่ให้สร้างสาขาเพิ่มเลย, Pro 2 สาขา, Enterprise ไม่จำกัด
-// ใช้ fixture "Tier shop" ที่มีอยู่แล้ว (qa-automation/fixtures/test-data.js getTierShopOwner) —
-// ใช้ owner login จริงผ่าน UI (loginWithEmail) แล้วยิง API /api/branches ตรงๆ ผ่าน request fixture
-// เหมือน pattern ของ api-rbac.spec.js — cleanup ลบสาขาที่สร้างเพิ่มทิ้งเสมอ ไม่แตะสาขา default
-// (กัน suite อื่นที่ใช้ tier shop เดียวกันพัง)
+// ใช้ fixture "Tier shop" ที่มีอยู่แล้ว (qa-automation/fixtures/test-data.js getTierShopOwner เดิม —
+// ตอนนี้ไม่ใช้แล้วเพราะ owner สร้างสาขาเองไม่ได้อีกต่อไป)
+//
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): จัดการสาขาย้ายไป platform-admin
+// เท่านั้น — ยิง API /api/branches ด้วย token ของ platform admin (accounts.ownerPlatformAdmin)
+// แทน owner token เดิม + ต้องเปิด shops.branches_feature_enabled=true ให้ tier shop แต่ละอันก่อน
+// เริ่มเทสต์เสมอ (arrange step ตรงๆ ผ่าน adminClient() — ตัว flag เองมี test เฉพาะแยกต่างหากอยู่แล้ว
+// ที่ platform-controlled-shop-features.spec.js ไม่ต้องพิสูจน์ซ้ำที่นี่ จุดสนใจของ TC-MB-2 คือ
+// tier limit ล้วนๆ) — cleanup ลบสาขาที่สร้างเพิ่มทิ้งเสมอ ไม่แตะสาขา default (กัน suite อื่นที่ใช้
+// tier shop เดียวกันพัง)
 // ------------------------------------------------------------
 test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
-  async function loginAsTierOwner(page, tierName) {
-    const owner = getTierShopOwner(tierName);
-    await loginWithEmail(page, owner.email, owner.password);
-    await expectLoginSucceeded(page);
-    const token = await getAccessToken(page);
-    expect(token).toBeTruthy();
-    return token;
-  }
-
   async function createdBranchIds(shopId) {
     const { data } = await adminClient().from("branches").select("branch_id").eq("shop_id", shopId).eq("is_default", false);
     return (data || []).map((b) => b.branch_id);
   }
 
+  async function enableBranchesFeature(shopId) {
+    await adminClient().from("shops").update({ branches_feature_enabled: true }).eq("shop_id", shopId);
+  }
+
   test("Starter: สร้างสาขาเพิ่มไม่ได้เลย (400)", async ({ page, request, baseURL }) => {
     const shopId = await getShopIdByName("QA Tier Shop - starter");
-    const token = await loginAsTierOwner(page, "starter");
+    await enableBranchesFeature(shopId);
+    const token = await loginAsPlatformAdmin(page);
 
     const res = await request.post(`${baseURL}/api/branches`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -129,7 +153,8 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
 
   test("Founder: สร้างสาขาเพิ่มไม่ได้เลย (400)", async ({ page, request, baseURL }) => {
     const shopId = await getShopIdByName("QA Tier Shop - founder");
-    const token = await loginAsTierOwner(page, "founder");
+    await enableBranchesFeature(shopId);
+    const token = await loginAsPlatformAdmin(page);
 
     const res = await request.post(`${baseURL}/api/branches`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -143,7 +168,8 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
 
   test("Pro: สร้างสาขาที่ 2 ได้ / สาขาที่ 3 ถูก reject", async ({ page, request, baseURL }) => {
     const shopId = await getShopIdByName("QA Tier Shop - pro");
-    const token = await loginAsTierOwner(page, "pro");
+    await enableBranchesFeature(shopId);
+    const token = await loginAsPlatformAdmin(page);
 
     // เผื่อรอบก่อนหน้าตกค้าง (test ล้มเหลวกลางทาง) — เคลียร์สาขา non-default ทิ้งก่อนเริ่มเสมอ
     for (const id of await createdBranchIds(shopId)) {
@@ -173,7 +199,8 @@ test.describe("TC-MB-2: Tier limit enforcement (API layer)", () => {
 
   test("Enterprise: สร้างสาขาเพิ่มได้ไม่จำกัด (ทดสอบ 3 สาขาติด)", async ({ page, request, baseURL }) => {
     const shopId = await getShopIdByName("QA Tier Shop - enterprise");
-    const token = await loginAsTierOwner(page, "enterprise");
+    await enableBranchesFeature(shopId);
+    const token = await loginAsPlatformAdmin(page);
 
     for (const id of await createdBranchIds(shopId)) {
       await adminClient().from("branches").delete().eq("branch_id", id);
@@ -229,6 +256,12 @@ test.describe("TC-MB-3/4/5: isolation, per-branch role, downgrade", () => {
         owner_user_id: ownerUserId,
         subscription_plan: "enterprise", // enterprise = ไม่จำกัดสาขา ใช้ทดสอบ downgrade ได้ด้วย
         subscription_status: "active",
+        // การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): trg_branches_tier_limit เช็ค
+        // branches_feature_enabled ก่อนเช็ค tier limit เสมอตอนนี้ (DB-level defense-in-depth ใหม่)
+        // — สาขา B ด้านล่างเป็น insert ตรงผ่าน service role (ไม่ผ่าน RLS แต่ยังโดน trigger นี้อยู่ดี
+        // เพราะ trigger ทำงานไม่ว่า caller จะเป็นใคร) ต้องเปิด flag นี้ไว้ล่วงหน้า ไม่งั้น insert
+        // สาขา B จะถูก trigger reject ทันที
+        branches_feature_enabled: true,
       })
       .select("shop_id")
       .single();
@@ -347,13 +380,14 @@ test.describe("TC-MB-3/4/5: isolation, per-branch role, downgrade", () => {
     // downgrade แพ็กเกจ (ทำตรงๆ ผ่าน DB เหมือนที่ billing webhook จะทำจริง — ไม่ใช่ขอบเขตของการ์ดนี้)
     await adminClient().from("shops").update({ subscription_plan: "pro" }).eq("shop_id", shopId);
 
-    await loginWithEmail(page, ownerEmail, password);
-    await expectLoginSucceeded(page);
-    const token = await getAccessToken(page);
+    // การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): เลือกสาขาไหน read-only ตอน
+    // downgrade ไม่ใช่สิทธิ์ของ shop owner อีกต่อไป — platform admin (super_admin/support) เป็นคน
+    // toggle แทน (ผ่าน accounts.ownerPlatformAdmin เหมือน TC-MB-2 ด้านบน)
+    const platformAdminToken = await loginAsPlatformAdmin(page);
 
-    // เจ้าของเลือกให้ branch B เป็น read-only (branch A เป็น default เก็บไว้ active เสมอ)
+    // platform admin เลือกให้ branch B เป็น read-only (branch A เป็น default เก็บไว้ active เสมอ)
     const patchRes = await request.patch(`${baseURL}/api/branches/${branchBId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${platformAdminToken}` },
       data: { is_read_only: true },
     });
     expect(patchRes.status()).toBe(200);

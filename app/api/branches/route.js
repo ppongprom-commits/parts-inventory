@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabaseAdminClient";
-import { verifyCaller, verifyShopManager, checkBranchLimit } from "../../../lib/teamAuth";
+import { verifyCaller, checkBranchLimit } from "../../../lib/teamAuth";
+import { requirePlatformRole } from "../../../lib/platformAdmin";
 
 // การ์ด "Multi-branch support (Pro=2 สาขา, Enterprise=ไม่จำกัด)" — Notion
 // 3a1f39f45649810cb1fffbfa5da1d799
 //
-// GET  /api/branches?shop_id=X   -> รายชื่อสาขาที่ user คนนี้เข้าถึงได้ (owner/manager เห็นหมด,
-//                                    role อื่นเห็นเฉพาะสาขาที่ตัวเองมีแถว shop_members อยู่จริง)
-// POST /api/branches             -> สร้างสาขาใหม่ (เฉพาะ owner/manager, ต้องผ่าน tier limit ทั้ง
-//                                    ชั้น API นี้ และชั้น DB trigger trg_branches_tier_limit —
-//                                    "always enforce both layers" ตาม convention ของโปรเจกต์นี้)
+// การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): จัดการสาขาย้ายมาเป็น platform-admin
+// เท่านั้น (super_admin + support) — shop owner/manager ทำเองไม่ได้อีกต่อไป (เดิมผ่าน
+// /admin/branches ซึ่งถูกลบไปแล้ว) POST นี้จึงเรียกจาก app/platform-admin เท่านั้น
+//
+// GET  /api/branches?shop_id=X   -> **ไม่แตะ** ยังเป็นของ shop member เดิมทุกประการ (ใช้โดย
+//                                    branch switcher ใน components/AppShell.js — ทุก role เห็น
+//                                    เฉพาะสาขาที่ตัวเองเข้าถึงได้ ไม่เกี่ยวกับ platform admin)
+// POST /api/branches             -> สร้างสาขาใหม่ (เฉพาะ platform admin role super_admin/support
+//                                    ตอนนี้) ต้องผ่าน 3 ชั้น: (1) shops.branches_feature_enabled
+//                                    ต้องเปิดก่อน (2) tier limit ชั้น API นี้ (3) DB trigger
+//                                    trg_branches_tier_limit (ซึ่งเช็คทั้ง feature flag + tier limit
+//                                    ซ้ำอีกชั้น) — "always enforce both layers" ตาม convention ของ
+//                                    โปรเจกต์นี้
 export async function GET(request) {
   try {
     const authResult = await verifyCaller(request);
@@ -64,21 +73,15 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const authResult = await verifyCaller(request);
+    const authResult = await requirePlatformRole(request, ["super_admin", "support"]);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
-    const { userId } = authResult;
 
     const body = await request.json();
     const shopId = body.shop_id;
     const branchName = (body.branch_name || "").trim();
     const branchCode = (body.branch_code || "").trim();
-
-    const managerCheck = await verifyShopManager(shopId, userId);
-    if (managerCheck.error) {
-      return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });
-    }
 
     if (shopId == null || !branchName) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบ (shop_id/branch_name)" }, { status: 400 });
@@ -86,6 +89,25 @@ export async function POST(request) {
     if (branchCode && !/^\d{5}$/.test(branchCode)) {
       return NextResponse.json(
         { error: "รหัสสาขาต้องเป็นตัวเลข 5 หลักตามรูปแบบกรมสรรพากร (เช่น 00001)" },
+        { status: 400 }
+      );
+    }
+
+    // Feature gate — platform-admin ต้องเปิด branches_feature_enabled ให้ร้านนี้ก่อน (default ปิด)
+    // ถึงจะสร้างสาขาที่ 2 ขึ้นไปได้ — AND กับ tier limit ด้านล่าง ไม่ใช่แทนที่ (ทั้ง 2 เงื่อนไขต้อง
+    // ผ่านพร้อมกัน) เช็คซ้ำอีกชั้นที่ DB trigger trg_branches_tier_limit เช่นกัน
+    const { data: shopRow, error: shopFetchError } = await supabaseAdmin
+      .from("shops")
+      .select("branches_feature_enabled")
+      .eq("shop_id", shopId)
+      .maybeSingle();
+    if (shopFetchError) throw shopFetchError;
+    if (!shopRow) {
+      return NextResponse.json({ error: "ไม่พบอู่นี้" }, { status: 400 });
+    }
+    if (!shopRow.branches_feature_enabled) {
+      return NextResponse.json(
+        { error: "ฟีเจอร์สาขายังไม่ได้เปิดใช้งานสำหรับอู่นี้ — ติดต่อทีมงานเพื่อเปิดใช้งาน" },
         { status: 400 }
       );
     }

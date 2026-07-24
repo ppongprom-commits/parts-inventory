@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdminClient";
-import { verifyCaller, verifyShopManager } from "../../../../lib/teamAuth";
+import { requirePlatformRole } from "../../../../lib/platformAdmin";
 import { getTierConfig, isUnlimited } from "../../../../config/subscriptionTiers";
 
-// PATCH /api/branches/:id — เฉพาะ owner/manager ของร้านนั้น
+// PATCH /api/branches/:id — การ์ด "Platform-controlled shop features" (24 ก.ค. 2026): เฉพาะ
+// platform admin (super_admin/support) เท่านั้น — shop owner/manager ทำเองไม่ได้อีกต่อไป
 // body: { branch_name? , is_read_only? }
 //
 // การ์ด "Downgrade Enterprise→Pro ขณะมีสาขาเกิน limit" — ✅ ตัดสินใจแล้ว: ยอม downgrade แต่สาขา
-// ส่วนเกิน (ที่เจ้าของร้านไม่เลือกเก็บเป็น active) กลายเป็น read-only แทนการลบ/บล็อก downgrade —
-// endpoint นี้คือจุดที่เจ้าของร้าน "เลือก" ว่าสาขาไหนจะเป็น read-only ผ่านการ toggle is_read_only
-// เอง (ไม่ใช่ trigger อัตโนมัติตอน downgrade — เจ้าของร้านต้องเป็นคนเลือกตามที่การ์ดระบุ)
+// ส่วนเกิน (ที่เลือกไม่เก็บเป็น active) กลายเป็น read-only แทนการลบ/บล็อก downgrade — endpoint นี้
+// คือจุดที่ platform admin "เลือก" ว่าสาขาไหนจะเป็น read-only ผ่านการ toggle is_read_only เอง
+// (ไม่ใช่ trigger อัตโนมัติตอน downgrade)
 export async function PATCH(request, { params }) {
   try {
-    const authResult = await verifyCaller(request);
+    const authResult = await requirePlatformRole(request, ["super_admin", "support"]);
     if (authResult.error) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
-    const { userId } = authResult;
     const branchId = Number(params.id);
 
     const { data: branch, error: branchError } = await supabaseAdmin
@@ -27,11 +27,6 @@ export async function PATCH(request, { params }) {
     if (branchError) throw branchError;
     if (!branch) {
       return NextResponse.json({ error: "ไม่พบสาขานี้" }, { status: 404 });
-    }
-
-    const managerCheck = await verifyShopManager(branch.shop_id, userId);
-    if (managerCheck.error) {
-      return NextResponse.json({ error: managerCheck.error }, { status: managerCheck.status });
     }
 
     const body = await request.json();

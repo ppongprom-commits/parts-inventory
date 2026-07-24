@@ -1398,3 +1398,85 @@ staging (Supabase project `qmqabtrrubqcmafietsr`) — เช็ค production (`
 แปลว่าคำตอบข้างบนใช้ได้กับ staging เท่านั้น ถ้าถามคำถามเดียวกันบน production ตอนนี้คำตอบคือ "ยังไม่มี
 Activity Log ให้ดูเลย" มีแผนพอร์ตให้ตรงกันแล้ว (migration 2 ไฟล์ + โค้ด 10 ไฟล์ ตรวจสอบกับ schema จริง
 ของ production ผ่าน Supabase MCP แล้ว) รอคุณอั้มยืนยันก่อนเริ่ม เพราะเป็นการแก้ production DB/โค้ดจริง
+
+---
+
+### 32. คืนวันที่ 24 ก.ค. 2026 — Platform-controlled shop features: ย้าย 3 self-serve toggle ไปเป็น platform-admin เท่านั้น
+
+**การ์ด "Platform-controlled shop features"** — สั่งจากคุณอั้มโดยตรง (product owner) ไม่ใช่การ์ด
+Notion ที่มีอยู่ก่อน
+
+**เหตุผลสถาปัตยกรรม (สำคัญที่สุด — อ่านก่อนแก้อะไรที่เกี่ยวข้อง):** 3 อย่างนี้เดิมเป็น self-serve
+toggle ที่ shop owner/manager กดเองได้จาก `/admin` ของร้านตัวเอง:
+1. `shops.force_zone_scan_confirmation` ("📍 บังคับสแกน QR ยืนยันตำแหน่ง")
+2. Multi-branch support (จัดการสาขาทั้งหมด — สร้าง/เปลี่ยนชื่อ/toggle read-only)
+3. `shops.accounting_module_enabled` ("📒 โมดูลบัญชี")
+
+ตัดสินใจย้ายทั้ง 3 มาเป็น **platform-admin เท่านั้น** จัดการจากแผง `/platform-admin` แทน เพราะทั้ง 3
+กำหนด "สิทธิ์ที่ร้านนี้ใช้งานได้" (entitlement) ไม่ใช่ preference ทั่วไปของร้าน — ควรอยู่ในมือทีมงาน/
+ฝ่ายขายเหมือน `subscription_plan`/`subscription_status` เดิม (permission matrix เดียวกับ
+`BILLING_ROLES = ["super_admin"]` ที่ `app/api/platform/shops/route.js` ใช้อยู่แล้วสำหรับแก้
+subscription) — แยกจากงาน routine ของ `support` role (branch CRUD จริงๆ ยังทำได้ เหมือน
+join-as-support ไม่ใช่การตัดสินใจ billing)
+
+**ผลพลอยได้ — ปิดบั๊กที่มีมานาน:** `shops.force_zone_scan_confirmation` ไม่เคยมี column-level
+UPDATE grant ให้ `authenticated` เลยตั้งแต่การ์ด "ย้ายอะไหล่ระหว่าง Zone" (ยืนยันด้วย
+`has_column_privilege('authenticated','public.shops','force_zone_scan_confirmation','UPDATE')` =
+false บน staging) การ์ดนั้นเขียน `UPDATE shops` ตรงจาก browser ที่ silently fail มาตลอด — ย้ายมาเป็น
+RPC `platform_set_shop_feature()` (SECURITY DEFINER) แก้ปัญหานี้ไปในตัว โดยไม่ต้อง grant คอลัมน์เพิ่ม
+
+**สิ่งที่ทำ:**
+- Migration ใหม่ `db/platform_controlled_shop_features_migration.sql`:
+  - คอลัมน์ใหม่ `shops.branches_feature_enabled` (default false) — เกตใหม่ก่อนสร้างสาขาที่ 2
+    ขึ้นไปได้ **AND กับ tier limit เดิม ไม่ใช่แทนที่** (ต้องผ่านทั้ง 2 เงื่อนไข) —
+    grandfathering: ร้านที่มีมากกว่า 1 branch อยู่แล้วได้ `true` อัตโนมัติ (บน staging ตอนนี้ไม่มีร้าน
+    ไหนเข้าเงื่อนไขนี้เลย — ทุกร้านยังมีแค่ 1 สาขา)
+  - RPC ใหม่ `platform_set_shop_feature(p_actor_user_id, p_shop_id, p_feature, p_enabled)` —
+    super_admin เท่านั้น, allow-list ของ feature แบบ explicit if/elsif (ไม่ dynamic SQL), เขียน
+    `platform_audit_log` ในธุรกรรมเดียวกัน (action `'set_feature'`)
+  - `trg_check_branch_limit()` เพิ่มเช็ค `branches_feature_enabled` ก่อนเช็ค tier limit (DB-level
+    defense-in-depth คู่กับชั้น API)
+  - `set_accounting_module_enabled()` เพิ่ม `p_actor_user_id`, เปลี่ยนเช็คสิทธิ์จาก
+    `is_shop_member(owner/manager)` เป็น `platform_admins.role='super_admin'` — side-effect logic
+    เดิม (seed ผังบัญชี + backfill journal) ไม่เปลี่ยน, เพิ่ม audit log (action
+    `'accounting_module_toggled'`, เดิมไม่เคยมี)
+  - **บั๊กที่พบระหว่างทดสอบจริง:** ฟังก์ชันลูก `fn_seed_default_chart_of_accounts`/
+    `fn_backfill_current_period_sales` มีเช็คสิทธิ์ผ่าน `auth.uid()` ของตัวเองซ้ำอีกชั้น ซึ่งเป็น
+    NULL เสมอเมื่อเรียกผ่าน service_role (ทำให้เปิดโมดูลบัญชีผ่าน API ใหม่ 500 ตลอด) — แก้ด้วย idiom
+    เดียวกับ `db/platform_admin_rpc_auth_check_migration.sql` (เช็คเฉพาะเมื่อ `auth.uid()` ไม่ใช่
+    NULL — คือเมื่อถูกเรียกตรงจาก anon/authenticated จริง)
+  - ทั้ง RPC เดิม (`set_accounting_module_enabled`) และใหม่ (`platform_set_shop_feature`) revoke
+    execute จาก public/anon/authenticated ถาวร เหลือแค่ service_role — ตาม idiom เดียวกับ
+    `db/platform_admin_rpc_auth_check_migration.sql`
+  - Apply บน staging (`qmqabtrrubqcmafietsr`) ผ่าน Supabase MCP แล้ว — `get_advisors(security)` ก่อน/
+    หลัง apply: 80 → 78 findings (ลดลงพอดี 2 รายการที่เป็น grant เก่าของ
+    `set_accounting_module_enabled` signature เดิม ไม่มี finding ใหม่เพิ่ม)
+- API routes: `app/api/branches/route.js` POST และ `app/api/branches/[id]/route.js` PATCH สลับจาก
+  `verifyShopManager` เป็น `requirePlatformRole(request, ["super_admin","support"])` + เช็ค
+  `branches_feature_enabled` ก่อน `checkBranchLimit` เดิม — **`GET /api/branches` ไม่ถูกแตะเลย**
+  (branch switcher ของ `components/AppShell.js` ยังทำงานเหมือนเดิมทุกประการ) — เพิ่มไฟล์ใหม่:
+  `app/api/platform/shops/[shopId]/features/route.js` (PATCH, super_admin เท่านั้น),
+  `app/api/platform/shops/[shopId]/accounting-module/route.js` (POST, super_admin เท่านั้น),
+  `app/api/platform/shops/[shopId]/branches/route.js` (GET, super_admin/support/analyst — ดูสาขา
+  ของร้านใดก็ได้โดยไม่ต้อง join-as-support ก่อน), `app/api/platform/me/route.js` (GET, คืน role
+  ของ platform admin ที่ login อยู่เอง — ใช้ gate ปุ่มใน `/platform-admin`)
+- `app/admin/page.js`: `ZoneMoveSettingsCard`/`AccountingModuleSettingsCard` เหลือแค่แสดงสถานะ
+  (read-only, ไม่มีปุ่มกด), การ์ด "🏬 จัดการสาขา" ลบทิ้ง, `app/admin/branches/page.js` **ลบไฟล์**
+  — เผื่อการ์ดในอนาคตต้องมี export type เพิ่ม `ExportCsvCard` แปลงจาก 1 ปุ่มต่อ 1 ประเภท เป็น
+  dropdown เลือกประเภท + ปุ่มเดียว (`EXPORT_TARGETS` ยังเป็น single source of truth เดิม)
+- `app/platform-admin/page.js`: ขยาย `ShopDetailPanel` เพิ่ม section "🎛️ Feature ของอู่นี้"
+  (toggle force-QR-scan/branches_feature_enabled/accounting module — clickable เฉพาะ super_admin)
+  + sub-panel "🏬 จัดการสาขา" (list/create/rename/toggle-read-only — super_admin+support, analyst
+  read-only)
+- Test: `qa-automation/tests/platform-controlled-shop-features.spec.js` ใหม่ (20 tests, ผ่านหมดบน
+  staging) ครอบ permission matrix เต็มรูป + `qa-automation/tests/multi-branch-support.spec.js`
+  ปรับให้ยิง API ด้วย platform admin token แทน owner token เดิม (10 tests, ผ่านหมด) — ทั้ง 2 ไฟล์
+  รันจริงผ่าน `npx playwright test` กับ local dev server ที่ต่อ staging Supabase จริง (ไม่ใช่ mock)
+
+**พบระหว่างทำงานนี้ (ไม่เกี่ยวกับโค้ดการ์ดนี้ — เป็นปัญหาโครงสร้างพื้นฐาน):** staging Supabase
+project มีช่วง `auth.admin.createUser()`/`listUsers()`/`deleteUser()` (endpoint `/admin/users` ของ
+GoTrue) ล้มเหลวเป็นพักๆ ด้วย error "invalid JWT ... unrecognized JWT kid `<nil>` for algorithm
+ES256" — เห็นจาก Supabase auth service logs ว่าเกิดกับ traffic จากที่อื่น (referer อื่นที่ไม่ใช่
+test run นี้) ด้วย คาดว่าเป็นปัญหา JWT signing key/JWKS ระดับ project ควรให้คุณอั้มตรวจสอบใน Supabase
+Dashboard (Auth → JWT Keys) — `qa-automation/tests/platform-controlled-shop-features.spec.js` เขียน
+หลีกเลี่ยงปัญหานี้แล้วโดยไม่สร้าง auth user ใหม่เลยสักครั้ง (ยืม fixture account ที่มีอยู่แล้วมาใช้แทน)
