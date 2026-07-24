@@ -69,6 +69,17 @@ function JobDetailPageContent() {
   const [holdDraftStepId, setHoldDraftStepId] = useState(null);
   const [holdDraftText, setHoldDraftText] = useState("");
 
+  // การ์ด "เบิกอะไหล่จาก generic stock ไปใช้กับงาน — job_parts_used" (24 ก.ค. 2026) —
+  // คนละกลไกกับ linkedParts ด้านบน (parts.job_id เดิม = ซื้อเฉพาะสำหรับงานตั้งแต่แรก) และคนละ
+  // กลไกกับ consumableQuery/ค่าใช้จ่าย (job_cost_items ผูก part_id = มีเงินเข้าออกเป็นค่าใช้จ่าย
+  // ในงาน) — อันนี้คือ "เบิกของจากสต็อกทั่วไปไปติดตั้งในงาน" เฉยๆ ไม่มีรายการเงินเกิดขึ้น
+  const [jobPartsUsed, setJobPartsUsed] = useState([]);
+  const [withdrawQuery, setWithdrawQuery] = useState("");
+  const [withdrawResults, setWithdrawResults] = useState([]);
+  const [selectedWithdrawPart, setSelectedWithdrawPart] = useState(null);
+  const [withdrawQuantity, setWithdrawQuantity] = useState("1");
+  const [withdrawing, setWithdrawing] = useState(false);
+
   useEffect(() => {
     if (currentShopId) {
       fetchJob();
@@ -79,6 +90,7 @@ function JobDetailPageContent() {
       fetchJobGroups();
       fetchWorkflowSteps();
       fetchLinkedParts();
+      fetchJobPartsUsed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId, jobId]);
@@ -134,6 +146,102 @@ function JobDetailPageContent() {
     }
 
     setLinkedParts(parts);
+  }
+
+  async function fetchJobPartsUsed() {
+    const { data } = await supabase
+      .from("job_parts_used")
+      .select("id, part_id, quantity_used, cost_at_time, used_at, parts(part_name)")
+      .eq("job_id", jobId)
+      .order("used_at", { ascending: false });
+    setJobPartsUsed(data || []);
+  }
+
+  // ค้นหาจาก generic stock เท่านั้น (job_id เป็น null) — ต่างจาก linkedParts ด้านบนที่ผูก job_id
+  // ไว้ตั้งแต่ซื้อ และต่างจาก searchConsumables ที่จำกัดแค่ item_type consumable/salvage แล้วสร้าง
+  // job_cost_items (มีเงินเข้าออก) — ที่นี่รับได้ทั้ง salvage/consumable ที่ยังไม่ผูกงานไหนเลย
+  async function searchWithdrawableParts(query) {
+    setWithdrawQuery(query);
+    if (!query.trim()) {
+      setWithdrawResults([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("parts")
+      .select("id, part_name, price, allocated_cost, quantity, item_type")
+      .eq("shop_id", currentShopId)
+      .is("job_id", null)
+      .eq("is_active", true)
+      .gt("quantity", 0)
+      .ilike("part_name", `%${query.trim()}%`)
+      .limit(8);
+    setWithdrawResults(data || []);
+  }
+
+  function handleSelectWithdrawPart(part) {
+    setSelectedWithdrawPart(part);
+    setWithdrawQuery(part.part_name);
+    setWithdrawResults([]);
+    setWithdrawQuantity("1");
+  }
+
+  async function handleWithdrawPart() {
+    if (!selectedWithdrawPart) return;
+    const qty = Number(withdrawQuantity);
+    if (!qty || qty <= 0) {
+      setMsg({ type: "error", text: "กรุณาระบุจำนวนที่จะเบิกให้ถูกต้อง" });
+      return;
+    }
+    if (qty > Number(selectedWithdrawPart.quantity)) {
+      // เช็คซ้ำฝั่ง UI ก่อน (ให้ error อ่านง่าย) — deduct_part_stock RPC ด้านล่างเป็นตัวกันชั้น
+      // สุดท้ายที่แท้จริง (atomic กันแข่งกันเบิกพร้อมกันจนติดลบ)
+      setMsg({ type: "error", text: `สต็อกไม่พอ (เหลือ ${selectedWithdrawPart.quantity} ชิ้น)` });
+      return;
+    }
+
+    setWithdrawing(true);
+    setMsg(null);
+    try {
+      // ตัดสต็อกก่อนด้วย RPC อะตอมมิกตัวเดียวกับที่ใช้ตอนขาย/เบิกของสิ้นเปลืองใส่ job_cost_items
+      // (deduct_part_stock) — กันแข่งกันตัดพร้อมกันจนติดลบ ถ้าไม่พอจริง RPC จะ raise exception
+      const { error: deductError } = await supabase.rpc("deduct_part_stock", {
+        p_part_id: selectedWithdrawPart.id,
+        p_quantity: qty,
+      });
+      if (deductError) {
+        setMsg({ type: "error", text: "ตัดสต็อกไม่สำเร็จ: " + deductError.message });
+        return;
+      }
+
+      // snapshot ราคาทุน ณ ตอนเบิก — allocated_cost ถ้ามี ไม่งั้น fallback เป็น price (ตรงกับ
+      // fallback logic ของ Stock Value Cap Engine: coalesce(allocated_cost, price, 0))
+      const costAtTime = selectedWithdrawPart.allocated_cost ?? selectedWithdrawPart.price ?? 0;
+
+      const { error: insertError } = await supabase.from("job_parts_used").insert({
+        job_id: jobId,
+        part_id: selectedWithdrawPart.id,
+        quantity_used: qty,
+        cost_at_time: costAtTime,
+        used_by: user?.id || null,
+      });
+
+      if (insertError) {
+        // insert log ไม่สำเร็จ (เช่น RLS/network) แต่ตัดสต็อกไปแล้ว — คืนสต็อกกลับทันทีกันสถานะ
+        // ค้างครึ่งๆ กลางๆ (ของหายจาก stock โดยไม่มี log ว่าเบิกไปไหน)
+        await supabase.rpc("deduct_part_stock", { p_part_id: selectedWithdrawPart.id, p_quantity: -qty });
+        setMsg({ type: "error", text: "บันทึกการเบิกไม่สำเร็จ: " + insertError.message + " (คืนสต็อกกลับให้แล้ว)" });
+        return;
+      }
+
+      setMsg({ type: "success", text: `เบิก ${selectedWithdrawPart.part_name} จำนวน ${qty} ชิ้น ไปใช้กับงานนี้แล้ว` });
+      setSelectedWithdrawPart(null);
+      setWithdrawQuery("");
+      setWithdrawQuantity("1");
+      fetchJobPartsUsed();
+      fetchLinkedParts();
+    } finally {
+      setWithdrawing(false);
+    }
   }
 
   async function fetchGroups() {
@@ -1842,6 +1950,112 @@ function JobDetailPageContent() {
             🔗 ผูกกับสต็อก: {selectedConsumablePart.part_name} — บันทึกแล้วจะตัดสต็อกอัตโนมัติ
           </div>
         )}
+      </div>
+
+      {/* ================= การ์ด "เบิกอะไหล่จาก generic stock ไปใช้กับงาน — job_parts_used" =================
+          คนละส่วนกับ "รายการค่าใช้จ่าย" ด้านบน — ที่นี่ไม่มีเงินเข้าออก แค่บันทึกว่าเบิกอะไหล่จาก
+          สต็อกทั่วไปไปติดตั้งในงานนี้เท่านั้น (ตัดสต็อกถาวรเหมือนขาย ไม่ต้องมี zone อีกต่อไป) */}
+      <div className="card" style={{ marginTop: 24, marginBottom: 24, padding: 16 }} data-testid="job-parts-used-section">
+        <h2 style={{ fontSize: 16, marginBottom: 10 }}>🔧 เบิกอะไหล่จากสต็อกมาใช้กับงานนี้</h2>
+
+        {jobPartsUsed.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            {jobPartsUsed.map((row) => (
+              <div
+                key={row.id}
+                data-testid="job-parts-used-row"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "6px 0",
+                  borderBottom: "1px solid var(--border-strong)",
+                  fontSize: 13,
+                }}
+              >
+                <span>{row.parts?.part_name || "(ไม่พบชื่ออะไหล่)"} × {row.quantity_used}</span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  ต้นทุน {Number(row.cost_at_time || 0).toLocaleString()} บาท/ชิ้น —{" "}
+                  {new Date(row.used_at).toLocaleDateString("th-TH")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ position: "relative", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            type="text"
+            placeholder="ค้นหาอะไหล่จากสต็อกทั่วไป..."
+            value={withdrawQuery}
+            onChange={(e) => {
+              setSelectedWithdrawPart(null);
+              searchWithdrawableParts(e.target.value);
+            }}
+            data-testid="withdraw-part-search-input"
+            style={{ flex: 1, minWidth: 200, padding: 8, borderRadius: 8, border: "1px solid var(--border-strong)" }}
+          />
+          <input
+            type="number"
+            min="1"
+            value={withdrawQuantity}
+            onChange={(e) => setWithdrawQuantity(e.target.value)}
+            data-testid="withdraw-quantity-input"
+            style={{ width: 90, padding: 8, borderRadius: 8, border: "1px solid var(--border-strong)" }}
+          />
+          <button
+            type="button"
+            onClick={handleWithdrawPart}
+            disabled={!selectedWithdrawPart || withdrawing}
+            data-testid="withdraw-part-submit-button"
+            style={{
+              padding: "0 16px",
+              borderRadius: 8,
+              border: "none",
+              background: !selectedWithdrawPart || withdrawing ? "#94a3b8" : "#2563eb",
+              color: "white",
+              fontWeight: 600,
+              cursor: !selectedWithdrawPart || withdrawing ? "not-allowed" : "pointer",
+            }}
+          >
+            {withdrawing ? "กำลังเบิก..." : "🔧 เบิกมาใช้กับงานนี้"}
+          </button>
+
+          {withdrawResults.length > 0 && (
+            <div
+              data-testid="withdraw-part-search-results"
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                background: "var(--card-bg, white)",
+                border: "1px solid var(--border-strong)",
+                borderRadius: 8,
+                marginTop: 4,
+              }}
+            >
+              {withdrawResults.map((part) => (
+                <div
+                  key={part.id}
+                  onClick={() => handleSelectWithdrawPart(part)}
+                  style={{ padding: 8, cursor: "pointer", fontSize: 13 }}
+                >
+                  {part.part_name} — เหลือ {part.quantity} ชิ้น
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {selectedWithdrawPart && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+            เลือก: {selectedWithdrawPart.part_name} (เหลือในสต็อก {selectedWithdrawPart.quantity} ชิ้น)
+          </div>
+        )}
+
+        {/* ยังไม่รองรับ: คืนสต็อกอัตโนมัติถ้า scope งานเปลี่ยนหลังเบิกไปแล้ว (ยังไม่ได้ออกแบบตาม
+            การ์ดต้นฉบับ) — ถ้าต้องแก้ ให้คืนมือผ่าน /move-part หรือแก้ parts.quantity ตรงๆ ไปก่อน */}
       </div>
 
       {/* ================= Phase B: เอกสาร 3 ประเภท ================= */}
